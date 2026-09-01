@@ -1,0 +1,54 @@
+schema: spec-driven
+
+context: |
+  Language: Spanish
+  All artifacts must be written in Spanish.
+  Keep OpenSpec structural headings and SHALL/MUST keywords in English.
+
+  Before planning or implementing any change, read AGENTS.md.
+
+  The stable product vision is located at:
+  docs/product/product-01-next-nestjs.md
+
+  The PUDS roadmap is located at:
+  docs/puds/use-cases/README.md
+
+  The real current project status is located at:
+  docs/STATUS.md
+
+  Work on only one use case at a time.
+
+  Do not declare functionality as implemented unless it exists in the code and tests.
+
+  Do not implement functionality belonging to future use cases unless it is a strictly necessary technical dependency of the active use case.
+
+  The initial cycle is:
+  Ciclo 1 — Inicio y base arquitectónica.
+
+  The initial active use case is:
+  CU-00 — Base del proyecto.
+
+rules:
+  proposal:
+    - Limit the proposal strictly to the active use case.
+    - Do not include implementation of future use cases.
+    - Preserve the architectural decisions defined in the product document.
+
+  tasks:
+    - Include the relevant automated tests.
+    - Include manual verification when applicable.
+    - Include the required documentation updates.
+    - Keep tasks small, reviewable, and traceable.
+
+operations:
+  apply:
+    guidance:
+      - Implement only the scope of the active use case.
+      - Do not mark tasks complete until the implementation really exists.
+      - Run the relevant tests before considering implementation complete.
+
+  archive:
+    guidance:
+      - Do not archive a use case before OpenSpec verification.
+      - Do not archive a use case before explicit user acceptance.
+      - After archiving, update the real project status documentation.
