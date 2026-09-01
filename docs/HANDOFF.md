@@ -14,29 +14,32 @@ No iniciado.
 
 ## Trabajo terminado
 
-- Repositorio GitHub creado y clonado.
-- Git configurado.
-- Node.js actualizado a la versión requerida.
-- OpenCode instalado.
-- OpenSpec instalado.
-- Perfil personalizado de OpenSpec configurado.
-- OpenSpec inicializado para OpenCode.
-- 7 skills y 7 comandos de OpenSpec generados en `.opencode/`.
-- `openspec/config.yaml` configurado.
-- `AGENTS.md` ubicado en la raíz.
-- `docs/product/product-01-next-nestjs.md` ubicado correctamente.
-- `docs/puds/use-cases/README.md` ubicado correctamente.
-- `.gitignore` creado.
-- `README.md` principal creado.
-- `docs/STATUS.md` creado y actualizado.
-- `docs/HANDOFF.md` creado.
-- Estructura inicial del repositorio verificada.
-- Commit inicial de preparación realizado.
+La preparación inicial del proyecto está completada.
+
+Se realizó:
+
+- repositorio GitHub creado y clonado;
+- Git configurado;
+- Node.js actualizado a la versión requerida;
+- OpenCode instalado;
+- OpenSpec instalado;
+- perfil personalizado de OpenSpec configurado;
+- OpenSpec inicializado para OpenCode;
+- 7 skills y 7 comandos de OpenSpec generados;
+- `openspec/config.yaml` configurado;
+- `AGENTS.md` ubicado en la raíz;
+- documento de producto ubicado correctamente;
+- roadmap PUDS ubicado correctamente;
+- `.gitignore` creado;
+- `README.md` principal creado;
+- `docs/STATUS.md` creado y actualizado;
+- `docs/HANDOFF.md` creado;
+- estructura inicial del repositorio verificada;
+- preparación registrada en Git;
+- repositorio local sincronizado con GitHub.
 
 ## Trabajo pendiente
 
-- Registrar las últimas actualizaciones documentales en Git.
-- Hacer push al repositorio GitHub.
 - Crear el plan detallado de CU-00.
 - Revisar y aprobar el plan.
 - Preparar el prompt para OpenCode.
@@ -44,6 +47,7 @@ No iniciado.
 - Implementar CU-00.
 - Ejecutar tests.
 - Realizar pruebas manuales.
+- Corregir errores si aparecen.
 - Actualizar la documentación del CU.
 - Ejecutar `verify`.
 - Obtener aceptación.
@@ -61,15 +65,14 @@ Todavía no existen tests de implementación porque CU-00 no ha comenzado.
 
 ## Decisiones recientes importantes
 
-- Se utilizará un perfil personalizado de OpenSpec.
-- OpenSpec dispone de `propose`, `explore`, `apply`, `update`, `sync`, `verify` y `archive`.
-- OpenSpec fue configurado para OpenCode con skills y slash commands.
-- Los artefactos de OpenSpec se escribirán en español.
-- Se trabajará un solo caso de uso a la vez.
+- Se trabaja un solo CU a la vez.
+- OpenSpec utiliza perfil personalizado.
+- Workflows disponibles: `propose`, `explore`, `apply`, `update`, `sync`, `verify` y `archive`.
+- OpenSpec está integrado con OpenCode mediante skills y slash commands.
+- Los artefactos de OpenSpec se redactarán en español.
 - No se implementarán funcionalidades de CUs futuros antes de tiempo.
 
 ## Siguiente acción exacta
 
-Registrar en Git las actualizaciones de `docs/STATUS.md` y `docs/HANDOFF.md`, y realizar el primer push al repositorio GitHub.
-
+Crear y revisar el plan detallado de **CU-00 — Base del proyecto** antes de iniciar la implementación.
 
