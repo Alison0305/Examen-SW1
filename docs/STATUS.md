@@ -15,11 +15,19 @@ La preparación previa del proyecto ya fue realizada:
 - OpenSpec instalado;
 - perfil personalizado de OpenSpec configurado;
 - OpenSpec inicializado para OpenCode;
-- skills y comandos de OpenSpec generados;
+- 7 skills y 7 comandos de OpenSpec generados;
 - documentación principal ubicada en sus rutas correspondientes;
-- `.gitignore` creado.
+- `.gitignore` creado;
+- `openspec/config.yaml` configurado;
+- `docs/STATUS.md` creado;
+- `docs/HANDOFF.md` creado;
+- `README.md` principal creado;
+- estructura inicial del repositorio verificada;
+- commit inicial de preparación realizado.
 
 Todavía no existe implementación funcional del CU-00.
+
+**Commit de preparación:** `481a9b8` — `chore: prepare project workflow`
 
 ## Casos de uso completados
 
@@ -31,10 +39,8 @@ Actualmente no existe un cambio OpenSpec activo para un caso de uso.
 
 ## Pendiente
 
-- Crear `docs/HANDOFF.md`.
-- Crear el `README.md` principal del repositorio.
-- Verificar la estructura inicial completa.
-- Realizar el commit inicial de preparación.
+- Actualizar `docs/HANDOFF.md` con el estado actual.
+- Registrar las actualizaciones documentales en Git.
 - Hacer push al repositorio GitHub.
 - Crear el plan detallado de CU-00.
 - Revisar y aprobar el plan.
@@ -48,4 +54,4 @@ Ninguno conocido actualmente.
 
 ## Siguiente acción
 
-Crear `docs/HANDOFF.md` con el contexto operativo vigente del proyecto.
+Actualizar `docs/HANDOFF.md` y después registrar y subir a GitHub la preparación inicial del proyecto.
