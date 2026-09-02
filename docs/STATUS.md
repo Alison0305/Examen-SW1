@@ -19,7 +19,7 @@ Se realizó:
 - OpenSpec inicializado para OpenCode;
 - 7 skills y 7 comandos de OpenSpec generados;
 - `openspec/config.yaml` configurado;
-- `AGENTS.md` ubicado en la raíz;
+- `AGENTS.md` ubicado y actualizado;
 - documento de producto ubicado correctamente;
 - roadmap PUDS ubicado correctamente;
 - `.gitignore` creado;
@@ -27,9 +27,8 @@ Se realizó:
 - `docs/STATUS.md` creado;
 - `docs/HANDOFF.md` creado;
 - estructura inicial del repositorio verificada;
-- preparación registrada en Git;
-- repositorio local sincronizado con GitHub;
-- roadmap PUDS reorganizado de 20 a 12 casos de uso, manteniendo 4 ciclos y el alcance funcional del producto.
+- preparación registrada en Git y sincronizada con GitHub;
+- roadmap PUDS reorganizado de 20 a 12 casos de uso.
 
 Todavía no existe implementación funcional del CU-00.
 
@@ -49,7 +48,6 @@ Actualmente no existe un cambio OpenSpec activo para un caso de uso.
 
 ## Pendiente
 
-- Registrar y subir la actualización del roadmap de 12 CUs.
 - Crear el plan detallado de CU-00.
 - Revisar y aprobar el plan.
 - Preparar el prompt para OpenCode.
@@ -62,4 +60,4 @@ Ninguno conocido actualmente.
 
 ## Siguiente acción
 
-Registrar en Git la actualización del roadmap de 12 CUs y, después, crear y revisar el plan detallado de **CU-00 — Base del proyecto**.
+Crear y revisar el plan detallado de **CU-00 — Base del proyecto** antes de iniciar cualquier implementación.
