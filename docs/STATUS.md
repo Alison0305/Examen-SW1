@@ -28,7 +28,8 @@ Se realizó:
 - `docs/HANDOFF.md` creado;
 - estructura inicial del repositorio verificada;
 - preparación registrada en Git;
-- repositorio local sincronizado con GitHub.
+- repositorio local sincronizado con GitHub;
+- roadmap PUDS reorganizado de 20 a 12 casos de uso, manteniendo 4 ciclos y el alcance funcional del producto.
 
 Todavía no existe implementación funcional del CU-00.
 
@@ -36,12 +37,19 @@ Todavía no existe implementación funcional del CU-00.
 
 Ninguno.
 
+## Roadmap vigente
+
+- 4 ciclos PUDS.
+- 12 casos de uso.
+- Numeración vigente: `CU-00` a `CU-11`.
+
 ## OpenSpec activo
 
 Actualmente no existe un cambio OpenSpec activo para un caso de uso.
 
 ## Pendiente
 
+- Registrar y subir la actualización del roadmap de 12 CUs.
 - Crear el plan detallado de CU-00.
 - Revisar y aprobar el plan.
 - Preparar el prompt para OpenCode.
@@ -54,4 +62,4 @@ Ninguno conocido actualmente.
 
 ## Siguiente acción
 
-Crear y revisar el plan detallado de **CU-00 — Base del proyecto** antes de iniciar cualquier implementación.
+Registrar en Git la actualización del roadmap de 12 CUs y, después, crear y revisar el plan detallado de **CU-00 — Base del proyecto**.
