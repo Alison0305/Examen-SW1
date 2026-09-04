@@ -2,7 +2,7 @@
 
 ## Estado operativo
 
-- CU-00 — Base del proyecto completado;
+- CU-00 — Base del proyecto cerrado;
 - OpenSpec activo: ninguno;
 - OpenSpec CU-00 archivado en `openspec/changes/archive/2026-09-04-cu-00-base-proyecto/`;
 - spec `base-proyecto` sincronizada en `openspec/specs/base-proyecto/spec.md`;
@@ -10,16 +10,13 @@
 - prueba manual visual correcta;
 - verify correcto, sin issues críticos;
 - aceptación confirmada;
+- commit principal de cierre: `fbd4c50 feat: completar base del proyecto CU-00`;
+- commit subido correctamente a `origin/main`;
 - frontend: 4 tests correctos;
 - backend: 4 tests correctos;
 - lint correcto;
 - typecheck correcto;
 - build correcto.
-
-## Trabajo pendiente
-
-- commit de cierre de CU-00;
-- push de cierre de CU-00.
 
 ## Roadmap completo
 
@@ -30,8 +27,8 @@ Ciclo 4: CU-09 → CU-10 → CU-11
 
 ## Siguiente CU
 
-CU-01 — Núcleo UML canónico y validación será el siguiente CU después del cierre de CU-00, pero todavía no está iniciado.
+CU-01 — Núcleo UML canónico y validación será el siguiente CU, pero todavía no está iniciado.
 
 ## Siguiente acción exacta
 
-Realizar commit y push de cierre de CU-00.
+Crear y revisar el plan de CU-01.

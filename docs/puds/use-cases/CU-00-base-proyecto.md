@@ -176,8 +176,10 @@ La spec principal `base-proyecto` fue sincronizada en `openspec/specs/base-proye
 
 ## Resultado final
 
-CU-00 quedó implementado, con 28/28 tareas completadas, pruebas automatizadas correctas, prueba manual correcta, verify correcto, aceptación confirmada, OpenSpec archivado y spec sincronizada. Pendiente únicamente commit y push de cierre.
+CU-00 quedó implementado, con 28/28 tareas completadas, pruebas automatizadas correctas, prueba manual correcta, verify correcto, aceptación confirmada, OpenSpec archivado y spec sincronizada. El commit principal de cierre fue registrado y subido correctamente a `origin/main`.
 
 ## Commit de cierre
 
-Pendiente. Se completará después de realizar el commit y push de cierre de CU-00.
+`fbd4c50 feat: completar base del proyecto CU-00`
+
+El commit fue subido correctamente a `origin/main`.

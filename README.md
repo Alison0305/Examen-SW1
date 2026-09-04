@@ -8,11 +8,15 @@ Herramienta CASE colaborativa, offline-first, orientada al modelado UML de clase
 
 **Último CU completado:** CU-00 — Base del proyecto
 
-**Estado:** CU-00 implementado, verificado, aceptado y archivado; pendiente commit y push de cierre.
+**Estado:** CU-00 implementado, verificado, aceptado, archivado y cerrado.
 
 CU-00 entrega una base técnica con monorepo npm, `frontend/`, `backend/`, health del backend y una consulta visual desde el frontend.
 
-El siguiente caso de uso del roadmap es CU-01 — Núcleo UML canónico y validación, pero todavía no ha comenzado y no debe iniciarse antes del commit y push de cierre de CU-00.
+Commit principal de cierre: `fbd4c50 feat: completar base del proyecto CU-00`.
+
+El commit de cierre fue subido correctamente a `origin/main`.
+
+El siguiente caso de uso del roadmap es CU-01 — Núcleo UML canónico y validación, pero todavía no ha comenzado.
 
 ## Uso rápido de CU-00
 

@@ -44,12 +44,13 @@ Ninguno.
 - verify sin issues críticos;
 - aceptación confirmada;
 - spec sincronizada;
-- OpenSpec archivado.
+- OpenSpec archivado;
+- commit principal de cierre registrado: `fbd4c50 feat: completar base del proyecto CU-00`;
+- push del commit de cierre realizado correctamente a `origin/main`.
 
-## Pendiente
+## Pendiente de CU-00
 
-- commit de cierre de CU-00;
-- push de cierre de CU-00.
+Nada.
 
 ## Limitaciones conocidas
 
@@ -62,4 +63,4 @@ Ninguno conocido actualmente.
 
 ## Siguiente acción
 
-Registrar el cierre de CU-00 mediante commit y push. Después de ese cierre, el siguiente CU del roadmap será CU-01 — Núcleo UML canónico y validación, pero todavía no debe iniciarse.
+Preparar el plan de CU-01 — Núcleo UML canónico y validación, sin iniciar todavía su implementación.
