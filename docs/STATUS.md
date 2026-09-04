@@ -2,39 +2,15 @@
 
 ## Estado actual
 
-**Ciclo actual:** Ciclo 1 — Inicio y base arquitectónica  
-**CU activo:** CU-00 — Base del proyecto  
-**Estado del CU:** No iniciado
+**Ciclo actual:** Ciclo 1 — Inicio y base arquitectónica.
 
-La preparación previa del proyecto está completada.
+**Último CU completado:** CU-00 — Base del proyecto.
 
-Se realizó:
-
-- repositorio GitHub creado y clonado;
-- Git configurado;
-- Node.js actualizado a la versión requerida;
-- OpenCode instalado;
-- OpenSpec instalado;
-- perfil personalizado de OpenSpec configurado;
-- OpenSpec inicializado para OpenCode;
-- 7 skills y 7 comandos de OpenSpec generados;
-- `openspec/config.yaml` configurado;
-- `AGENTS.md` ubicado y actualizado;
-- documento de producto ubicado correctamente;
-- roadmap PUDS ubicado correctamente;
-- `.gitignore` creado;
-- `README.md` principal creado;
-- `docs/STATUS.md` creado;
-- `docs/HANDOFF.md` creado;
-- estructura inicial del repositorio verificada;
-- preparación registrada en Git y sincronizada con GitHub;
-- roadmap PUDS reorganizado de 20 a 12 casos de uso.
-
-Todavía no existe implementación funcional del CU-00.
+**CU en implementación:** Ninguno.
 
 ## Casos de uso completados
 
-Ninguno.
+- CU-00 — Base del proyecto.
 
 ## Roadmap vigente
 
@@ -44,15 +20,41 @@ Ninguno.
 
 ## OpenSpec activo
 
-Actualmente no existe un cambio OpenSpec activo para un caso de uso.
+Ninguno.
+
+## OpenSpec archivado
+
+`openspec/changes/archive/2026-09-04-cu-00-base-proyecto/`
+
+## Spec principal
+
+`openspec/specs/base-proyecto/spec.md`
+
+## Trabajo realizado
+
+- plan aprobado;
+- OpenSpec creado;
+- 28/28 tareas completadas;
+- frontend y backend creados;
+- lint correcto;
+- typecheck correcto;
+- 8 tests correctos;
+- build correcto;
+- prueba manual correcta;
+- verify sin issues críticos;
+- aceptación confirmada;
+- spec sincronizada;
+- OpenSpec archivado.
 
 ## Pendiente
 
-- Crear el plan detallado de CU-00.
-- Revisar y aprobar el plan.
-- Preparar el prompt para OpenCode.
-- Crear el cambio OpenSpec de CU-00.
-- Implementar CU-00.
+- commit de cierre de CU-00;
+- push de cierre de CU-00.
+
+## Limitaciones conocidas
+
+- `npm audit --omit=dev` reporta 4 vulnerabilidades transitivas que npm propone corregir con upgrades mayores a NestJS 12 y Next 16; no se aplican en CU-00 para respetar el stack aprobado.
+- `next build` muestra una advertencia no bloqueante sobre detección del plugin ESLint de Next con flat config; lint y build pasan correctamente.
 
 ## Problemas abiertos
 
@@ -60,4 +62,4 @@ Ninguno conocido actualmente.
 
 ## Siguiente acción
 
-Crear y revisar el plan detallado de **CU-00 — Base del proyecto** antes de iniciar cualquier implementación.
+Registrar el cierre de CU-00 mediante commit y push. Después de ese cierre, el siguiente CU del roadmap será CU-01 — Núcleo UML canónico y validación, pero todavía no debe iniciarse.
