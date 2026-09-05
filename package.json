@@ -4,7 +4,8 @@
   "private": true,
   "workspaces": [
     "frontend",
-    "backend"
+    "backend",
+    "uml-core"
   ],
   "engines": {
     "node": ">=24.0.0"
@@ -16,7 +17,8 @@
     "build": "npm run build --workspaces",
     "lint": "npm run lint --workspaces",
     "typecheck": "npm run typecheck --workspaces",
-    "test": "npm run test --workspaces"
+    "test": "npm run test --workspaces",
+    "demo:uml": "npm run demo --workspace @examen-sw1/uml-core"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"
