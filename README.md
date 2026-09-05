@@ -10,7 +10,11 @@ Herramienta CASE colaborativa, offline-first, orientada al modelado UML de clase
 
 **OpenSpec activo:** ninguno
 
-**Estado:** CU-01 aceptado por el usuario, verificado, archivado y con spec principal sincronizada; quedan pendientes commit y push.
+**Estado:** CU-01 cerrado. Fue implementado, verificado, aceptado explícitamente por el usuario, archivado y sincronizado con la spec principal.
+
+**Commit principal de cierre:** `5256252 feat: completar núcleo UML y validación CU-01`
+
+**Publicación:** el commit principal de cierre fue subido correctamente a `origin/main`.
 
 CU-02 — Command Bus, Undo/Redo y workspace UML manual todavía no está iniciado.
 

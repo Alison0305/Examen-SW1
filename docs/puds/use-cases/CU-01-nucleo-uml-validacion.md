@@ -105,6 +105,7 @@ El validador produce diagnósticos deterministas con severidades `error` y `warn
 - Spec principal sincronizada: `openspec/specs/nucleo-uml-validacion/spec.md`.
 - Requirements reales: 11.
 - Scenarios reales: 48.
+- OpenSpec activo: ninguno.
 
 ## Archivos Principales
 
@@ -247,10 +248,18 @@ El usuario aceptó explícitamente CU-01 con la frase: `Acepto el CU-01`.
 
 ## Resultado Final
 
-CU-01 quedó aceptado por el usuario, verificado, archivado y con spec principal sincronizada. La implementación contiene 33/33 tareas completadas, 30 tests correctos, lint correcto, typecheck correcto, build correcto, demo correcta y prueba manual aprobada.
+CU-01 está implementado, verificado, aceptado, archivado, con spec principal sincronizada, commit principal creado y push realizado correctamente.
 
-Quedan pendientes el commit de cierre y el push. CU-02 todavía no está iniciado.
+CU-02 todavía no está iniciado.
 
 ## Commit De Cierre
 
-Pendiente. Aún no existe commit de cierre de CU-01.
+Commit principal:
+
+`5256252 feat: completar núcleo UML y validación CU-01`
+
+Estado:
+
+Subido correctamente a `origin/main`.
+
+Este commit `5256252` es el commit principal de cierre de CU-01. Un commit documental posterior puede registrar este estado final sin requerir otra actualización de hash para evitar un ciclo de commits documentales.

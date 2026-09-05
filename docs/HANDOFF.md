@@ -3,11 +3,14 @@
 ## Estado Operativo
 
 - Último CU completado: CU-01 — Núcleo UML canónico y validación.
+- CU-01 cerrado.
 - OpenSpec activo: ninguno.
-- CU-00 cerrado con commit `fbd4c50 feat: completar base del proyecto CU-00` y push a `origin/main`.
-- CU-01 aceptado por el usuario, verificado, archivado y con spec principal sincronizada.
-- Archive real de CU-01: `openspec/changes/archive/2026-09-04-cu-01-nucleo-uml-validacion/`.
+- Archive de CU-01: `openspec/changes/archive/2026-09-04-cu-01-nucleo-uml-validacion/`.
 - Spec principal de CU-01: `openspec/specs/nucleo-uml-validacion/spec.md`.
+- CU-01 aceptado por el usuario, verificado, archivado y con spec principal sincronizada.
+- Commit principal: `5256252 feat: completar núcleo UML y validación CU-01`.
+- Push: realizado correctamente a `origin/main`.
+- CU-00 cerrado con commit `fbd4c50 feat: completar base del proyecto CU-00` y push a `origin/main`.
 - `uml-core/` implementado como workspace independiente.
 - `ProjectDocument` contiene `uml` y `layout`.
 - `CanonicalUmlModel` es la fuente de verdad semántica.
@@ -21,14 +24,8 @@
 - Build correcto.
 - Demo `npm run demo:uml` correcta.
 - Prueba manual del usuario realizada y aprobada.
-- Commit de cierre pendiente.
-- Push pendiente.
-
-## Trabajo Pendiente
-
-- revisar diff final;
-- commit de cierre de CU-01;
-- push del commit de cierre de CU-01.
+- Verify correcto.
+- Aceptación confirmada.
 
 ## Roadmap Completo
 
@@ -43,4 +40,4 @@ CU-02 — Command Bus, Undo/Redo y workspace UML manual será el siguiente CU, p
 
 ## Siguiente Acción Exacta
 
-Preparar commit de cierre de CU-01 y hacer push cuando el usuario lo solicite.
+Preparar el plan de CU-02 cuando el usuario lo solicite, sin iniciar implementación todavía.
