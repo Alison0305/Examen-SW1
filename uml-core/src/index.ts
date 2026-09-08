@@ -1,4 +1,35 @@
 export type {
+  AddAttributeCommand,
+  AddEnumerationLiteralCommand,
+  ApplyLayoutCommand,
+  CommandRejectedResult,
+  CommandResult,
+  CommandSuccessResult,
+  CreateClassCommand,
+  CreateEnumerationCommand,
+  CreateRelationshipCommand,
+  DeleteClassCommand,
+  DeleteEnumerationCommand,
+  DeleteRelationshipCommand,
+  DiagramElementLayoutInput,
+  MoveElementCommand,
+  RemoveAttributeCommand,
+  RemoveEnumerationLiteralCommand,
+  RenameClassCommand,
+  RenameEnumerationCommand,
+  UpdateClassVisibilityCommand,
+  UpdateEnumerationVisibilityCommand,
+  UpdateRelationshipNameCommand,
+  UmlCommand,
+  UpdateAttributeCommand,
+  UpdateMultiplicityCommand,
+} from "./commands/command.js";
+
+export type { UmlCommandBusHistoryState, UmlCommandBusOptions } from "./commands/command-bus.js";
+
+export type { UmlCommandExecutorOptions } from "./commands/executor.js";
+
+export type {
   CanonicalUmlModel,
   CrudGenerationMetadata,
   DiagramElementLayout,
@@ -47,3 +78,6 @@ export {
 } from "./model.js";
 
 export { validateCanonicalUmlModel, validateProjectDocument } from "./validation.js";
+
+export { UmlCommandBus } from "./commands/command-bus.js";
+export { UmlCommandExecutor } from "./commands/executor.js";

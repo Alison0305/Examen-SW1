@@ -318,9 +318,13 @@ function validateRelationships(relationships: UmlRelationship[], context: Valida
           "Una generalización debe conectar clases existentes.",
         );
       }
+      if (relationship.sourceMultiplicity || relationship.targetMultiplicity) {
+        addInvalidRelationship(context, `${basePath}.multiplicity`, relationship.id, "Las generalizaciones no admiten multiplicidades.");
+      }
+    } else {
+      validateMultiplicity(relationship.sourceMultiplicity, `${basePath}.sourceMultiplicity`, relationship.id, context.diagnostics);
+      validateMultiplicity(relationship.targetMultiplicity, `${basePath}.targetMultiplicity`, relationship.id, context.diagnostics);
     }
-    validateMultiplicity(relationship.sourceMultiplicity, `${basePath}.sourceMultiplicity`, relationship.id, context.diagnostics);
-    validateMultiplicity(relationship.targetMultiplicity, `${basePath}.targetMultiplicity`, relationship.id, context.diagnostics);
   });
 }
 

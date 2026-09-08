@@ -4,30 +4,31 @@
 
 **Ciclo actual:** Ciclo 1 — Inicio y base arquitectónica.
 
-**Último CU completado:** CU-01 — Núcleo UML canónico y validación.
+**Último CU completado:** CU-02 — Command Bus, Undo/Redo y workspace UML manual.
 
-**OpenSpec activo:** ninguno.
+**CU activo:** Ninguno.
 
-CU-01 está cerrado. CU-02 — Command Bus, Undo/Redo y workspace UML manual todavía no está iniciado.
+**OpenSpec activo:** Ninguno.
+
+CU-02 fue aceptado formalmente por el usuario. La prueba manual 3.16 y la verificación final 3.17 fueron satisfactorias. CU-03 — Persistencia, autenticación y ownership sigue planificado y no iniciado.
 
 ## Casos De Uso Completados
 
 - CU-00 — Base del proyecto.
 - CU-01 — Núcleo UML canónico y validación.
-
-## OpenSpec Activo
-
-Ninguno.
+- CU-02 — Command Bus, Undo/Redo y workspace UML manual.
 
 ## OpenSpec Archivado
 
 - `openspec/changes/archive/2026-09-04-cu-00-base-proyecto/`
 - `openspec/changes/archive/2026-09-04-cu-01-nucleo-uml-validacion/`
+- `openspec/changes/archive/2026-09-08-cu-02-uml-workspace/`
 
 ## Specs Principales
 
 - `openspec/specs/base-proyecto/spec.md`
 - `openspec/specs/nucleo-uml-validacion/spec.md`
+- `openspec/specs/uml-workspace/spec.md`
 
 ## Cierre De CU-01
 
@@ -48,26 +49,29 @@ Ninguno.
 - Commit principal: `5256252 feat: completar núcleo UML y validación CU-01`.
 - Push: realizado correctamente a `origin/main`.
 
-## Trabajo Realizado
+## Cierre De CU-02
 
-- CU-00 cerrado con commit `fbd4c50 feat: completar base del proyecto CU-00` y push a `origin/main`.
-- Workspace `uml-core/` creado como paquete conceptual `@examen-sw1/uml-core`.
-- `ProjectDocument`, `CanonicalUmlModel` y `DiagramLayout` implementados.
-- Dominio UML de clases implementado con clases, atributos, operaciones, parámetros, enumeraciones, paquetes, tipos, visibilidad, relaciones y multiplicidades.
-- `generationMetadata` implementado separado de UML estándar.
-- Serialización y reconstrucción JSON implementadas.
-- Motor de validación determinista implementado con diagnósticos estructurados.
-- Demo `npm run demo:uml` implementada y correcta.
-
-## Pendiente De CU-01
-
-Nada.
+- Cambio OpenSpec: `cu-02-uml-workspace`.
+- Capability planificada: `uml-workspace`.
+- Objetivo: establecer Command Bus, Undo/Redo y workspace UML manual local en memoria.
+- Estado: cerrado, aceptado formalmente y archivado en `openspec/changes/archive/2026-09-08-cu-02-uml-workspace/`.
+- Incrementos definidos: 3.
+- Incremento 1: Command Bus y Undo/Redo completado.
+- Incremento 2: Workspace UML manual completado.
+- Incremento 3: ELK, diagnósticos, responsive e integración implementados a nivel automatizado; gates finales de raíz correctos.
+- Progreso OpenSpec: 55/55 tareas completadas.
+- Dependencias instaladas en esta fase: `@xyflow/react`, Zustand, ELK.js y dependencia local `@examen-sw1/uml-core` en frontend.
+- Prueba manual: satisfactoria, incluyendo eliminación y restauración por Undo de clase y enum, responsive básico, `UML_DUPLICATE_NAME` y navegación IR.
+- Gates finales: `npm run lint`, `npm run typecheck`, `npm run test` y `npm run build` correctos; suite total actual: 106 tests.
+- Edición manual de rutas, bends o segmentos estilo StarUML: diferida para mejora posterior.
 
 ## Limitaciones Conocidas
 
 - `npm audit --omit=dev` reporta 4 vulnerabilidades transitivas que npm propone corregir con upgrades mayores a NestJS 12 y Next 16; no se aplicaron en CU-01 para respetar el stack aprobado.
 - `next build` muestra una advertencia no bloqueante sobre detección del plugin ESLint de Next con flat config; lint y build pasan correctamente.
 - `npm install` muestra una advertencia de `allowScripts` para `esbuild@0.28.2`; no bloquea instalación, tests ni build.
+- La instalación de dependencias frontend del Incremento 2 reportó 2 vulnerabilidades npm transitivas; no se corrigieron en esta iteración para evitar cambios de alcance/versiones no aprobados.
+- La instalación de ELK.js para Incremento 3 mantuvo 2 vulnerabilidades npm transitivas y la advertencia de scripts de `esbuild@0.28.2`; no se corrigieron por alcance.
 
 ## Problemas Abiertos
 
@@ -75,4 +79,4 @@ Ninguno conocido actualmente.
 
 ## Siguiente Acción
 
-Preparar el plan de CU-02, pero no iniciarlo todavía.
+Archivar, commitear y publicar el cierre aceptado de CU-02. No iniciar CU-03.

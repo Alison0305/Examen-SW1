@@ -211,6 +211,7 @@ describe("dominio UML", () => {
     document.uml.relationships.push({
       id: ids.relationship,
       type: "Association",
+      name: "tiene",
       sourceId: ids.class,
       targetId: ids.otherClass,
       sourceMultiplicity: multiplicity(1),

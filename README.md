@@ -6,17 +6,21 @@ Herramienta CASE colaborativa, offline-first, orientada al modelado UML de clase
 
 **Ciclo actual:** Ciclo 1 — Inicio y base arquitectónica
 
-**Último CU completado:** CU-01 — Núcleo UML canónico y validación
+**Último CU completado:** CU-02 — Command Bus, Undo/Redo y workspace UML manual
 
-**OpenSpec activo:** ninguno
+**CU activo:** Ninguno
 
-**Estado:** CU-01 cerrado. Fue implementado, verificado, aceptado explícitamente por el usuario, archivado y sincronizado con la spec principal.
+**OpenSpec activo:** Ninguno
 
-**Commit principal de cierre:** `5256252 feat: completar núcleo UML y validación CU-01`
+**Estado:** CU-02 aceptado formalmente por el usuario, con prueba manual y verificación final satisfactorias; listo para archive.
 
-**Publicación:** el commit principal de cierre fue subido correctamente a `origin/main`.
+**Incrementos definidos para CU-02:** 3
 
-CU-02 — Command Bus, Undo/Redo y workspace UML manual todavía no está iniciado.
+**Commit principal de cierre de CU-01:** `5256252 feat: completar núcleo UML y validación CU-01`
+
+**Publicación de CU-01:** el commit principal de cierre fue subido correctamente a `origin/main`.
+
+CU-03 — Persistencia, autenticación y ownership está planificado y no iniciado. La edición manual de rutas, bends o segmentos UML estilo StarUML queda diferida para una mejora posterior.
 
 ## Uso rápido
 
@@ -45,10 +49,12 @@ npm run demo:uml
 
 ## Stack Implementado
 
-- Frontend: Next.js App Router, TypeScript, Material UI, Vitest y React Testing Library.
+- Frontend: Next.js App Router, TypeScript, Material UI, React Flow, Zustand, ELK.js, Vitest y React Testing Library.
 - Backend: Node.js 24 LTS, TypeScript, NestJS 11 sobre Fastify, Vitest, `@nestjs/testing` y Supertest.
 - Núcleo UML: TypeScript, Vitest y workspace `uml-core` con paquete conceptual `@examen-sw1/uml-core`.
 - Monorepo: npm workspaces con `frontend`, `backend` y `uml-core`.
+
+`@xyflow/react`, Zustand y ELK.js ya estan instalados para el workspace UML manual de CU-02.
 
 El stack completo previsto del producto está documentado en `docs/product/product-01-next-nestjs.md`. Las tecnologías de CUs futuros no deben considerarse implementadas hasta que el CU correspondiente las entregue.
 

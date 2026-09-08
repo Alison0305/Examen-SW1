@@ -1,5 +1,3 @@
-import { randomUUID } from "node:crypto";
-
 export type Uuid = string;
 
 export const UML_VISIBILITIES = ["public", "private", "protected", "package"] as const;
@@ -113,6 +111,7 @@ export type UmlRelationshipType = (typeof UML_RELATIONSHIP_TYPES)[number];
 export interface UmlRelationship {
   id: Uuid;
   type: UmlRelationshipType;
+  name?: string;
   sourceId: Uuid;
   targetId: Uuid;
   sourceMultiplicity?: Multiplicity;
@@ -154,7 +153,12 @@ export interface ProjectDocumentOptions {
 }
 
 export function createUuid(): Uuid {
-  return randomUUID();
+  const cryptoLike = globalThis.crypto as { randomUUID?: () => string } | undefined;
+  const uuid = cryptoLike?.randomUUID?.();
+  if (!uuid) {
+    throw new Error("No hay generador de UUID disponible en el runtime actual.");
+  }
+  return uuid;
 }
 
 export function createEmptyCanonicalUmlModel(): CanonicalUmlModel {
