@@ -8,19 +8,17 @@ Herramienta CASE colaborativa, offline-first, orientada al modelado UML de clase
 
 **Último CU completado:** CU-02 — Command Bus, Undo/Redo y workspace UML manual
 
-**CU activo:** Ninguno
+**CU activo:** CU-03 — Persistencia, autenticación y ownership
 
-**OpenSpec activo:** Ninguno
+**OpenSpec activo:** `cu-03-persistencia-autenticacion-ownership`
 
-**Estado:** CU-02 aceptado formalmente por el usuario, con prueba manual y verificación final satisfactorias; listo para archive.
-
-**Incrementos definidos para CU-02:** 3
+**Estado:** CU-00, CU-01 y CU-02 cerrados. CU-03 está activo: Incrementos 1 y 2 completados; Incremento 3 no iniciado.
 
 **Commit principal de cierre de CU-01:** `5256252 feat: completar núcleo UML y validación CU-01`
 
 **Publicación de CU-01:** el commit principal de cierre fue subido correctamente a `origin/main`.
 
-CU-03 — Persistencia, autenticación y ownership está planificado y no iniciado. La edición manual de rutas, bends o segmentos UML estilo StarUML queda diferida para una mejora posterior.
+No hay autenticación, JWT, endpoints públicos, ownership HTTP ni control de revisión en CU-03. La edición manual de rutas, bends o segmentos UML estilo StarUML queda diferida para una mejora posterior.
 
 ## Uso rápido
 

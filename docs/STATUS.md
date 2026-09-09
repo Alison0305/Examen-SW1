@@ -4,31 +4,45 @@
 
 **Ciclo actual:** Ciclo 1 — Inicio y base arquitectónica.
 
-**Último CU completado:** CU-02 — Command Bus, Undo/Redo y workspace UML manual.
+**Último CU completado:** CU-03 — Persistencia, autenticación y ownership.
 
 **CU activo:** Ninguno.
 
 **OpenSpec activo:** Ninguno.
 
-CU-02 fue aceptado formalmente por el usuario. La prueba manual 3.16 y la verificación final 3.17 fueron satisfactorias. CU-03 — Persistencia, autenticación y ownership sigue planificado y no iniciado.
+CU-00, CU-01, CU-02 y CU-03 están cerrados. CU-03 fue aceptado explícitamente, su OpenSpec fue archivado y su especificación principal fue sincronizada. El commit de cierre queda pendiente.
+
+## Cierre De CU-03
+
+- Estado: cerrado y aceptado formalmente con `Acepto el CU-03`.
+- OpenSpec: archivado en `openspec/changes/archive/2026-09-09-cu-03-persistencia-autenticacion-ownership/`.
+- Especificación principal: sincronizada en `openspec/specs/persistencia-autenticacion-ownership/spec.md`.
+- Incrementos: persistencia JSONB/Prisma, autenticación JWT y API de proyectos con ownership/revisión optimista completados.
+- Progreso OpenSpec: 24/24 tareas.
+- Gates: lint, typecheck, build y 117 tests correctos; Prisma al día y validación OpenSpec strict correcta.
+- Prueba manual: confirmada para auth, `/health`, ownership y conflicto stale.
+- Commit de cierre: pendiente de solicitud explícita.
 
 ## Casos De Uso Completados
 
 - CU-00 — Base del proyecto.
 - CU-01 — Núcleo UML canónico y validación.
 - CU-02 — Command Bus, Undo/Redo y workspace UML manual.
+- CU-03 — Persistencia, autenticación y ownership.
 
 ## OpenSpec Archivado
 
 - `openspec/changes/archive/2026-09-04-cu-00-base-proyecto/`
 - `openspec/changes/archive/2026-09-04-cu-01-nucleo-uml-validacion/`
 - `openspec/changes/archive/2026-09-08-cu-02-uml-workspace/`
+- `openspec/changes/archive/2026-09-09-cu-03-persistencia-autenticacion-ownership/`
 
 ## Specs Principales
 
 - `openspec/specs/base-proyecto/spec.md`
 - `openspec/specs/nucleo-uml-validacion/spec.md`
 - `openspec/specs/uml-workspace/spec.md`
+- `openspec/specs/persistencia-autenticacion-ownership/spec.md`
 
 ## Cierre De CU-01
 
@@ -79,4 +93,4 @@ Ninguno conocido actualmente.
 
 ## Siguiente Acción
 
-Archivar, commitear y publicar el cierre aceptado de CU-02. No iniciar CU-03.
+Revisar y crear el commit de cierre de CU-03 cuando el usuario lo solicite; después seleccionar y planificar CU-04 sin implementarlo antes de su aprobación.

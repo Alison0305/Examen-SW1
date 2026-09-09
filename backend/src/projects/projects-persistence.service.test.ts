@@ -1,0 +1,61 @@
+import { describe, expect, it, vi } from "vitest";
+import { createProjectDocument, type ProjectDocument } from "@examen-sw1/uml-core";
+import { InvalidProjectDocumentError, ProjectNotFoundError, ProjectsPersistenceService, StaleProjectRevisionError } from "./projects-persistence.service";
+
+const ownerId = "11111111-1111-4111-8111-111111111111";
+
+describe("ProjectsPersistenceService", () => {
+  it("serializa un documento válido y deja que la base aplique la revisión inicial", async () => {
+    const create = vi.fn().mockResolvedValue({ id: "22222222-2222-4222-8222-222222222222", revision: 1 });
+    const service = new ProjectsPersistenceService({ project: { create, findUnique: vi.fn() } } as never);
+    const document = createProjectDocument({ id: "33333333-3333-4333-8333-333333333333", now: new Date("2026-09-08T00:00:00.000Z") });
+
+    await expect(service.createProject(ownerId, document)).resolves.toMatchObject({ revision: 1 });
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ ownerId, document: expect.objectContaining({ uml: document.uml, layout: document.layout }) }) }));
+    expect(create.mock.calls[0]?.[0].data).not.toHaveProperty("revision");
+  });
+
+  it("rechaza documento inválido sin escribir", async () => {
+    const create = vi.fn();
+    const service = new ProjectsPersistenceService({ project: { create, findUnique: vi.fn() } } as never);
+    const invalid: ProjectDocument = createProjectDocument();
+    invalid.revision = 0;
+
+    await expect(service.createProject(ownerId, invalid)).rejects.toBeInstanceOf(InvalidProjectDocumentError);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("busca proyecto exclusivamente por id y ownerId", async () => {
+    const findFirst = vi.fn().mockResolvedValue(null);
+    const service = new ProjectsPersistenceService({ project: { findFirst } } as never);
+    await expect(service.findOwnedProject("project-id", ownerId)).resolves.toBeNull();
+    expect(findFirst).toHaveBeenCalledWith({ where: { id: "project-id", ownerId } });
+  });
+
+  it("actualiza atómicamente con propietario y revisión esperada", async () => {
+    const updateManyAndReturn = vi.fn().mockResolvedValue([{ id: "project-id", ownerId, revision: 2, document: { id: "33333333-3333-4333-8333-333333333333", revision: 1, createdAt: "2026-09-08T00:00:00.000Z", updatedAt: "2026-09-08T00:00:00.000Z", uml: { classes: [], enumerations: [], packages: [], relationships: [] }, layout: { elements: [] } }, createdAt: new Date(), updatedAt: new Date() }]);
+    const service = new ProjectsPersistenceService({ project: { updateManyAndReturn } } as never);
+    const document = createProjectDocument({ id: "33333333-3333-4333-8333-333333333333", now: new Date("2026-09-08T00:00:00.000Z") });
+    await expect(service.updateOwnedProject("project-id", ownerId, 1, document)).resolves.toMatchObject({ revision: 2, document });
+    expect(updateManyAndReturn).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "project-id", ownerId, revision: 1 }, data: expect.objectContaining({ revision: { increment: 1 }, document: expect.any(Object) }) }));
+  });
+
+  it("no actualiza documento inválido", async () => {
+    const updateManyAndReturn = vi.fn();
+    const service = new ProjectsPersistenceService({ project: { updateManyAndReturn } } as never);
+    const invalid = createProjectDocument();
+    invalid.revision = 0;
+    await expect(service.updateOwnedProject("project-id", ownerId, 1, invalid)).rejects.toBeInstanceOf(InvalidProjectDocumentError);
+    expect(updateManyAndReturn).not.toHaveBeenCalled();
+  });
+
+  it("distingue revisión stale de proyecto propio inexistente", async () => {
+    const updateManyAndReturn = vi.fn().mockResolvedValue([]);
+    const findFirst = vi.fn().mockResolvedValueOnce({ id: "project-id" }).mockResolvedValueOnce(null);
+    const service = new ProjectsPersistenceService({ project: { updateManyAndReturn, findFirst } } as never);
+    const document = createProjectDocument();
+    await expect(service.updateOwnedProject("project-id", ownerId, 1, document)).rejects.toBeInstanceOf(StaleProjectRevisionError);
+    await expect(service.updateOwnedProject("project-id", ownerId, 1, document)).rejects.toBeInstanceOf(ProjectNotFoundError);
+    expect(findFirst).toHaveBeenNthCalledWith(1, { where: { id: "project-id", ownerId }, select: { id: true } });
+  });
+});

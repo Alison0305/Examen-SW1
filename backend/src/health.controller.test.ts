@@ -8,6 +8,8 @@ describe("backend base application", () => {
   beforeEach(async () => {
     delete process.env.BACKEND_PORT;
     delete process.env.FRONTEND_ORIGIN;
+    process.env.JWT_SECRET = "health-test-secret-that-is-long-enough";
+    process.env.JWT_EXPIRES_IN = "1h";
     app = await createApp();
     await app.init();
     await app.getHttpAdapter().getInstance().ready();

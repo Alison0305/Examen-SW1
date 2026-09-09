@@ -1,4 +1,6 @@
+import "reflect-metadata";
 import { NestFactory } from "@nestjs/core";
+import { ValidationPipe } from "@nestjs/common";
 import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fastify";
 import { AppModule } from "./app.module";
 
@@ -20,6 +22,7 @@ export async function createApp() {
   app.enableCors({
     origin: getFrontendOrigin(),
   });
+  app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
 
   return app;
 }
