@@ -10,7 +10,7 @@
 
 **OpenSpec activo:** Ninguno.
 
-CU-00, CU-01, CU-02 y CU-03 están cerrados. CU-03 fue aceptado explícitamente, su OpenSpec fue archivado y su especificación principal fue sincronizada. El commit de cierre queda pendiente.
+CU-00, CU-01, CU-02 y CU-03 están cerrados. CU-03 fue aceptado explícitamente, su OpenSpec fue archivado, su especificación principal fue sincronizada y su commit de cierre fue publicado en `origin/main`.
 
 ## Cierre De CU-03
 
@@ -21,7 +21,8 @@ CU-00, CU-01, CU-02 y CU-03 están cerrados. CU-03 fue aceptado explícitamente,
 - Progreso OpenSpec: 24/24 tareas.
 - Gates: lint, typecheck, build y 117 tests correctos; Prisma al día y validación OpenSpec strict correcta.
 - Prueba manual: confirmada para auth, `/health`, ownership y conflicto stale.
-- Commit de cierre: pendiente de solicitud explícita.
+- Commit de cierre: `5a866c3 feat: completar persistencia autenticación y ownership CU-03`.
+- Push: realizado correctamente a `origin/main`.
 
 ## Casos De Uso Completados
 
@@ -93,4 +94,4 @@ Ninguno conocido actualmente.
 
 ## Siguiente Acción
 
-Revisar y crear el commit de cierre de CU-03 cuando el usuario lo solicite; después seleccionar y planificar CU-04 sin implementarlo antes de su aprobación.
+Seleccionar y planificar CU-04. No implementarlo sin aprobación explícita.

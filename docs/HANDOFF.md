@@ -8,6 +8,8 @@
 - Incremento 3 implementado y probado: `POST /projects`, `GET /projects/:id` y `PUT /projects/:id` con JWT, ownership, revisión optimista y `404` indistinguible para ajeno/inexistente.
 - `ProjectsPersistenceService` valida/serializa/deserializa el documento y usa `updateManyAndReturn` atómico por `id`, `ownerId` y `revision`; stale devuelve `409` sin sobrescritura.
 - CU-03 entregó persistencia JSONB, Argon2id/JWT y API Projects con ownership/revisión optimista. Pruebas HTTP/PostgreSQL reales cubren autenticación, ownership, validación y concurrencia con exactamente un `200` y un `409`; prueba manual confirmada. Gates correctos: 117 tests (frontend 49, backend 15, `uml-core` 53); Prisma al día y OpenSpec strict válido.
+- CU-03 commit: `5a866c3 feat: completar persistencia autenticación y ownership CU-03`.
+- CU-03 push: realizado correctamente a `origin/main`.
 - CU-02 entregó Command Bus, Undo/Redo, workspace manual, ELK, diagnósticos, responsive y relaciones UML; prueba manual y gates satisfactorios, 55/55 tareas.
 - CU-02 archive: `openspec/changes/archive/2026-09-08-cu-02-uml-workspace/`; spec principal: `openspec/specs/uml-workspace/spec.md`.
 - CU-01 archive: `openspec/changes/archive/2026-09-04-cu-01-nucleo-uml-validacion/`.
@@ -33,4 +35,4 @@ Ciclo 4: CU-09 → CU-10 → CU-11
 
 ## Siguiente Acción Exacta
 
-Revisar y crear el commit de cierre de CU-03 cuando el usuario lo solicite. Después seleccionar y planificar CU-04; no implementarlo antes de aprobación.
+Planificar CU-04. No iniciar su implementación sin aprobación explícita.
