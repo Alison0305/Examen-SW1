@@ -4,13 +4,24 @@
 
 **Ciclo actual:** Ciclo 1 — Inicio y base arquitectónica.
 
-**Último CU completado:** CU-03 — Persistencia, autenticación y ownership.
+**Último CU completado:** CU-04 — Landing, gestión de proyectos, membresías e invitaciones.
 
-**CU activo:** Ninguno.
+**CU activo:** ninguno.
 
-**OpenSpec activo:** Ninguno.
+**OpenSpec activo:** ninguno.
 
-CU-00, CU-01, CU-02 y CU-03 están cerrados. CU-03 fue aceptado explícitamente, su OpenSpec fue archivado, su especificación principal fue sincronizada y su commit de cierre fue publicado en `origin/main`.
+CU-00 a CU-04 están cerrados. CU-04 fue aceptado manualmente tras completar sus tres incrementos, sus gates finales y la validación OpenSpec. CU-05 es el siguiente en el roadmap y no ha iniciado.
+
+## Cierre De CU-04
+
+- Estado: cerrado y aceptado manualmente.
+- OpenSpec: archivado en `openspec/changes/archive/2026-09-12-cu-04-landing-proyectos-membresias-invitaciones/`; specs principales sincronizadas en `openspec/specs/landing-proyectos-membresias-invitaciones/spec.md` y `openspec/specs/persistencia-autenticacion-ownership/spec.md`.
+- Resultado: landing, sesión JWT en `sessionStorage`, gestión persistida de proyectos, roles OWNER/EDITOR/VIEWER, membresías e invitaciones seguras con token temporal SHA-256.
+- Corrección final de solo lectura: VIEWER no puede mutar ni mediante drag; mantiene selección, zoom, pan y ajustar vista.
+- Prueba manual aceptada: crear, guardar y administrar proyecto; compartir, aceptar/rechazar invitación, verificar permisos por rol y confirmar que eliminar una membresía elimina el acceso al proyecto.
+- Gates finales: lint, typecheck, test y build de raíz correctos; frontend 97/97, backend 24/24 y `uml-core` 53/53, total 174/174.
+- Prisma: `validate` correcto; `migrate status` confirma 4 migraciones aplicadas y base al día.
+- OpenSpec strict: cambio y specs principales correctos; 30/30 tareas completadas.
 
 ## Cierre De CU-03
 
@@ -30,6 +41,7 @@ CU-00, CU-01, CU-02 y CU-03 están cerrados. CU-03 fue aceptado explícitamente,
 - CU-01 — Núcleo UML canónico y validación.
 - CU-02 — Command Bus, Undo/Redo y workspace UML manual.
 - CU-03 — Persistencia, autenticación y ownership.
+- CU-04 — Landing, gestión de proyectos, membresías e invitaciones.
 
 ## OpenSpec Archivado
 
@@ -37,6 +49,7 @@ CU-00, CU-01, CU-02 y CU-03 están cerrados. CU-03 fue aceptado explícitamente,
 - `openspec/changes/archive/2026-09-04-cu-01-nucleo-uml-validacion/`
 - `openspec/changes/archive/2026-09-08-cu-02-uml-workspace/`
 - `openspec/changes/archive/2026-09-09-cu-03-persistencia-autenticacion-ownership/`
+- `openspec/changes/archive/2026-09-12-cu-04-landing-proyectos-membresias-invitaciones/`
 
 ## Specs Principales
 
@@ -44,6 +57,7 @@ CU-00, CU-01, CU-02 y CU-03 están cerrados. CU-03 fue aceptado explícitamente,
 - `openspec/specs/nucleo-uml-validacion/spec.md`
 - `openspec/specs/uml-workspace/spec.md`
 - `openspec/specs/persistencia-autenticacion-ownership/spec.md`
+- `openspec/specs/landing-proyectos-membresias-invitaciones/spec.md`
 
 ## Cierre De CU-01
 
@@ -94,4 +108,4 @@ Ninguno conocido actualmente.
 
 ## Siguiente Acción
 
-Seleccionar y planificar CU-04. No implementarlo sin aprobación explícita.
+Preparar y aprobar el plan de CU-05; no iniciar su implementación todavía.

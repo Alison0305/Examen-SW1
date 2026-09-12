@@ -41,7 +41,7 @@ import { applyVisualNodeChanges, toReactFlowEdges, toReactFlowNodes, type UmlRea
 import { UmlRelationshipEdge } from "./uml-edge";
 import { UmlClassNode, UmlEnumerationNode } from "./uml-nodes";
 import { formatMultiplicity, formatType, primitiveTypeNames } from "./workspace-utils";
-import { useWorkspaceStore, type WorkspaceSelection, type WorkspaceTool } from "./workspace-store";
+import { setWorkspacePersistentChangeListener, setWorkspaceReadOnly, useWorkspaceStore, type WorkspaceSelection, type WorkspaceTool } from "./workspace-store";
 
 const nodeTypes = {
   umlClass: UmlClassNode,
@@ -61,29 +61,45 @@ export const workspaceCanvasInteractionProps = {
   zoomOnScroll: true,
 };
 
-export function WorkspaceClient() {
+export type WorkspaceClientProps = {
+  projectName?: string;
+  saveState?: "clean" | "dirty" | "saving";
+  onSave?: () => void | Promise<void>;
+  onBack?: () => void;
+  onPersistentChange?: () => void;
+  staleConflict?: boolean;
+  onReloadServerVersion?: () => void | Promise<void>;
+  readOnly?: boolean;
+};
+
+export function WorkspaceClient({ projectName, saveState, onSave, onBack, onPersistentChange, staleConflict, onReloadServerVersion, readOnly = false }: Readonly<WorkspaceClientProps>) {
+  useEffect(() => {
+    setWorkspacePersistentChangeListener(onPersistentChange);
+    setWorkspaceReadOnly(readOnly);
+    return () => { setWorkspacePersistentChangeListener(); setWorkspaceReadOnly(false); };
+  }, [onPersistentChange, readOnly]);
   return (
     <ReactFlowProvider>
-      <WorkspaceContent />
+      <WorkspaceContent projectName={projectName} saveState={saveState} onSave={onSave} onBack={onBack} staleConflict={staleConflict} onReloadServerVersion={onReloadServerVersion} readOnly={readOnly} />
     </ReactFlowProvider>
   );
 }
 
-function WorkspaceContent() {
+function WorkspaceContent({ projectName, saveState, onSave, onBack, staleConflict, onReloadServerVersion, readOnly = false }: Readonly<WorkspaceClientProps>) {
   const store = useWorkspaceStore();
   const flow = useReactFlow();
   const theme = useTheme();
   const compact = useMediaQuery(theme.breakpoints.down("md"));
   const selectedId = store.selection?.id;
   const measuredNodes = useNodes();
-  const [renderNodes, setRenderNodes] = useState<UmlReactFlowNode[]>(() => toReactFlowNodes(store.document, selectedId));
+  const [renderNodes, setRenderNodes] = useState<UmlReactFlowNode[]>(() => toReactFlowNodes(store.document, selectedId, readOnly));
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const edges = toReactFlowEdges(store.document, selectedId, measuredNodes);
 
   useEffect(() => {
-    setRenderNodes(toReactFlowNodes(store.document, selectedId));
-  }, [store.document, selectedId]);
+    setRenderNodes(toReactFlowNodes(store.document, selectedId, readOnly));
+  }, [store.document, selectedId, readOnly]);
 
   useEffect(() => {
     if (!store.focusedElementId) {
@@ -102,19 +118,26 @@ function WorkspaceContent() {
 
   return (
     <Box component="main" sx={{ minHeight: "100vh", bgcolor: "#eef2f7", display: "grid", gridTemplateRows: "auto 1fr auto" }}>
-      <WorkspaceAppBar
+        <WorkspaceAppBar
         compact={compact}
         onFitView={fitView}
         onOpenInspector={() => setInspectorOpen(true)}
         onOpenSidebar={() => setSidebarOpen(true)}
+        projectName={projectName}
+        saveState={saveState}
+        onSave={onSave}
+        onBack={onBack}
+        staleConflict={staleConflict}
+          onReloadServerVersion={onReloadServerVersion}
+          readOnly={readOnly}
       />
       <Box sx={{ display: "grid", gridTemplateColumns: compact ? "minmax(0, 1fr)" : "240px minmax(0, 1fr) 340px", minHeight: 0 }}>
         {compact ? (
           <Drawer open={sidebarOpen} onClose={() => setSidebarOpen(false)}>
-            <WorkspaceSidebar drawer />
+            <WorkspaceSidebar drawer readOnly={readOnly} />
           </Drawer>
         ) : (
-          <WorkspaceSidebar />
+          <WorkspaceSidebar readOnly={readOnly} />
         )}
         <Box sx={{ p: 2, minHeight: 620 }}>
           <Stack spacing={1.5} sx={{ height: "100%" }}>
@@ -125,10 +148,15 @@ function WorkspaceContent() {
                   edges={edges}
                   nodeTypes={nodeTypes}
                   edgeTypes={edgeTypes}
-                  onNodesChange={(changes: NodeChange<UmlReactFlowNode>[]) => setRenderNodes((nodes) => applyVisualNodeChanges(nodes, changes))}
+                  onNodesChange={(changes: NodeChange<UmlReactFlowNode>[]) => {
+                    // VIEWERs may update visual selection, but never a node position.
+                    const allowedChanges = readOnly ? changes.filter((change) => change.type === "select") : changes;
+                    if (allowedChanges.length > 0) setRenderNodes((nodes) => applyVisualNodeChanges(nodes, allowedChanges));
+                  }}
                   onNodeClick={(_, node) => store.selectElement(node.id)}
                   onEdgeClick={(_, edge) => store.selectRelationship(edge.id)}
-                  onNodeDragStop={(_, node) => store.moveElement(node.id, node.position.x, node.position.y)}
+                  onNodeDragStop={(_, node) => { if (!readOnly) store.moveElement(node.id, node.position.x, node.position.y); }}
+                  nodesDraggable={!readOnly}
                   fitView
                   {...workspaceCanvasInteractionProps}
                 >
@@ -143,10 +171,10 @@ function WorkspaceContent() {
         </Box>
         {compact ? (
           <Drawer anchor="right" open={inspectorOpen} onClose={() => setInspectorOpen(false)}>
-            <WorkspaceInspector drawer />
+            <WorkspaceInspector drawer readOnly={readOnly} />
           </Drawer>
         ) : (
-          <WorkspaceInspector />
+          <WorkspaceInspector readOnly={readOnly} />
         )}
       </Box>
       <WorkspaceStatusBar />
@@ -194,26 +222,37 @@ function WorkspaceAppBar({
   onFitView,
   onOpenInspector,
   onOpenSidebar,
-}: Readonly<{ compact: boolean; onFitView: () => void; onOpenInspector: () => void; onOpenSidebar: () => void }>) {
+  projectName,
+  saveState,
+  onSave,
+  onBack,
+  staleConflict,
+  onReloadServerVersion,
+  readOnly = false,
+}: Readonly<{ compact: boolean; onFitView: () => void; onOpenInspector: () => void; onOpenSidebar: () => void } & WorkspaceClientProps>) {
   const { canUndo, canRedo, undo, redo, validateDocument } = useWorkspaceStore();
   return (
     <AppBar position="static" color="inherit" elevation={0} sx={{ borderBottom: "1px solid", borderColor: "grey.300" }}>
       <Toolbar sx={{ gap: 2 }}>
         <Typography component="h1" variant="h6" fontWeight={700} sx={{ flexGrow: 1 }}>
-          Proyecto UML local
+          {projectName ?? "Proyecto UML local"}
         </Typography>
+        {onBack && <Button variant="text" onClick={onBack}>Volver a proyectos</Button>}
+        {onSave && <Button variant="contained" onClick={() => void onSave()} disabled={saveState !== "dirty" || readOnly}>Guardar</Button>}
+        {onSave && <Typography variant="caption">{saveState === "saving" ? "Guardando..." : saveState === "dirty" ? "Cambios sin guardar" : "Guardado"}</Typography>}
+        {staleConflict && onReloadServerVersion && <Button color="warning" onClick={() => void onReloadServerVersion()}>Recargar versión</Button>}
         {compact && <IconButton aria-label="Abrir sidebar" onClick={onOpenSidebar}>Menu</IconButton>}
         {compact && <Button variant="outlined" onClick={onOpenInspector}>Inspector</Button>}
         <Tooltip title="Deshacer">
           <span>
-            <IconButton onClick={undo} disabled={!canUndo} aria-label="Deshacer">
+            <IconButton onClick={undo} disabled={!canUndo || readOnly} aria-label="Deshacer">
               ↶
             </IconButton>
           </span>
         </Tooltip>
         <Tooltip title="Rehacer">
           <span>
-            <IconButton onClick={redo} disabled={!canRedo} aria-label="Rehacer">
+            <IconButton onClick={redo} disabled={!canRedo || readOnly} aria-label="Rehacer">
               ↷
             </IconButton>
           </span>
@@ -225,12 +264,12 @@ function WorkspaceAppBar({
   );
 }
 
-function WorkspaceSidebar({ drawer = false }: Readonly<{ drawer?: boolean }>) {
+function WorkspaceSidebar({ drawer = false, readOnly = false }: Readonly<{ drawer?: boolean; readOnly?: boolean }>) {
   const { document, activeTool, pendingRelationshipSourceId, selectRelationship } = useWorkspaceStore();
   return (
     <Box component="aside" aria-label="Sidebar" data-testid="workspace-left-column" sx={{ width: drawer ? 280 : "auto", borderRight: "1px solid", borderColor: "grey.300", bgcolor: "background.paper", p: 2, overflow: "auto" }}>
       <Stack spacing={2}>
-        <WorkspaceToolbox />
+        <WorkspaceToolbox readOnly={readOnly} />
         <Divider />
         <Box>
           <Typography variant="overline" color="text.secondary">Breadcrumbs</Typography>
@@ -258,7 +297,7 @@ function WorkspaceSidebar({ drawer = false }: Readonly<{ drawer?: boolean }>) {
   );
 }
 
-function WorkspaceToolbox() {
+function WorkspaceToolbox({ readOnly = false }: Readonly<{ readOnly?: boolean }>) {
   const { activeTool, setTool, createClass, createEnumeration, applyAutoLayout } = useWorkspaceStore();
   const toolButton = (tool: WorkspaceTool, label: string) => (
     <Button key={tool} fullWidth aria-label={label} startIcon={<ToolboxIcon tool={tool} />} sx={{ justifyContent: "flex-start" }} variant={activeTool === tool ? "contained" : "outlined"} onClick={() => setTool(tool)}>
@@ -267,7 +306,7 @@ function WorkspaceToolbox() {
   );
 
   return (
-    <Card variant="outlined" aria-label="Toolbox" data-testid="workspace-toolbox">
+    <Card variant="outlined" aria-label="Toolbox" data-testid="workspace-toolbox"><fieldset disabled={readOnly} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
       <CardContent sx={{ py: 1.5, "&:last-child": { pb: 1.5 } }}>
         <Stack role="toolbar" aria-orientation="vertical" spacing={1} alignItems="stretch">
           <Typography variant="subtitle2">Toolbox</Typography>
@@ -284,7 +323,7 @@ function WorkspaceToolbox() {
           </Tooltip>
         </Stack>
       </CardContent>
-    </Card>
+    </fieldset></Card>
   );
 }
 
@@ -299,19 +338,19 @@ function ToolboxIcon({ tool }: Readonly<{ tool: WorkspaceTool | "auto-layout" }>
   return <SvgIcon {...common}><path d="M3 12h18" stroke="currentColor" strokeWidth="1.8" /></SvgIcon>;
 }
 
-function WorkspaceInspector({ drawer = false }: Readonly<{ drawer?: boolean }>) {
+function WorkspaceInspector({ drawer = false, readOnly = false }: Readonly<{ drawer?: boolean; readOnly?: boolean }>) {
   const store = useWorkspaceStore();
   const selected = resolveSelected(store.document, store.selection);
 
   return (
     <Box component="aside" aria-label="Inspector" sx={{ width: drawer ? 340 : "auto", borderLeft: "1px solid", borderColor: "grey.300", bgcolor: "background.paper", p: 2, overflow: "auto" }}>
-      <Stack spacing={2}>
+      <Stack spacing={2}><fieldset disabled={readOnly} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
         <Typography component="h2" variant="h6">Inspector</Typography>
         {!selected && <Alert severity="info">Selecciona una clase, enum o relación para editar sus propiedades.</Alert>}
         {selected?.kind === "class" && <ClassInspector classId={selected.value.id} />}
         {selected?.kind === "enumeration" && <EnumerationInspector enumerationId={selected.value.id} />}
         {selected?.kind === "relationship" && <RelationshipInspector relationshipId={selected.value.id} />}
-        <DiagnosticsPanel commandDiagnostics={store.commandDiagnostics} documentDiagnostics={store.documentDiagnostics} document={store.document} />
+        </fieldset><DiagnosticsPanel commandDiagnostics={store.commandDiagnostics} documentDiagnostics={store.documentDiagnostics} document={store.document} />
       </Stack>
     </Box>
   );

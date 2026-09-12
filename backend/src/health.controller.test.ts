@@ -40,4 +40,18 @@ describe("backend base application", () => {
 
     expect(response.headers["access-control-allow-origin"]).toBe("http://localhost:3000");
   });
+
+  it.each(["PUT", "PATCH", "DELETE"])("allows CORS preflight for %s project requests", async (method) => {
+    const response = await request(app.getHttpServer())
+      .options("/projects/11111111-1111-4111-8111-111111111111")
+      .set("Origin", "http://localhost:3000")
+      .set("Access-Control-Request-Method", method)
+      .set("Access-Control-Request-Headers", "authorization,content-type")
+      .expect(204);
+
+    expect(response.headers["access-control-allow-origin"]).toBe("http://localhost:3000");
+    expect(response.headers["access-control-allow-methods"]).toContain(method);
+    expect(response.headers["access-control-allow-headers"].toLowerCase()).toContain("authorization");
+    expect(response.headers["access-control-allow-headers"].toLowerCase()).toContain("content-type");
+  });
 });

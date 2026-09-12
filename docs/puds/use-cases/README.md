@@ -269,6 +269,8 @@ Incluye:
 
 **Resultado usable:** un propietario puede gestionar sus proyectos e invitar a otra persona con acceso controlado.
 
+**Estado:** completado y aceptado manualmente. La entrega incluye workspace VIEWER de solo lectura también ante drag y pérdida de acceso tras eliminar una membresía.
+
 ## CU-05 — Colaboración realtime y presencia
 
 **Objetivo:** permitir edición simultánea reutilizando la misma semántica de comandos.

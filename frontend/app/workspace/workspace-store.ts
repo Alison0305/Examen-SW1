@@ -74,6 +74,16 @@ type SetWorkspaceState = (state: Partial<WorkspaceState> | ((state: WorkspaceSta
 
 let uuidCounter = 1;
 let commandBus = new UmlCommandBus(createInitialDocument());
+let persistentChangeListener: (() => void) | undefined;
+let workspaceReadOnly = false;
+
+export function setWorkspacePersistentChangeListener(listener?: () => void): void {
+  persistentChangeListener = listener;
+}
+
+export function setWorkspaceReadOnly(readOnly = false): void {
+  workspaceReadOnly = readOnly;
+}
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   document: commandBus.document,
@@ -240,17 +250,21 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     return result;
   },
   undo: () => {
+    if (workspaceReadOnly) return;
     const document = commandBus.undo();
-    if (document) {
+      if (document) {
       const documentDiagnostics = validateProjectDocument(document).diagnostics;
-      setFromBus(set, { document, lastResult: null, diagnostics: documentDiagnostics, commandDiagnostics: [], documentDiagnostics, selection: null });
+        setFromBus(set, { document, lastResult: null, diagnostics: documentDiagnostics, commandDiagnostics: [], documentDiagnostics, selection: null });
+        persistentChangeListener?.();
     }
   },
   redo: () => {
+    if (workspaceReadOnly) return;
     const document = commandBus.redo();
-    if (document) {
+      if (document) {
       const documentDiagnostics = validateProjectDocument(document).diagnostics;
-      setFromBus(set, { document, lastResult: null, diagnostics: documentDiagnostics, commandDiagnostics: [], documentDiagnostics, selection: null });
+        setFromBus(set, { document, lastResult: null, diagnostics: documentDiagnostics, commandDiagnostics: [], documentDiagnostics, selection: null });
+        persistentChangeListener?.();
     }
   },
   validateDocument: () => {
@@ -268,6 +282,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 }));
 
 export function resetWorkspaceStore(initialDocument: ProjectDocument = createInitialDocument()): void {
+  workspaceReadOnly = false;
   uuidCounter = 1;
   commandBus = new UmlCommandBus(initialDocument);
   useWorkspaceStore.setState({
@@ -297,6 +312,9 @@ function createWorkspaceUuid(): Uuid {
 }
 
 function applyCommand(set: SetWorkspaceState, command: UmlCommand): CommandResult {
+  if (workspaceReadOnly) {
+    return { success: false, status: "rejected", document: commandBus.document, diagnostics: [] };
+  }
   const result = commandBus.execute(command);
   const documentDiagnostics = validateProjectDocument(commandBus.document).diagnostics;
   const commandDiagnostics = result.success ? [] : result.diagnostics;
@@ -306,6 +324,7 @@ function applyCommand(set: SetWorkspaceState, command: UmlCommand): CommandResul
     commandDiagnostics,
     documentDiagnostics,
   });
+  if (result.success) persistentChangeListener?.();
   return result;
 }
 

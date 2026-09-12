@@ -1,0 +1,27 @@
+import { Controller, Get, Inject, Param, Post, Req, UseGuards } from "@nestjs/common";
+import type { AuthenticatedRequest } from "../auth/auth.types";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { ProjectInvitationsService } from "./project-invitations.service";
+
+@Controller("invitations")
+@UseGuards(JwtAuthGuard)
+export class InvitationsController {
+  constructor(@Inject(ProjectInvitationsService) private readonly invitations: ProjectInvitationsService) {}
+
+  @Get(":token")
+  async get(@Req() request: AuthenticatedRequest, @Param("token") token: string) {
+    return this.invitations.get(token, request.authenticatedUser!.email);
+  }
+
+  @Post(":token/accept")
+  async accept(@Req() request: AuthenticatedRequest, @Param("token") token: string) {
+    const user = request.authenticatedUser!;
+    return this.invitations.accept(token, user.id, user.email);
+  }
+
+  @Post(":token/reject")
+  async reject(@Req() request: AuthenticatedRequest, @Param("token") token: string) {
+    const user = request.authenticatedUser!;
+    return this.invitations.reject(token, user.id, user.email);
+  }
+}

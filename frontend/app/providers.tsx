@@ -1,6 +1,7 @@
 "use client";
 
 import { CssBaseline, ThemeProvider, createTheme } from "@mui/material";
+import { SessionProvider } from "./auth/session";
 
 const theme = createTheme({
   palette: {
@@ -21,7 +22,7 @@ export function AppProviders({ children }: Readonly<{ children: React.ReactNode 
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      {children}
+      <SessionProvider>{children}</SessionProvider>
     </ThemeProvider>
   );
 }

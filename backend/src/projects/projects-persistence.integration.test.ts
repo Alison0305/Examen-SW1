@@ -37,7 +37,7 @@ describe("ProjectsPersistenceService PostgreSQL", () => {
     document.uml.relationships.push({ id: "a9999999-9999-4999-8999-999999999999", type: "Association", name: "realiza", sourceId: classA, targetId: classB, sourceMultiplicity: { lower: 1, upper: 1 }, targetMultiplicity: { lower: 0, upper: "unbounded" } });
     document.layout.elements.push({ elementId: classA, x: 120, y: 240, width: 180, height: 120 }, { elementId: classB, x: 480, y: 240 });
 
-    const created = await service.createProject(ownerId, document);
+    const created = await service.createProject(ownerId, "Proyecto integración", document);
     const recovered = await service.findProject(created.id);
     const column = await prisma.$queryRaw<Array<{ udt_name: string; column_default: string | null }>>`SELECT udt_name, column_default FROM information_schema.columns WHERE table_name = 'Project' AND column_name = 'document'`;
     const revision = await prisma.$queryRaw<Array<{ column_default: string | null }>>`SELECT column_default FROM information_schema.columns WHERE table_name = 'Project' AND column_name = 'revision'`;
@@ -45,7 +45,7 @@ describe("ProjectsPersistenceService PostgreSQL", () => {
     const ownerForeignKey = await prisma.$queryRaw<Array<{ constraint_name: string }>>`SELECT constraint_name FROM information_schema.table_constraints WHERE table_name = 'Project' AND constraint_type = 'FOREIGN KEY' AND constraint_name = 'Project_ownerId_fkey'`;
 
     expect(created.revision).toBe(1);
-    expect(recovered).toMatchObject({ revision: 1, document });
+    expect(recovered).toMatchObject({ name: "Proyecto integración", revision: 1, document });
     expect(column[0]?.udt_name).toBe("jsonb");
     expect(revision[0]?.column_default).toContain("1");
     expect(uniqueEmail).toHaveLength(1);
