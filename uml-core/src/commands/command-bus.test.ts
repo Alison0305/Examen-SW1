@@ -475,6 +475,102 @@ describe("UmlCommandExecutor", () => {
     expect(result.diagnostics).toMatchObject([{ code: "UML_UNKNOWN_REFERENCE", elementId: ids.class }]);
   });
 
+  it("captura y restaura atómicamente eliminaciones de clase, enum, relación, atributo y literal", () => {
+    const document = documentWithTwoClasses();
+    document.uml.classes[0].attributes.push({ id: ids.attribute, name: "codigo", visibility: "private", type: primitiveType("string") });
+    document.uml.enumerations.push({ id: ids.enum, name: "Estado", visibility: "public", literals: ["NUEVO", "FINAL"] });
+    document.uml.relationships.push({ id: ids.relationship, type: "Association", sourceId: ids.class, targetId: ids.otherClass });
+    document.layout.elements.push({ elementId: ids.enum, x: 20, y: 40 }, { elementId: ids.relationship, x: 30, y: 50 });
+    const cases: UmlCommand[] = [
+      { type: "DeleteClass", classId: ids.class },
+      { type: "DeleteEnumeration", enumerationId: ids.enum },
+      { type: "DeleteRelationship", relationshipId: ids.relationship },
+      { type: "RemoveAttribute", classId: ids.class, attributeId: ids.attribute },
+      { type: "RemoveEnumerationLiteral", enumerationId: ids.enum, literal: "NUEVO" },
+    ];
+
+    for (const command of cases) {
+      const deleted = executor().execute(document, command);
+      expect(deleted.success).toBe(true);
+      if (!deleted.success) throw new Error("La eliminación debe ser aceptada.");
+      expect(deleted.deletionSnapshot).toBeDefined();
+      if (!deleted.deletionSnapshot) throw new Error("La eliminación aceptada debe capturar su snapshot.");
+      const restored = executor().execute(deleted.document, { type: "RestoreDeletionSnapshot", snapshot: deleted.deletionSnapshot });
+      expect(restored.success).toBe(true);
+      if (!restored.success) throw new Error("La restauración del snapshot aceptado debe completarse.");
+      expect(restored.document.uml.classes.map((item) => item.id)).toEqual(document.uml.classes.map((item) => item.id));
+      expect(restored.document.uml.enumerations.map((item) => item.id)).toEqual(document.uml.enumerations.map((item) => item.id));
+      expect(restored.document.uml.relationships.map((item) => item.id)).toEqual(document.uml.relationships.map((item) => item.id));
+      expect(restored.document.uml.classes.map((item) => item.attributes.map((attribute) => attribute.id))).toEqual(
+        document.uml.classes.map((item) => item.attributes.map((attribute) => attribute.id)),
+      );
+      expect(restored.document.uml.enumerations.map((item) => item.literals)).toEqual(document.uml.enumerations.map((item) => item.literals));
+      expect(restored.document.layout.elements.map((item) => item.elementId)).toEqual(document.layout.elements.map((item) => item.elementId));
+    }
+  });
+
+  it("rechaza índices de restauración inválidos sin una mutación parcial", () => {
+    const document = documentWithClass();
+    const deleted = executor().execute(document, { type: "DeleteClass", classId: ids.class });
+    expect(deleted.success).toBe(true);
+    if (!deleted.success || !deleted.deletionSnapshot || deleted.deletionSnapshot.kind !== "class") return;
+    const snapshot = structuredClone(deleted.deletionSnapshot);
+    snapshot.classIndex = Number.MAX_SAFE_INTEGER + 1;
+    const restored = executor().execute(deleted.document, { type: "RestoreDeletionSnapshot", snapshot });
+
+    expect(restored.success).toBe(false);
+    expect(restored.document).toEqual(deleted.document);
+    expect(restored.diagnostics).toMatchObject([{ code: "UML_INVALID_TYPE" }]);
+  });
+
+  it("rechaza snapshots incompletos, incompatibles o con índices inválidos sin mutación parcial", () => {
+    const document = documentWithTwoClasses();
+    document.uml.classes[0].attributes.push({ id: ids.attribute, name: "codigo", visibility: "private", type: primitiveType("string") });
+    document.uml.enumerations.push({ id: ids.enum, name: "Estado", visibility: "public", literals: ["NUEVO", "FINAL"] });
+    document.uml.relationships.push({ id: ids.relationship, type: "Association", sourceId: ids.class, targetId: ids.otherClass });
+    document.layout.elements.push({ elementId: ids.enum, x: 20, y: 40 }, { elementId: ids.relationship, x: 30, y: 50 });
+    const deleted = executor().execute(document, { type: "DeleteClass", classId: ids.class });
+    expect(deleted.success).toBe(true);
+    if (!deleted.success || !deleted.deletionSnapshot || deleted.deletionSnapshot.kind !== "class") throw new Error("Se esperaba snapshot de clase.");
+
+    const invalidSnapshots = [
+      { ...structuredClone(deleted.deletionSnapshot), classIndex: -1 },
+      { ...structuredClone(deleted.deletionSnapshot), classIndex: 0.5 },
+      { ...structuredClone(deleted.deletionSnapshot), classIndex: Number.MAX_SAFE_INTEGER + 1 },
+      { ...structuredClone(deleted.deletionSnapshot), classIndex: 99 },
+      { ...structuredClone(deleted.deletionSnapshot), relationships: [{ ...deleted.deletionSnapshot.relationships[0], index: 0 }, { ...deleted.deletionSnapshot.relationships[0], index: 0 }] },
+      { kind: "class", classIndex: 0, relationships: [], layouts: [] } as unknown as UmlCommand extends never ? never : typeof deleted.deletionSnapshot,
+    ];
+
+    for (const snapshot of invalidSnapshots) {
+      const restored = executor().execute(deleted.document, { type: "RestoreDeletionSnapshot", snapshot });
+      expect(restored.success).toBe(false);
+      expect(restored.document).toEqual(deleted.document);
+      expect(restored.diagnostics).toMatchObject([{ code: "UML_INVALID_TYPE" }]);
+    }
+
+    const attributeDeleted = executor().execute(document, { type: "RemoveAttribute", classId: ids.class, attributeId: ids.attribute });
+    expect(attributeDeleted.success).toBe(true);
+    if (!attributeDeleted.success || !attributeDeleted.deletionSnapshot || attributeDeleted.deletionSnapshot.kind !== "attribute") throw new Error("Se esperaba snapshot de atributo.");
+    const incompatible = executor().execute(attributeDeleted.document, {
+      type: "RestoreDeletionSnapshot",
+      snapshot: { ...attributeDeleted.deletionSnapshot, classId: ids.missing },
+    });
+    expect(incompatible.success).toBe(false);
+    expect(incompatible.document).toEqual(attributeDeleted.document);
+  });
+
+  it("no captura snapshots para eliminaciones rechazadas de atributo o literal", () => {
+    const document = documentWithClass();
+    const missingAttribute = executor().execute(document, { type: "RemoveAttribute", classId: ids.class, attributeId: ids.attribute });
+    const missingLiteral = executor().execute(document, { type: "RemoveEnumerationLiteral", enumerationId: ids.enum, literal: "NUEVO" });
+
+    expect(missingAttribute).toMatchObject({ success: false, document });
+    expect(missingLiteral).toMatchObject({ success: false, document });
+    expect(missingAttribute).not.toHaveProperty("deletionSnapshot");
+    expect(missingLiteral).not.toHaveProperty("deletionSnapshot");
+  });
+
   it("devuelve copia defensiva del documento original en rechazos del executor directo", () => {
     const original = documentWithClass();
     const result = executor().execute(original, { type: "CreateClass", classId: ids.otherClass, name: "" });

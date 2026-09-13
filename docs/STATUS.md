@@ -2,15 +2,15 @@
 
 ## Estado Actual
 
-**Ciclo actual:** Ciclo 1 — Inicio y base arquitectónica.
+**Ciclo actual:** Ciclo 2 — Elaboración y colaboración.
 
 **Último CU completado:** CU-04 — Landing, gestión de proyectos, membresías e invitaciones.
 
-**CU activo:** ninguno.
+**CU activo:** CU-05 — Colaboración realtime y presencia (técnicamente completado; pendiente únicamente de instrucciones explícitas para verify, archive, commit y push).
 
-**OpenSpec activo:** ninguno.
+**OpenSpec activo:** `cu-05-colaboracion-realtime-presencia` (23/23 tareas marcadas; no archivado).
 
-CU-00 a CU-04 están cerrados. CU-04 fue aceptado manualmente tras completar sus tres incrementos, sus gates finales y la validación OpenSpec. CU-05 es el siguiente en el roadmap y no ha iniciado.
+CU-00 a CU-04 están cerrados. CU-05 está técnicamente completado: los tres incrementos fueron aceptados. Incluye clientes Socket.IO reales, JWT obtenido por HTTP, PostgreSQL/Prisma, `ProjectAccessService`, presencia, cliente, resync y restauración de eliminación. En el Incremento 3 se amplió la evidencia de Undo/Redo colaborativo para clase, enumeración, relación, atributo y literal: Undo transmite `RestoreDeletionSnapshot` indexado con un `operationId` nuevo, Redo reemite la intención semántica con otro ID, y el historial solo cambia tras ACK o se invalida ante remoto, conflicto, rechazo o resync. El badge de iniciales remoto ahora se desplaza visualmente 8 px a la derecha y abajo de la coordenada del cursor, sin modificar la presencia, el documento ni el layout. Gates finales correctos: frontend 110/110, backend 39/39 y `uml-core` 57/57, total 206/206. Prisma confirma cinco migraciones y esquema al día; OpenSpec strict correcto.
 
 ## Cierre De CU-04
 
@@ -104,8 +104,13 @@ CU-00 a CU-04 están cerrados. CU-04 fue aceptado manualmente tras completar sus
 
 ## Problemas Abiertos
 
-Ninguno conocido actualmente.
+- No hay proveedor de cobertura Vitest instalado ni configurado.
+- El despliegue horizontal requiere afinidad de sesión o un adaptador Socket.IO compartido; el Incremento 1 se comprobó en una instancia.
+
+## Trabajo Futuro Separado
+
+- Bandeja interna de invitaciones UML Studio: invitaciones `PENDING`, badge/contador, proyecto, rol, invitador y acciones Aceptar/Rechazar. El enlace temporal seguirá como alternativa y no se incorporará SMTP inicialmente. No forma parte de CU-05.
 
 ## Siguiente Acción
 
-Preparar y aprobar el plan de CU-05; no iniciar su implementación todavía.
+Esperar instrucción explícita para verificar, archivar, hacer commit y push de CU-05. No iniciar CU-06.

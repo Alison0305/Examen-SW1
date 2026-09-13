@@ -35,13 +35,14 @@ import {
   useNodes,
   type NodeChange,
 } from "@xyflow/react";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { Diagnostic, ProjectDocument, UmlAttribute, UmlRelationshipType, UmlVisibility } from "@examen-sw1/uml-core";
 import { applyVisualNodeChanges, toReactFlowEdges, toReactFlowNodes, type UmlReactFlowNode } from "./react-flow-adapters";
 import { UmlRelationshipEdge } from "./uml-edge";
 import { UmlClassNode, UmlEnumerationNode } from "./uml-nodes";
 import { formatMultiplicity, formatType, primitiveTypeNames } from "./workspace-utils";
 import { setWorkspacePersistentChangeListener, setWorkspaceReadOnly, useWorkspaceStore, type WorkspaceSelection, type WorkspaceTool } from "./workspace-store";
+import type { ProjectPresence } from "./realtime-client";
 
 const nodeTypes = {
   umlClass: UmlClassNode,
@@ -61,6 +62,17 @@ export const workspaceCanvasInteractionProps = {
   zoomOnScroll: true,
 };
 
+export function toCanvasCursorPosition(
+  flowPosition: { x: number; y: number },
+  flowToScreenPosition: (position: { x: number; y: number }) => { x: number; y: number },
+  canvasBounds?: Pick<DOMRect, "left" | "top">,
+): { x: number; y: number } {
+  const screenPosition = flowToScreenPosition(flowPosition);
+  return canvasBounds
+    ? { x: screenPosition.x - canvasBounds.left, y: screenPosition.y - canvasBounds.top }
+    : screenPosition;
+}
+
 export type WorkspaceClientProps = {
   projectName?: string;
   saveState?: "clean" | "dirty" | "saving";
@@ -70,9 +82,18 @@ export type WorkspaceClientProps = {
   staleConflict?: boolean;
   onReloadServerVersion?: () => void | Promise<void>;
   readOnly?: boolean;
+  collaboration?: {
+    connection: "connecting" | "connected" | "reconnecting" | "disconnected" | "resyncing" | "conflict";
+    revision: number;
+    presence: ProjectPresence[];
+    onSelection: (selectionId?: string) => void;
+    onCursor: (cursor: { x: number; y: number }) => void;
+    onEditing: (editingElementId?: string | null) => void;
+    onResync: () => void;
+  };
 };
 
-export function WorkspaceClient({ projectName, saveState, onSave, onBack, onPersistentChange, staleConflict, onReloadServerVersion, readOnly = false }: Readonly<WorkspaceClientProps>) {
+export function WorkspaceClient({ projectName, saveState, onSave, onBack, onPersistentChange, staleConflict, onReloadServerVersion, readOnly = false, collaboration }: Readonly<WorkspaceClientProps>) {
   useEffect(() => {
     setWorkspacePersistentChangeListener(onPersistentChange);
     setWorkspaceReadOnly(readOnly);
@@ -80,26 +101,29 @@ export function WorkspaceClient({ projectName, saveState, onSave, onBack, onPers
   }, [onPersistentChange, readOnly]);
   return (
     <ReactFlowProvider>
-      <WorkspaceContent projectName={projectName} saveState={saveState} onSave={onSave} onBack={onBack} staleConflict={staleConflict} onReloadServerVersion={onReloadServerVersion} readOnly={readOnly} />
+      <WorkspaceContent projectName={projectName} saveState={saveState} onSave={onSave} onBack={onBack} staleConflict={staleConflict} onReloadServerVersion={onReloadServerVersion} readOnly={readOnly} collaboration={collaboration} />
     </ReactFlowProvider>
   );
 }
 
-function WorkspaceContent({ projectName, saveState, onSave, onBack, staleConflict, onReloadServerVersion, readOnly = false }: Readonly<WorkspaceClientProps>) {
+function WorkspaceContent({ projectName, saveState, onSave, onBack, staleConflict, onReloadServerVersion, readOnly = false, collaboration }: Readonly<WorkspaceClientProps>) {
   const store = useWorkspaceStore();
   const flow = useReactFlow();
+  const [, setViewportVersion] = useState(0);
+  const canvasRef = useRef<HTMLDivElement>(null);
   const theme = useTheme();
   const compact = useMediaQuery(theme.breakpoints.down("md"));
   const selectedId = store.selection?.id;
   const measuredNodes = useNodes();
-  const [renderNodes, setRenderNodes] = useState<UmlReactFlowNode[]>(() => toReactFlowNodes(store.document, selectedId, readOnly));
+  const remoteSelectionIds = collaboration?.presence.filter((member) => member.online).map((member) => member.selectionId).filter((id): id is string => Boolean(id)) ?? [];
+  const [renderNodes, setRenderNodes] = useState<UmlReactFlowNode[]>(() => toReactFlowNodes(store.document, selectedId, readOnly, remoteSelectionIds));
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const edges = toReactFlowEdges(store.document, selectedId, measuredNodes);
 
   useEffect(() => {
-    setRenderNodes(toReactFlowNodes(store.document, selectedId, readOnly));
-  }, [store.document, selectedId, readOnly]);
+    setRenderNodes(toReactFlowNodes(store.document, selectedId, readOnly, remoteSelectionIds));
+  }, [store.document, selectedId, readOnly, remoteSelectionIds.join(",")]);
 
   useEffect(() => {
     if (!store.focusedElementId) {
@@ -130,6 +154,7 @@ function WorkspaceContent({ projectName, saveState, onSave, onBack, staleConflic
         staleConflict={staleConflict}
           onReloadServerVersion={onReloadServerVersion}
           readOnly={readOnly}
+          collaboration={collaboration}
       />
       <Box sx={{ display: "grid", gridTemplateColumns: compact ? "minmax(0, 1fr)" : "240px minmax(0, 1fr) 340px", minHeight: 0 }}>
         {compact ? (
@@ -142,7 +167,7 @@ function WorkspaceContent({ projectName, saveState, onSave, onBack, staleConflic
         <Box sx={{ p: 2, minHeight: 620 }}>
           <Stack spacing={1.5} sx={{ height: "100%" }}>
             <Card variant="outlined" sx={{ flex: 1, overflow: "hidden", borderColor: "grey.300" }}>
-              <Box sx={{ height: "100%", minHeight: 540, minWidth: 0, position: "relative" }} data-testid="workspace-canvas">
+              <Box ref={canvasRef} sx={{ height: "100%", minHeight: 540, minWidth: 0, position: "relative" }} data-testid="workspace-canvas">
                 <ReactFlow
                   nodes={renderNodes}
                   edges={edges}
@@ -153,9 +178,13 @@ function WorkspaceContent({ projectName, saveState, onSave, onBack, staleConflic
                     const allowedChanges = readOnly ? changes.filter((change) => change.type === "select") : changes;
                     if (allowedChanges.length > 0) setRenderNodes((nodes) => applyVisualNodeChanges(nodes, allowedChanges));
                   }}
-                  onNodeClick={(_, node) => store.selectElement(node.id)}
-                  onEdgeClick={(_, edge) => store.selectRelationship(edge.id)}
-                  onNodeDragStop={(_, node) => { if (!readOnly) store.moveElement(node.id, node.position.x, node.position.y); }}
+                  onNodeClick={(_, node) => { store.selectElement(node.id); collaboration?.onSelection(node.id); }}
+                  onEdgeClick={(_, edge) => { store.selectRelationship(edge.id); collaboration?.onSelection(edge.id); }}
+                  onNodeDragStart={(_, node) => collaboration?.onEditing(node.id)}
+                  onNodeDragStop={(_, node) => { collaboration?.onEditing(null); if (!readOnly) store.moveElement(node.id, node.position.x, node.position.y); }}
+                  onMouseMove={(event) => collaboration?.onCursor(flow.screenToFlowPosition({ x: event.clientX, y: event.clientY }))}
+                  // Re-project remote flow coordinates while this client pans or zooms.
+                  onMove={() => setViewportVersion((version) => version + 1)}
                   nodesDraggable={!readOnly}
                   fitView
                   {...workspaceCanvasInteractionProps}
@@ -165,6 +194,22 @@ function WorkspaceContent({ projectName, saveState, onSave, onBack, staleConflic
                   <MiniMap pannable zoomable />
                 </ReactFlow>
                 <CanvasAccessibilityLayer />
+                {collaboration?.presence.filter((member) => member.online && member.cursor).map((member) => {
+                  // Presence is shared in flow coordinates; project it into this client's viewport.
+                  const cursorPosition = toCanvasCursorPosition(
+                    member.cursor!,
+                    (position) => flow.flowToScreenPosition(position),
+                    canvasRef.current?.getBoundingClientRect(),
+                  );
+
+                  return (
+                    <Box key={member.userId} data-testid={`remote-cursor-${member.userId}`} sx={{ position: "absolute", pointerEvents: "none", left: cursorPosition.x, top: cursorPosition.y, zIndex: 5 }}>
+                      <Box data-testid={`remote-cursor-badge-${member.userId}`} sx={{ position: "relative", left: 6, top: 6, bgcolor: "warning.main", color: "warning.contrastText", borderRadius: 1, px: 0.5, fontSize: 11 }}>
+                        {member.avatar}
+                      </Box>
+                    </Box>
+                  );
+                })}
               </Box>
             </Card>
           </Stack>
@@ -177,7 +222,7 @@ function WorkspaceContent({ projectName, saveState, onSave, onBack, staleConflic
           <WorkspaceInspector readOnly={readOnly} />
         )}
       </Box>
-      <WorkspaceStatusBar />
+      <WorkspaceStatusBar collaboration={collaboration} />
     </Box>
   );
 }
@@ -229,6 +274,7 @@ function WorkspaceAppBar({
   staleConflict,
   onReloadServerVersion,
   readOnly = false,
+  collaboration,
 }: Readonly<{ compact: boolean; onFitView: () => void; onOpenInspector: () => void; onOpenSidebar: () => void } & WorkspaceClientProps>) {
   const { canUndo, canRedo, undo, redo, validateDocument } = useWorkspaceStore();
   return (
@@ -240,6 +286,10 @@ function WorkspaceAppBar({
         {onBack && <Button variant="text" onClick={onBack}>Volver a proyectos</Button>}
         {onSave && <Button variant="contained" onClick={() => void onSave()} disabled={saveState !== "dirty" || readOnly}>Guardar</Button>}
         {onSave && <Typography variant="caption">{saveState === "saving" ? "Guardando..." : saveState === "dirty" ? "Cambios sin guardar" : "Guardado"}</Typography>}
+        {collaboration && <Stack direction="row" spacing={0.5} alignItems="center" aria-label="Colaboradores">
+          {collaboration.presence.filter((member) => member.online).map((member) => <Chip key={member.userId} size="small" label={member.avatar} title={`${member.displayName}${member.editingElementId ? " editando" : ""}`} />)}
+          <Chip size="small" color={collaboration.connection === "connected" ? "success" : "warning"} label={collaboration.connection === "connected" ? `Sincronizado r${collaboration.revision}` : collaboration.connection} onClick={collaboration.connection !== "connected" ? collaboration.onResync : undefined} />
+        </Stack>}
         {staleConflict && onReloadServerVersion && <Button color="warning" onClick={() => void onReloadServerVersion()}>Recargar versión</Button>}
         {compact && <IconButton aria-label="Abrir sidebar" onClick={onOpenSidebar}>Menu</IconButton>}
         {compact && <Button variant="outlined" onClick={onOpenInspector}>Inspector</Button>}
@@ -633,7 +683,7 @@ function DiagnosticsPanel({
   );
 }
 
-function WorkspaceStatusBar() {
+function WorkspaceStatusBar({ collaboration }: Readonly<Pick<WorkspaceClientProps, "collaboration">>) {
   const { document, canUndo, canRedo, activeTool, focusedElementId, fitViewCount, autoLayoutCount, diagnostics } = useWorkspaceStore();
   const errors = diagnostics.filter((diagnostic) => diagnostic.severity === "error").length;
   const warnings = diagnostics.filter((diagnostic) => diagnostic.severity === "warning").length;
@@ -642,6 +692,7 @@ function WorkspaceStatusBar() {
       <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
         <Typography variant="caption">Status Bar</Typography>
         <Typography variant="caption">Revisión local {document.revision}</Typography>
+        {collaboration && <Typography variant="caption">Realtime {collaboration.connection} · revisión confirmada {collaboration.revision}</Typography>}
         <Typography variant="caption">Herramienta: {activeTool}</Typography>
         <Typography variant="caption">Deshacer {canUndo ? "habilitado" : "deshabilitado"}</Typography>
         <Typography variant="caption">Rehacer {canRedo ? "habilitado" : "deshabilitado"}</Typography>

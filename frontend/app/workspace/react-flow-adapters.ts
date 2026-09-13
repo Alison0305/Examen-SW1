@@ -24,7 +24,7 @@ export interface UmlEdgeData extends Record<string, unknown> {
 export type UmlReactFlowNode = Node<UmlNodeData>;
 export type UmlReactFlowEdge = Edge<UmlEdgeData>;
 
-export function toReactFlowNodes(document: ProjectDocument, selectedId?: string, readOnly = false): UmlReactFlowNode[] {
+export function toReactFlowNodes(document: ProjectDocument, selectedId?: string, readOnly = false, remoteSelectionIds: string[] = []): UmlReactFlowNode[] {
   const layout = new Map(document.layout.elements.map((entry) => [entry.elementId, entry]));
 
   const classNodes = document.uml.classes.map((umlClass, index): UmlReactFlowNode => {
@@ -42,6 +42,7 @@ export function toReactFlowNodes(document: ProjectDocument, selectedId?: string,
       },
       selected: selectedId === umlClass.id,
       draggable: !readOnly,
+      style: remoteSelectionIds.includes(umlClass.id) ? { outline: "2px solid #f59e0b", outlineOffset: 3 } : undefined,
     };
   });
 
@@ -60,6 +61,7 @@ export function toReactFlowNodes(document: ProjectDocument, selectedId?: string,
       },
       selected: selectedId === enumeration.id,
       draggable: !readOnly,
+      style: remoteSelectionIds.includes(enumeration.id) ? { outline: "2px solid #f59e0b", outlineOffset: 3 } : undefined,
     };
   });
 

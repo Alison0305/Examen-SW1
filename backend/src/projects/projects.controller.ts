@@ -7,12 +7,13 @@ import { UpdateProjectDto } from "./dto/update-project.dto";
 import { RenameProjectDto } from "./dto/rename-project.dto";
 import { UpdateProjectMemberDto } from "./dto/update-project-member.dto";
 import { ProjectAccessService, type ProjectAccessRole } from "./project-access.service";
+import { ProjectAccessInvalidationService } from "./project-access-invalidation.service";
 import { InvalidProjectDocumentError, ProjectNotFoundError, ProjectsPersistenceService, StaleProjectRevisionError } from "./projects-persistence.service";
 
 @Controller("projects")
 @UseGuards(JwtAuthGuard)
 export class ProjectsController {
-  constructor(@Inject(ProjectsPersistenceService) private readonly projects: ProjectsPersistenceService, @Inject(ProjectAccessService) private readonly access: ProjectAccessService) {}
+  constructor(@Inject(ProjectsPersistenceService) private readonly projects: ProjectsPersistenceService, @Inject(ProjectAccessService) private readonly access: ProjectAccessService, @Inject(ProjectAccessInvalidationService) private readonly accessInvalidations: ProjectAccessInvalidationService) {}
 
   @Post()
   async create(@Req() request: AuthenticatedRequest, @Body(new DtoValidationPipe(CreateProjectDto)) dto: CreateProjectDto) {
@@ -76,6 +77,7 @@ export class ProjectsController {
     await this.access.requireOwner(id, this.userId(request));
     try {
       const member = await this.projects.updateMember(id, userId, dto.role);
+      this.accessInvalidations.notify({ projectId: id, userId, accessRole: dto.role });
       return { ...member, email: member.user.email, user: undefined };
     } catch (error) { this.mapError(error); }
   }
@@ -84,7 +86,10 @@ export class ProjectsController {
   @HttpCode(204)
   async removeMember(@Req() request: AuthenticatedRequest, @Param("id", new ParseUUIDPipe()) id: string, @Param("userId", new ParseUUIDPipe()) userId: string) {
     await this.access.requireOwner(id, this.userId(request));
-    try { await this.projects.deleteMember(id, userId); }
+    try {
+      await this.projects.deleteMember(id, userId);
+      this.accessInvalidations.notify({ projectId: id, userId, accessRole: "NONE" });
+    }
     catch (error) { this.mapError(error); }
   }
 

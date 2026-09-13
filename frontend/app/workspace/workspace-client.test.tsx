@@ -5,8 +5,8 @@ import { AppProviders } from "../providers";
 import WorkspacePage from "./page";
 import { applyVisualNodeChanges, relationshipLabel, toReactFlowEdges, toReactFlowNodes } from "./react-flow-adapters";
 import { getMultiplicityLabelPositions, getUmlRelationshipMarkers, UmlRelationshipMultiplicityLabels } from "./uml-edge";
-import { resetWorkspaceStore, useWorkspaceStore } from "./workspace-store";
-import { workspaceCanvasInteractionProps } from "./workspace-client";
+import { resetWorkspaceStore, setWorkspaceCollaborativeCommandListener, useWorkspaceStore } from "./workspace-store";
+import { toCanvasCursorPosition, workspaceCanvasInteractionProps } from "./workspace-client";
 
 function renderWorkspace() {
   return render(
@@ -78,6 +78,12 @@ function documentWithTypeReference(referenceType: "class" | "enumeration"): Proj
 describe("Workspace UML manual", () => {
   beforeEach(() => {
     resetWorkspaceStore();
+  });
+
+  it("proyecta una posición flow remota al canvas local con pan, zoom y offset de contenedor", () => {
+    const flowToScreenPosition = ({ x, y }: { x: number; y: number }) => ({ x: x * 1.5 + 230, y: y * 1.5 + 160 });
+
+    expect(toCanvasCursorPosition({ x: 100, y: 80 }, flowToScreenPosition, { left: 200, top: 100 })).toEqual({ x: 180, y: 180 });
   });
 
   it("renderiza /workspace con estructura principal, toolbox y controles básicos", () => {
@@ -822,5 +828,59 @@ describe("Workspace UML manual", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Rehacer" }));
     expect(await screen.findByRole("button", { name: "Nodo clase Clase1" })).toBeInTheDocument();
+  });
+
+  it("confirma por ACK un renombrado, ignora su eco y emite Undo/Redo colaborativos", async () => {
+    renderWorkspace();
+    await createClass();
+    const classId = useWorkspaceStore.getState().document.uml.classes[0].id;
+    const operations: Array<{ command: Parameters<ReturnType<typeof useWorkspaceStore.getState>["applyAuthoritativeCommand"]>[0]; preimage: ProjectDocument }> = [];
+    act(() => setWorkspaceCollaborativeCommandListener((command, preimage) => operations.push({ command, preimage })));
+
+    fireEvent.change(screen.getByLabelText("Nombre de clase"), { target: { value: "Cliente" } });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar clase" }));
+    expect(useWorkspaceStore.getState().document.uml.classes[0].name).toBe("Clase1");
+    expect(screen.getByRole("button", { name: "Deshacer" })).toBeDisabled();
+
+    act(() => useWorkspaceStore.getState().applyAuthoritativeCommand(operations[0].command, true, operations[0].preimage));
+    expect(useWorkspaceStore.getState().document.uml.classes[0]).toMatchObject({ id: classId, name: "Cliente" });
+    expect(screen.getByRole("button", { name: "Deshacer" })).toBeEnabled();
+    // The page's operation id ledger drops the Socket.IO echo after this ACK.
+    expect(operations).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Deshacer" }));
+    expect(operations[1].command).toEqual({ type: "RenameClass", classId, name: "Clase1" });
+    act(() => useWorkspaceStore.getState().applyAuthoritativeCommand(operations[1].command, true, operations[1].preimage));
+    expect(useWorkspaceStore.getState().document.uml.classes[0].name).toBe("Clase1");
+    expect(screen.getByRole("button", { name: "Rehacer" })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Rehacer" }));
+    expect(operations[2].command).toEqual({ type: "RenameClass", classId, name: "Cliente" });
+    act(() => useWorkspaceStore.getState().applyAuthoritativeCommand(operations[2].command, true, operations[2].preimage));
+    expect(useWorkspaceStore.getState().document.uml.classes[0].name).toBe("Cliente");
+    expect(screen.getByRole("button", { name: "Deshacer" })).toBeEnabled();
+
+    act(() => useWorkspaceStore.getState().applyAuthoritativeCommand({ type: "UpdateClassVisibility", classId, visibility: "private" }));
+    expect(screen.getByRole("button", { name: "Deshacer" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Rehacer" })).toBeDisabled();
+  });
+
+  it("conserva el snapshot de una eliminación colaborativa hasta que ACK confirma Undo", async () => {
+    renderWorkspace();
+    await createClass();
+    const classId = useWorkspaceStore.getState().document.uml.classes[0].id;
+    const operations: Array<{ command: Parameters<ReturnType<typeof useWorkspaceStore.getState>["applyAuthoritativeCommand"]>[0]; preimage: ProjectDocument }> = [];
+    act(() => setWorkspaceCollaborativeCommandListener((command, preimage) => operations.push({ command, preimage })));
+
+    fireEvent.click(screen.getByRole("button", { name: "Eliminar clase" }));
+    expect(useWorkspaceStore.getState().document.uml.classes).toHaveLength(1);
+    act(() => useWorkspaceStore.getState().applyAuthoritativeCommand(operations[0].command, true, operations[0].preimage));
+    expect(useWorkspaceStore.getState().document.uml.classes).toHaveLength(0);
+
+    fireEvent.click(screen.getByRole("button", { name: "Deshacer" }));
+    expect(operations[1].command.type).toBe("RestoreDeletionSnapshot");
+    act(() => useWorkspaceStore.getState().applyAuthoritativeCommand(operations[1].command, true, operations[1].preimage));
+    expect(useWorkspaceStore.getState().document.uml.classes.map((umlClass) => umlClass.id)).toEqual([classId]);
+    expect(screen.getByRole("button", { name: "Rehacer" })).toBeEnabled();
   });
 });

@@ -68,6 +68,8 @@ interface WorkspaceState {
   validateDocument: () => void;
   navigateToDiagnostic: (diagnostic: Diagnostic) => void;
   markFitView: () => void;
+  applyAuthoritativeCommand: (command: UmlCommand, local?: boolean, preimage?: ProjectDocument) => CommandResult;
+  replaceAuthoritativeDocument: (document: ProjectDocument) => void;
 }
 
 type SetWorkspaceState = (state: Partial<WorkspaceState> | ((state: WorkspaceState) => Partial<WorkspaceState>)) => void;
@@ -75,10 +77,32 @@ type SetWorkspaceState = (state: Partial<WorkspaceState> | ((state: WorkspaceSta
 let uuidCounter = 1;
 let commandBus = new UmlCommandBus(createInitialDocument());
 let persistentChangeListener: (() => void) | undefined;
+let collaborativeCommandListener: ((command: UmlCommand, preimage: ProjectDocument) => void) | undefined;
 let workspaceReadOnly = false;
+type CollaborativeHistoryEntry = { command: UmlCommand; undoCommand: UmlCommand };
+let collaborativeUndo: CollaborativeHistoryEntry[] = [];
+let collaborativeRedo: CollaborativeHistoryEntry[] = [];
+let collaborativeHistoryAction: "undo" | "redo" | undefined;
 
 export function setWorkspacePersistentChangeListener(listener?: () => void): void {
   persistentChangeListener = listener;
+}
+
+export function setWorkspaceCollaborativeCommandListener(listener?: (command: UmlCommand, preimage: ProjectDocument) => void): void {
+  collaborativeCommandListener = listener;
+  collaborativeUndo = [];
+  collaborativeRedo = [];
+  collaborativeHistoryAction = undefined;
+  // Local snapshots cannot be replayed against the authoritative revision.
+  commandBus = new UmlCommandBus(commandBus.document, { historyLimit: 0 });
+  useWorkspaceStore.setState({ canUndo: false, canRedo: false });
+}
+
+export function invalidateWorkspaceCollaborativeHistory(): void {
+  collaborativeUndo = [];
+  collaborativeRedo = [];
+  collaborativeHistoryAction = undefined;
+  useWorkspaceStore.setState({ canUndo: false, canRedo: false });
 }
 
 export function setWorkspaceReadOnly(readOnly = false): void {
@@ -251,6 +275,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   },
   undo: () => {
     if (workspaceReadOnly) return;
+    if (collaborativeCommandListener) {
+      const entry = collaborativeUndo.at(-1);
+      if (!entry || collaborativeHistoryAction) return;
+      collaborativeHistoryAction = "undo";
+      collaborativeCommandListener(entry.undoCommand, commandBus.document);
+      setCollaborativeHistory(set);
+      return;
+    }
     const document = commandBus.undo();
       if (document) {
       const documentDiagnostics = validateProjectDocument(document).diagnostics;
@@ -260,6 +292,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   },
   redo: () => {
     if (workspaceReadOnly) return;
+    if (collaborativeCommandListener) {
+      const entry = collaborativeRedo.at(-1);
+      if (!entry || collaborativeHistoryAction) return;
+      collaborativeHistoryAction = "redo";
+      collaborativeCommandListener(entry.command, commandBus.document);
+      setCollaborativeHistory(set);
+      return;
+    }
     const document = commandBus.redo();
       if (document) {
       const documentDiagnostics = validateProjectDocument(document).diagnostics;
@@ -279,10 +319,52 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     set({ selection, focusedElementId: selection ? diagnostic.elementId : null });
   },
   markFitView: () => set((state) => ({ fitViewCount: state.fitViewCount + 1 })),
+    applyAuthoritativeCommand: (command, local = false, preimage?: ProjectDocument) => {
+      commandBus = new UmlCommandBus(commandBus.document, { historyLimit: 0 });
+      const result = commandBus.execute(command);
+      if (result.success && local) {
+        if (collaborativeHistoryAction === "undo") {
+          const entry = collaborativeUndo.pop();
+          if (entry) collaborativeRedo.push(entry);
+        } else if (collaborativeHistoryAction === "redo") {
+          const entry = collaborativeRedo.pop();
+          if (entry) collaborativeUndo.push(entry);
+        } else if (preimage) {
+          const undoCommand = isDeletionCommand(command) && result.deletionSnapshot
+            ? { type: "RestoreDeletionSnapshot" as const, snapshot: result.deletionSnapshot }
+            : inverseCommand(command, preimage);
+          if (undoCommand) {
+            const entry = { command, undoCommand };
+            collaborativeUndo.push(entry);
+            collaborativeRedo = [];
+          }
+        }
+    } else if (!local) {
+      collaborativeUndo = [];
+      collaborativeRedo = [];
+    }
+    collaborativeHistoryAction = undefined;
+    const documentDiagnostics = validateProjectDocument(commandBus.document).diagnostics;
+    setFromBus(set, { lastResult: result, diagnostics: [...result.diagnostics, ...documentDiagnostics], commandDiagnostics: result.success ? [] : result.diagnostics, documentDiagnostics });
+    if (collaborativeCommandListener) setCollaborativeHistory(set);
+    return result;
+  },
+  replaceAuthoritativeDocument: (document) => {
+    commandBus = new UmlCommandBus(document);
+    collaborativeUndo = [];
+    collaborativeRedo = [];
+    collaborativeHistoryAction = undefined;
+    const documentDiagnostics = validateProjectDocument(document).diagnostics;
+    setFromBus(set, { lastResult: null, diagnostics: documentDiagnostics, commandDiagnostics: [], documentDiagnostics, selection: null, pendingRelationshipSourceId: null });
+  },
 }));
 
 export function resetWorkspaceStore(initialDocument: ProjectDocument = createInitialDocument()): void {
   workspaceReadOnly = false;
+  collaborativeCommandListener = undefined;
+  collaborativeUndo = [];
+  collaborativeRedo = [];
+  collaborativeHistoryAction = undefined;
   uuidCounter = 1;
   commandBus = new UmlCommandBus(initialDocument);
   useWorkspaceStore.setState({
@@ -315,6 +397,12 @@ function applyCommand(set: SetWorkspaceState, command: UmlCommand): CommandResul
   if (workspaceReadOnly) {
     return { success: false, status: "rejected", document: commandBus.document, diagnostics: [] };
   }
+  if (collaborativeCommandListener) {
+    const preimage = commandBus.document;
+    const result = new UmlCommandBus(preimage, { historyLimit: 0 }).execute(command);
+    if (result.success) collaborativeCommandListener(command, preimage);
+    return result;
+  }
   const result = commandBus.execute(command);
   const documentDiagnostics = validateProjectDocument(commandBus.document).diagnostics;
   const commandDiagnostics = result.success ? [] : result.diagnostics;
@@ -336,6 +424,63 @@ function setFromBus(set: SetWorkspaceState, state: Partial<WorkspaceState>): voi
     canRedo: history.canRedo,
     ...state,
   });
+}
+
+function setCollaborativeHistory(set: SetWorkspaceState): void {
+  set({ canUndo: collaborativeUndo.length > 0 && !collaborativeHistoryAction, canRedo: collaborativeRedo.length > 0 && !collaborativeHistoryAction });
+}
+
+function isDeletionCommand(command: UmlCommand): boolean {
+  return command.type === "DeleteClass" || command.type === "DeleteEnumeration" || command.type === "DeleteRelationship" || command.type === "RemoveAttribute" || command.type === "RemoveEnumerationLiteral";
+}
+
+function inverseCommand(command: UmlCommand, document: ProjectDocument): UmlCommand | undefined {
+  switch (command.type) {
+    case "CreateClass": return command.classId ? { type: "DeleteClass", classId: command.classId } : undefined;
+    case "RenameClass": {
+      const umlClass = document.uml.classes.find((entry) => entry.id === command.classId);
+      return umlClass ? { type: "RenameClass", classId: command.classId, name: umlClass.name } : undefined;
+    }
+    case "UpdateClassVisibility": {
+      const umlClass = document.uml.classes.find((entry) => entry.id === command.classId);
+      return umlClass ? { type: "UpdateClassVisibility", classId: command.classId, visibility: umlClass.visibility } : undefined;
+    }
+    case "AddAttribute": return command.attributeId ? { type: "RemoveAttribute", classId: command.classId, attributeId: command.attributeId } : undefined;
+    case "UpdateAttribute": {
+      const attribute = document.uml.classes.find((entry) => entry.id === command.classId)?.attributes.find((entry) => entry.id === command.attributeId);
+      if (!attribute) return undefined;
+      const updates = Object.fromEntries(Object.keys(command.updates).map((key) => [key, structuredClone(attribute[key as keyof typeof attribute])])) as typeof command.updates;
+      return { type: "UpdateAttribute", classId: command.classId, attributeId: command.attributeId, updates };
+    }
+    case "CreateEnumeration": return command.enumerationId ? { type: "DeleteEnumeration", enumerationId: command.enumerationId } : undefined;
+    case "RenameEnumeration": {
+      const enumeration = document.uml.enumerations.find((entry) => entry.id === command.enumerationId);
+      return enumeration ? { type: "RenameEnumeration", enumerationId: command.enumerationId, name: enumeration.name } : undefined;
+    }
+    case "UpdateEnumerationVisibility": {
+      const enumeration = document.uml.enumerations.find((entry) => entry.id === command.enumerationId);
+      return enumeration ? { type: "UpdateEnumerationVisibility", enumerationId: command.enumerationId, visibility: enumeration.visibility } : undefined;
+    }
+    case "AddEnumerationLiteral": return { type: "RemoveEnumerationLiteral", enumerationId: command.enumerationId, literal: command.literal };
+    case "CreateRelationship": return command.relationshipId ? { type: "DeleteRelationship", relationshipId: command.relationshipId } : undefined;
+    case "UpdateMultiplicity": {
+      const relationship = document.uml.relationships.find((entry) => entry.id === command.relationshipId);
+      return relationship ? { type: "UpdateMultiplicity", relationshipId: command.relationshipId, end: command.end, multiplicity: relationship[command.end === "source" ? "sourceMultiplicity" : "targetMultiplicity"] } : undefined;
+    }
+    case "UpdateRelationshipName": {
+      const relationship = document.uml.relationships.find((entry) => entry.id === command.relationshipId);
+      return relationship ? { type: "UpdateRelationshipName", relationshipId: command.relationshipId, name: relationship.name ?? "" } : undefined;
+    }
+    case "MoveElement": {
+      const layout = document.layout.elements.find((entry) => entry.elementId === command.elementId);
+      return layout ? { type: "MoveElement", elementId: command.elementId, x: layout.x, y: layout.y, width: layout.width, height: layout.height } : undefined;
+    }
+    case "ApplyLayout": return {
+      type: "ApplyLayout",
+      elements: document.layout.elements.filter((layout) => command.elements.some((entry) => entry.elementId === layout.elementId)).map((layout) => structuredClone(layout)),
+    };
+    default: return undefined;
+  }
 }
 
 function isRelationshipTool(tool: WorkspaceTool): tool is UmlRelationshipType {

@@ -1,8 +1,13 @@
 import type {
   GenerationMetadata,
+  DiagramElementLayout,
   Multiplicity,
   ProjectDocument,
   UmlRelationshipType,
+  UmlAttribute,
+  UmlClass,
+  UmlEnumeration,
+  UmlRelationship,
   UmlType,
   UmlVisibility,
   Uuid,
@@ -153,6 +158,23 @@ export interface ApplyLayoutCommand {
   elements: Array<DiagramElementLayoutInput & { elementId: Uuid }>;
 }
 
+export interface IndexedDeletionEntry<T> {
+  value: T;
+  index: number;
+}
+
+export type DeletionSnapshot =
+  | { kind: "class"; umlClass: UmlClass; classIndex: number; relationships: Array<IndexedDeletionEntry<UmlRelationship>>; layouts: Array<IndexedDeletionEntry<DiagramElementLayout>> }
+  | { kind: "enumeration"; enumeration: UmlEnumeration; enumerationIndex: number; layouts: Array<IndexedDeletionEntry<DiagramElementLayout>> }
+  | { kind: "relationship"; relationship: UmlRelationship; relationshipIndex: number; layouts: Array<IndexedDeletionEntry<DiagramElementLayout>> }
+  | { kind: "attribute"; classId: Uuid; attribute: UmlAttribute; attributeIndex: number }
+  | { kind: "literal"; enumerationId: Uuid; literal: string; literalIndex: number };
+
+export interface RestoreDeletionSnapshotCommand {
+  type: "RestoreDeletionSnapshot";
+  snapshot: DeletionSnapshot;
+}
+
 export type UmlCommand =
   | CreateClassCommand
   | RenameClassCommand
@@ -172,13 +194,15 @@ export type UmlCommand =
   | UpdateMultiplicityCommand
   | UpdateRelationshipNameCommand
   | MoveElementCommand
-  | ApplyLayoutCommand;
+  | ApplyLayoutCommand
+  | RestoreDeletionSnapshotCommand;
 
 export interface CommandSuccessResult {
   success: true;
   status: "success";
   document: ProjectDocument;
   diagnostics: Diagnostic[];
+  deletionSnapshot?: DeletionSnapshot;
 }
 
 export interface CommandRejectedResult {

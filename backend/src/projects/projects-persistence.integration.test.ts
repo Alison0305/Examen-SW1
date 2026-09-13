@@ -10,11 +10,14 @@ const classB = "a4444444-4444-4444-8444-444444444444";
 const enumId = "a5555555-5555-4555-8555-555555555555";
 
 describe("ProjectsPersistenceService PostgreSQL", () => {
-  const prisma = new PrismaService();
-  const service = new ProjectsPersistenceService(prisma);
+  let prisma: PrismaService;
+  let service: ProjectsPersistenceService;
 
   beforeAll(async () => {
     process.loadEnvFile(".env");
+
+    prisma = new PrismaService();
+    service = new ProjectsPersistenceService(prisma);
     await prisma.$connect();
     await prisma.project.deleteMany({ where: { ownerId } });
     await prisma.user.deleteMany({ where: { id: ownerId } });
