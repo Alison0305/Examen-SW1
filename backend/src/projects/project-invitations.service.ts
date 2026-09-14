@@ -76,6 +76,16 @@ export class ProjectInvitationsService {
     return this.publicInvitation(invitation);
   }
 
+  async listMine(email: string) {
+    return this.prisma.projectInvitation.findMany({
+      where: { email: normalizeEmail(email), status: ProjectInvitationStatus.PENDING, expiresAt: { gt: new Date() } },
+      orderBy: { createdAt: "asc" },
+      include: { project: { select: { id: true, name: true } }, invitedBy: { select: { email: true } } },
+    }).then((invitations) => invitations.map(({ project, invitedBy, ...invitation }) => ({
+      ...this.publicInvitation(invitation), project, invitedBy: { email: invitedBy.email },
+    })));
+  }
+
   async accept(token: string, userId: string, email: string) {
     return this.resolve(token, userId, email, ProjectInvitationStatus.ACCEPTED);
   }
@@ -84,16 +94,27 @@ export class ProjectInvitationsService {
     return this.resolve(token, userId, email, ProjectInvitationStatus.REJECTED);
   }
 
+  async acceptById(id: string, userId: string, email: string) {
+    return this.resolveById(id, userId, email, ProjectInvitationStatus.ACCEPTED);
+  }
+
+  async rejectById(id: string, userId: string, email: string) {
+    return this.resolveById(id, userId, email, ProjectInvitationStatus.REJECTED);
+  }
+
   private async resolve(token: string, userId: string, email: string, status: "ACCEPTED" | "REJECTED") {
     const tokenHash = this.hash(token);
-    return this.prisma.$transaction(async (tx) => {
-      const candidate = await tx.projectInvitation.findUnique({ where: { tokenHash }, select: { id: true } });
-      if (!candidate) throw new NotFoundException();
+    const candidate = await this.prisma.projectInvitation.findUnique({ where: { tokenHash }, select: { id: true } });
+    if (!candidate) throw new NotFoundException();
+    return this.resolveById(candidate.id, userId, email, status);
+  }
 
+  private async resolveById(id: string, userId: string, email: string, status: "ACCEPTED" | "REJECTED") {
+    return this.prisma.$transaction(async (tx) => {
       // Serialize resolution so a second concurrent request observes the resolved state.
-      await tx.$queryRaw`SELECT 1 FROM "ProjectInvitation" WHERE "id" = ${candidate.id}::uuid FOR UPDATE`;
+      await tx.$queryRaw`SELECT 1 FROM "ProjectInvitation" WHERE "id" = ${id}::uuid FOR UPDATE`;
       const invitation = await tx.projectInvitation.findUnique({
-        where: { id: candidate.id },
+        where: { id },
         include: { project: { select: { ownerId: true } } },
       });
       if (!invitation || !this.isActiveForEmail(invitation, email) || invitation.project.ownerId === userId) throw new NotFoundException();

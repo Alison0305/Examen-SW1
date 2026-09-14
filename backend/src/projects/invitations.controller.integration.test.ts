@@ -121,4 +121,27 @@ describe("InvitationsController PostgreSQL", () => {
     expect(await prisma.projectInvitation.findUniqueOrThrow({ where: { id: rejected.body.id } })).toMatchObject({ status: "REJECTED", resolvedAt: expect.any(Date) });
     await request(app.getHttpServer()).post(`/invitations/${rejected.body.token}/reject`).set(authorization(rejectToken)).expect(404);
   });
+
+  it("lista y resuelve por id solo invitaciones propias activas sin exponer secretos", async () => {
+    const project = await request(app.getHttpServer()).post("/projects").set(authorization(ownerToken)).send({ name: "Proyecto bandeja", document: createProjectDocument() }).expect(201);
+    const projectId = project.body.id;
+    const own = await request(app.getHttpServer()).post(`/projects/${projectId}/invitations`).set(authorization(ownerToken)).send({ email: "CU04-INVITATION-RECIPIENT@EXAMPLE.TEST", role: "EDITOR" }).expect(201);
+    const foreign = await request(app.getHttpServer()).post(`/projects/${projectId}/invitations`).set(authorization(ownerToken)).send({ email: rejectEmail, role: "VIEWER" }).expect(201);
+
+    const mine = await request(app.getHttpServer()).get("/invitations").set(authorization(recipientToken)).expect(200);
+    expect(mine.body).toEqual([expect.objectContaining({ id: own.body.id, project: { id: projectId, name: "Proyecto bandeja" }, role: "EDITOR", status: "PENDING", invitedBy: { email: ownerEmail } })]);
+    expect(JSON.stringify(mine.body)).not.toContain(own.body.token);
+    expect(JSON.stringify(mine.body)).not.toContain("tokenHash");
+    await request(app.getHttpServer()).get("/invitations").set(authorization(rejectToken)).expect(200).expect((response) => expect(response.body).toEqual([expect.objectContaining({ id: foreign.body.id })]));
+    await request(app.getHttpServer()).post(`/invitations/by-id/${foreign.body.id}/accept`).set(authorization(recipientToken)).expect(404);
+
+    await request(app.getHttpServer()).post(`/invitations/by-id/${own.body.id}/accept`).set(authorization(recipientToken)).expect(201);
+    expect(await prisma.projectMembership.findUnique({ where: { projectId_userId: { projectId, userId: recipientId } } })).toMatchObject({ role: "EDITOR" });
+    await request(app.getHttpServer()).get("/invitations").set(authorization(recipientToken)).expect(200).expect((response) => expect(response.body).toEqual([]));
+    await request(app.getHttpServer()).post(`/invitations/by-id/${own.body.id}/accept`).set(authorization(recipientToken)).expect(404);
+
+    await request(app.getHttpServer()).post(`/invitations/by-id/${foreign.body.id}/reject`).set(authorization(rejectToken)).expect(201);
+    expect(await prisma.projectMembership.count({ where: { projectId, user: { email: rejectEmail } } })).toBe(0);
+    await request(app.getHttpServer()).post(`/invitations/by-id/${foreign.body.id}/reject`).set(authorization(rejectToken)).expect(404);
+  });
 });

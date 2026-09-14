@@ -46,6 +46,24 @@ afterEach(() => {
 });
 
 describe("cliente API y sesión", () => {
+  it("lista y resuelve invitaciones internas autenticadas sin enviar tokens", async () => {
+    const fetcher = vi.fn().mockResolvedValue({ status: 200, ok: true, json: vi.fn().mockResolvedValue([]) });
+    const client = createApiClient({ getToken: () => "secret-token", onUnauthorized: vi.fn(), fetcher, apiBaseUrl: "http://api.test" });
+
+    await client.listMyInvitations();
+    await client.acceptInvitationById("invite id");
+    await client.rejectInvitationById("invite id");
+
+    expect(fetcher.mock.calls.map(([url]) => url)).toEqual([
+      "http://api.test/invitations",
+      "http://api.test/invitations/by-id/invite%20id/accept",
+      "http://api.test/invitations/by-id/invite%20id/reject",
+    ]);
+    for (const [, init] of fetcher.mock.calls) {
+      expect((init.headers as Headers).get("Authorization")).toBe("Bearer secret-token");
+      expect(init.body).toBeUndefined();
+    }
+  });
   it("adjunta Bearer y notifica para limpiar sesión ante 401", async () => {
     const onUnauthorized = vi.fn();
     const fetcher = vi.fn().mockResolvedValue({ status: 401, ok: false, json: vi.fn().mockResolvedValue({ message: "No autorizado" }) });

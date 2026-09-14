@@ -12,6 +12,7 @@ export type ProjectDetail = ProjectSummary & { document: import("@examen-sw1/uml
 export type ProjectMember = { userId: string; email: string; role: ProjectMemberRole; createdAt: string; updatedAt: string };
 export type ProjectInvitation = { id: string; projectId: string; invitedById: string; email: string; role: ProjectMemberRole; status: "PENDING" | "ACCEPTED" | "REJECTED" | "REVOKED"; expiresAt: string; createdAt: string; resolvedAt: string | null };
 export type CreatedProjectInvitation = ProjectInvitation & { token: string };
+export type PendingProjectInvitation = Omit<ProjectInvitation, "email" | "invitedById" | "resolvedAt"> & { project: { id: string; name: string }; invitedBy: { email: string } };
 
 export type ApiClient = {
   login(email: string, password: string): Promise<string>;
@@ -32,6 +33,9 @@ export type ApiClient = {
   getInvitation(token: string): Promise<ProjectInvitation>;
   acceptInvitation(token: string): Promise<ProjectInvitation>;
   rejectInvitation(token: string): Promise<ProjectInvitation>;
+  listMyInvitations(): Promise<PendingProjectInvitation[]>;
+  acceptInvitationById(id: string): Promise<ProjectInvitation>;
+  rejectInvitationById(id: string): Promise<ProjectInvitation>;
 };
 
 export class ApiError extends Error {
@@ -103,5 +107,8 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     getInvitation: (token) => request<ProjectInvitation>(`/invitations/${encodeURIComponent(token)}`, options),
     acceptInvitation: (token) => request<ProjectInvitation>(`/invitations/${encodeURIComponent(token)}/accept`, options, { method: "POST" }),
     rejectInvitation: (token) => request<ProjectInvitation>(`/invitations/${encodeURIComponent(token)}/reject`, options, { method: "POST" }),
+    listMyInvitations: () => request<PendingProjectInvitation[]>("/invitations", options),
+    acceptInvitationById: (id) => request<ProjectInvitation>(`/invitations/by-id/${encodeURIComponent(id)}/accept`, options, { method: "POST" }),
+    rejectInvitationById: (id) => request<ProjectInvitation>(`/invitations/by-id/${encodeURIComponent(id)}/reject`, options, { method: "POST" }),
   };
 }
