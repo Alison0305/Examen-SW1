@@ -74,9 +74,10 @@ function columnField(table: RelationalTable, column: RelationalColumn, relations
   const imports: string[] = [];
   if (column.enumName) annotations.push("@Enumerated(EnumType.STRING)");
   if (foreignKey) {
-    annotations.push(`@${column.unique ? "OneToOne" : "ManyToOne"}${relation?.lifecycle === "COMPOSITION" ? "(cascade = CascadeType.ALL)" : ""}`, `@JoinColumn(name = "${column.name}", referencedColumnName = "${foreignKey.targetColumn}", nullable = ${column.nullable})`);
+    const compositionOwner = relation?.lifecycle === "COMPOSITION" && relation.cardinality === "ONE_TO_ONE" && relation.sourceTable === table.name;
+    annotations.push(`@${column.unique ? "OneToOne" : "ManyToOne"}${compositionOwner ? "(cascade = CascadeType.ALL, orphanRemoval = true)" : ""}`, `@JoinColumn(name = "${column.name}", referencedColumnName = "${foreignKey.targetColumn}", nullable = ${column.nullable})`);
     imports.push("jakarta.persistence.JoinColumn", column.unique ? "jakarta.persistence.OneToOne" : "jakarta.persistence.ManyToOne", pascal(foreignKey.targetTable));
-    if (relation?.lifecycle === "COMPOSITION") imports.push("jakarta.persistence.CascadeType");
+    if (compositionOwner) imports.push("jakarta.persistence.CascadeType");
   } else annotations.push(`@Column(name = "${column.name}", nullable = ${column.nullable}${column.unique ? ", unique = true" : ""})`);
   return { annotations, fieldName: camel(column.name), accessorName: pascal(column.name), javaType: foreignKey ? pascal(foreignKey.targetTable) : column.enumName ? pascal(column.enumName) : javaType(column), imports };
 }
@@ -87,13 +88,19 @@ function inverseFields(table: RelationalTable, model: RelationalModel): Array<{ 
     if (relation.cardinality === "ONE_TO_MANY" && relation.sourceTable === table.name && relation.foreignKey) {
       const owner = model.tables.find((candidate) => candidate.foreignKeys.some((key) => key.name === relation.foreignKey));
       const fk = owner?.foreignKeys.find((key) => key.name === relation.foreignKey);
-      if (owner && fk) fields.push(collectionField(owner.name, `${camel(fk.column)}Items`, `@OneToMany(mappedBy = "${camel(fk.column)}")`));
+      if (owner && fk) {
+        const composition = relation.lifecycle === "COMPOSITION";
+        fields.push(collectionField(owner.name, `${camel(fk.column)}Items`, `@OneToMany(mappedBy = "${camel(fk.column)}"${composition ? ", cascade = CascadeType.ALL, orphanRemoval = true" : ""})`, composition));
+      }
     }
     if (relation.cardinality === "ONE_TO_ONE" && relation.foreignKey) {
       const owner = model.tables.find((candidate) => candidate.foreignKeys.some((key) => key.name === relation.foreignKey));
       const fk = owner?.foreignKeys.find((key) => key.name === relation.foreignKey);
       const isOppositeParticipant = owner && ((owner.name === relation.sourceTable && table.name === relation.targetTable) || (owner.name === relation.targetTable && table.name === relation.sourceTable));
-      if (owner && fk && isOppositeParticipant) fields.push({ annotations: [`@OneToOne(mappedBy = "${camel(fk.column)}")`], fieldName: camel(owner.name), accessorName: pascal(owner.name), javaType: pascal(owner.name), imports: ["jakarta.persistence.OneToOne", pascal(owner.name)] });
+      if (owner && fk && isOppositeParticipant) {
+        const compositionComposite = relation.lifecycle === "COMPOSITION" && table.name === relation.sourceTable;
+        fields.push({ annotations: [`@OneToOne(mappedBy = "${camel(fk.column)}"${compositionComposite ? ", cascade = CascadeType.ALL, orphanRemoval = true" : ""})`], fieldName: camel(owner.name), accessorName: pascal(owner.name), javaType: pascal(owner.name), imports: ["jakarta.persistence.OneToOne", ...(compositionComposite ? ["jakarta.persistence.CascadeType"] : []), pascal(owner.name)] });
+      }
     }
     if (relation.cardinality === "MANY_TO_MANY" && relation.joinTable) {
       const join = model.tables.find((candidate) => candidate.name === relation.joinTable);
@@ -109,7 +116,7 @@ function inverseFields(table: RelationalTable, model: RelationalModel): Array<{ 
   return fields;
 }
 
-function collectionField(target: string, fieldName: string, annotation: string) { return { annotations: [annotation], fieldName, accessorName: pascal(fieldName), javaType: `Set<${pascal(target)}>`, imports: ["java.util.Set", "jakarta.persistence.OneToMany", "jakarta.persistence.ManyToMany", pascal(target)] }; }
+function collectionField(target: string, fieldName: string, annotation: string, composition = false) { return { annotations: [annotation], fieldName, accessorName: pascal(fieldName), javaType: `Set<${pascal(target)}>`, imports: ["java.util.Set", "jakarta.persistence.OneToMany", "jakarta.persistence.ManyToMany", ...(composition ? ["jakarta.persistence.CascadeType"] : []), pascal(target)] }; }
 function javaType(column: RelationalColumn): string { return javaTypes[column.type]; }
 function file(path: string, content: string): GeneratedFile { return { path, content }; }
 

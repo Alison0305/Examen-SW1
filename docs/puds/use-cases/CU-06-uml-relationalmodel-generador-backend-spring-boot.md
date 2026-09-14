@@ -128,3 +128,26 @@ Las tareas OpenSpec 2.1 a 2.3 están completadas. Permanecen pendientes únicame
 ### Resultado
 
 Las tareas OpenSpec 3.1 a 3.3 están completadas. CU-06 cerró con 10/10 tareas: el cambio se archivó en `openspec/changes/archive/2026-09-14-cu-06-relationalmodel-generador-backend-spring-boot/` y las specs principales se sincronizaron y validaron.
+
+## Correctivo Posterior - Lifecycle JPA De Composition
+
+### Implementacion Realizada
+
+- El change `cu-06-fix-composition-lifecycle-jpa` corrigió la proyección del lifecycle de Composition para que siempre se aplique desde `sourceTable` (composite) hacia `targetTable` (parte), sin alterar el FK owner ni la nullability relacional.
+- En Composition 1:N, el `@OneToMany` del composite genera `cascade = CascadeType.ALL, orphanRemoval = true`; el `@ManyToOne` de la parte no genera cascade hacia el composite.
+- En Composition 1:1, el lifecycle queda en el composite tanto si el FK owner es el composite como si es la parte.
+- Association y Aggregation siguen sin `CascadeType.ALL` ni `orphanRemoval = true` por estas reglas.
+
+### Pruebas Y Evidencia
+
+- `spring-generator`: 33/33 pruebas; cubre Composition 1:N, Composition 1:1 con ambos FK owners, Association y Aggregation.
+- `relational-core`: 10/10; `uml-core`: 58/58.
+- Gates raíz correctos: `npm run lint`, `npm run typecheck`, `npm run test` (262 pruebas) y `npm run build`.
+- El pipeline real `npm run test:generated-backend --workspace @examen-sw1/spring-generator` terminó con `BUILD SUCCESSFUL` y exit code 0 usando Java 21 y Gradle Wrapper 8.14.4.
+- La fixture de revisión manual confirmó que `Pedido.java` contiene el lifecycle en `productos` y `Producto.java` conserva `pedido_id` obligatorio sin cascade. El output temporal se eliminó tras la aprobación y no se versionó.
+
+### Limitaciones Y Estado
+
+- La revisión manual fue aprobada: Pedido es el composite, Producto la parte y el fix previo de inverse side 1:1 se mantiene correcto.
+- Docker no fue requerido; Prisma no se modificó.
+- El correctivo se archivó en `openspec/changes/archive/2026-09-14-cu-06-fix-composition-lifecycle-jpa/` tras sincronizar la spec `spring-backend-generator` y validar `openspec validate --specs` con 9/9 specs correctos. CU-07 no se inició.

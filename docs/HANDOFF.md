@@ -2,11 +2,11 @@
 
 ## Estado Operativo
 
-- CU activo: ninguno. El fix `cu-06-fix-relaciones-jpa-inversas` está archivado en `openspec/changes/archive/2026-09-14-cu-06-fix-relaciones-jpa-inversas/`; la spec principal quedó sincronizada.
-- Trabajo cerrado: inverse side JPA 1:1 solo se genera entre participantes reales; smoke compilable con Java 21 y Gradle Wrapper 8.14.4.
-- Pendiente independiente: lifecycle JPA de Composition está invertido en la fixture: Pedido es composite, Producto es parte y el cascade actual apunta Producto -> Pedido. Preparar un change separado `cu-06-fix-composition-lifecycle-jpa` solo cuando se autorice; no está creado ni implementado.
-- Validaciones correctas: lint, typecheck, test y build de raíz (259 pruebas); `openspec validate --specs` (9 specs). `backend/.env` está ignorado y no trackeado.
+- CU activo: ninguno. CU-06 y sus dos correctivos post-cierre están archivados; CU-07 no está iniciado.
+- Trabajo cerrado: revisión manual aprobada para Composition. Pedido es el composite y Producto la parte; `Pedido.productos` contiene `cascade = CascadeType.ALL, orphanRemoval = true`, mientras `Producto.pedido` conserva `@ManyToOne` y su FK obligatoria sin cascade. El fix inverse 1:1 sigue preservado.
+- Evidencia: `spring-generator` 33/33, `relational-core` 10/10 y `uml-core` 58/58; pipeline generado Java 21/Gradle Wrapper 8.14.4 con `BUILD SUCCESSFUL`; gates raíz lint, typecheck, test (262 pruebas) y build correctos. La spec `spring-backend-generator` está sincronizada y `openspec validate --specs` pasó 9/9.
+- Archivo: `openspec/changes/archive/2026-09-14-cu-06-fix-composition-lifecycle-jpa/`. Docker no fue requerido, Prisma no se modificó y el output temporal `spring-generator/.manual-review/backend` fue eliminado. `backend/.env` sigue ignorado y no trackeado.
 
 ## Siguiente Accion Exacta
 
-1. Crear y planificar `cu-06-fix-composition-lifecycle-jpa` cuando se autorice, sin iniciar CU-07.
+1. Esperar autorización formal para seleccionar el siguiente CU del roadmap, sin iniciar CU-07 automáticamente.

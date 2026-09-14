@@ -13,7 +13,7 @@ const model: RelationalModel = {
     { source, name: "usuario", primaryKey: "id", columns: [{ source, name: "id", type: "BIGINT", nullable: false, identifier: true, unique: false }, { source, name: "email", type: "VARCHAR", nullable: false, identifier: false, unique: true }], uniqueConstraints: [{ name: "uq_usuario_email", columns: ["email"] }], indexes: [], foreignKeys: [] },
   ],
   enums: [{ source, name: "estado_pedido", literals: ["NUEVO", "PAGADO"] }],
-  relations: [{ source, cardinality: "MANY_TO_ONE", sourceTable: "pedido", targetTable: "usuario", foreignKey: "fk_pedido_usuario_id", lifecycle: "COMPOSITION" }], diagnostics: [], hasErrors: false, success: true,
+  relations: [{ source, cardinality: "MANY_TO_ONE", sourceTable: "pedido", targetTable: "usuario", foreignKey: "fk_pedido_usuario_id", lifecycle: "NONE" }], diagnostics: [], hasErrors: false, success: true,
 };
 
 describe("SpringBackendGenerator", () => {
@@ -48,7 +48,8 @@ describe("SpringBackendGenerator", () => {
     expect(entity).toContain("import jakarta.persistence.Enumerated;");
     expect(entity).toContain("import jakarta.persistence.EnumType;");
     expect(entity).toContain("@Enumerated(EnumType.STRING)");
-    expect(entity).toContain("@ManyToOne(cascade = CascadeType.ALL)");
+    expect(entity).toContain("@ManyToOne");
+    expect(entity).not.toContain("CascadeType.ALL");
     expect(entity).toContain('@JoinColumn(name = "usuario_id", referencedColumnName = "id", nullable = false)');
     expect(entity).toContain("private Usuario usuarioId;");
     expect(files.find((file) => file.path.endsWith("enums/EstadoPedido.java"))?.content).toContain("NUEVO,");
@@ -140,6 +141,33 @@ describe("SpringBackendGenerator", () => {
     expect(miembro).toContain('@JoinColumn(name = "equipo_id", referencedColumnName = "id", nullable = false)');
     expect(miembro).not.toContain("CascadeType.ALL");
     expect(`${equipo}\n${miembro}`).not.toContain("orphanRemoval");
+  });
+
+  it("proyecta lifecycle de Composition 1:N desde el composite hacia las partes", () => {
+    const composition: RelationalModel = {
+      tables: [
+        { source, name: "pedido", primaryKey: "id", columns: [{ source, name: "id", type: "BIGINT", nullable: false, identifier: true, unique: false }], uniqueConstraints: [], indexes: [], foreignKeys: [] },
+        { source, name: "producto", primaryKey: "id", columns: [{ source, name: "id", type: "BIGINT", nullable: false, identifier: true, unique: false }, { source, name: "pedido_id", type: "BIGINT", nullable: false, identifier: false, unique: false }], uniqueConstraints: [], indexes: [], foreignKeys: [{ source, name: "fk_producto_pedido_id", column: "pedido_id", targetTable: "pedido", targetColumn: "id", lifecycle: "COMPOSITION" }] },
+      ], enums: [], relations: [{ source, cardinality: "ONE_TO_MANY", sourceTable: "pedido", targetTable: "producto", foreignKey: "fk_producto_pedido_id", lifecycle: "COMPOSITION" }], diagnostics: [], hasErrors: false, success: true,
+    };
+    const files = generateSpringBackend(composition);
+    const pedido = files.find((file) => file.path.endsWith("entities/Pedido.java"))!.content;
+    const producto = files.find((file) => file.path.endsWith("entities/Producto.java"))!.content;
+    expect(pedido).toContain('@OneToMany(mappedBy = "pedidoId", cascade = CascadeType.ALL, orphanRemoval = true)');
+    expect(pedido).toContain("private Set<Producto> pedidoIdItems;");
+    expect(producto).toContain("@ManyToOne");
+    expect(producto).not.toContain("@ManyToOne(cascade = CascadeType.ALL)");
+    expect(producto).toContain('@JoinColumn(name = "pedido_id", referencedColumnName = "id", nullable = false)');
+  });
+
+  it.each(["composite", "part"] as const)("proyecta lifecycle de Composition 1:1 cuando la FK pertenece al %s", (owner) => {
+    const entity = (name: string, foreignKey = owner === "composite" ? name === "composite" : name === "part") => ({ source, name, primaryKey: "id", columns: [{ source, name: "id", type: "BIGINT" as const, nullable: false, identifier: true, unique: false }, ...(foreignKey ? [{ source, name: owner === "composite" ? "parte_id" : "composite_id", type: "BIGINT" as const, nullable: false, identifier: false, unique: true }] : [])], uniqueConstraints: [], indexes: [], foreignKeys: foreignKey ? [{ source, name: "fk_composition", column: owner === "composite" ? "parte_id" : "composite_id", targetTable: owner === "composite" ? "part" : "composite", targetColumn: "id", lifecycle: "COMPOSITION" as const }] : [] });
+    const files = generateSpringBackend({ tables: [entity("composite"), entity("part")], enums: [], relations: [{ source, cardinality: "ONE_TO_ONE", sourceTable: "composite", targetTable: "part", foreignKey: "fk_composition", lifecycle: "COMPOSITION" }], diagnostics: [], hasErrors: false, success: true });
+    const composite = files.find((file) => file.path.endsWith("entities/Composite.java"))!.content;
+    const part = files.find((file) => file.path.endsWith("entities/Part.java"))!.content;
+    expect(composite).toContain("cascade = CascadeType.ALL, orphanRemoval = true");
+    expect(part).not.toContain("cascade = CascadeType.ALL");
+    expect(part).toContain("@OneToOne");
   });
 
   it("genera dos N:M del mismo par con fields, joins y mappedBy distintos", () => {

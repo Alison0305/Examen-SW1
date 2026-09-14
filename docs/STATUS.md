@@ -2,15 +2,15 @@
 
 ## Estado Actual
 
-**Ciclo actual:** Ciclo 3 — Construcción y generación (CU-06 cerrado y archivado).
+**Ciclo actual:** Ciclo 3 — Construcción y generación (CU-06 y sus correctivos cerrados).
 
 **Último CU completado:** CU-06 — UML → RelationalModel y generador backend Spring Boot.
 
 **CU activo:** Ninguno. CU-07 no iniciado.
 
-**OpenSpec activo:** Ninguno. El fix `cu-06-fix-relaciones-jpa-inversas` se archivó en `openspec/changes/archive/2026-09-14-cu-06-fix-relaciones-jpa-inversas/` y sincronizó la spec `spring-backend-generator`.
+**OpenSpec activo:** Ninguno. Los correctivos `cu-06-fix-relaciones-jpa-inversas` y `cu-06-fix-composition-lifecycle-jpa` están archivados y sincronizados en la spec `spring-backend-generator`.
 
-CU-00 a CU-06 y CU-04 EXT están cerrados. El fix posterior de CU-06 corrigió las relaciones JPA inversas 1:1 para que solo se generen entre participantes reales. Durante la revisión manual se detectó un defecto independiente de lifecycle JPA para Composition: Pedido es el composite y Producto la parte, pero el cascade actual se genera de Producto a Pedido. Su corrección queda pendiente en el change separado `cu-06-fix-composition-lifecycle-jpa`, sin crear ni implementar todavía. CU-07 no está iniciado.
+CU-00 a CU-06 y CU-04 EXT están cerrados. El fix posterior de CU-06 corrigió las relaciones JPA inversas 1:1 para que solo se generen entre participantes reales. El correctivo de lifecycle `cu-06-fix-composition-lifecycle-jpa` fue revisado manualmente y aprobado; quedó archivado en `openspec/changes/archive/2026-09-14-cu-06-fix-composition-lifecycle-jpa/`. En la fixture, Pedido es el composite y Producto la parte: `Pedido.productos` genera `cascade = CascadeType.ALL, orphanRemoval = true`, mientras `Producto.pedido` conserva la FK obligatoria sin cascade. También cubre Composition 1:1 para ambos FK owners, y confirma que Association y Aggregation no reciben lifecycle fuerte. Los gates de raíz (`lint`, `typecheck`, 262 tests y `build`) y el pipeline Java 21/Gradle (`BUILD SUCCESSFUL`) pasaron. Docker no fue requerido; Prisma no se modificó. El output temporal de revisión manual fue eliminado. CU-07 no está iniciado.
 
 ## Cierre De CU-04
 
@@ -113,4 +113,4 @@ CU-00 a CU-06 y CU-04 EXT están cerrados. El fix posterior de CU-06 corrigió l
 
 ## Siguiente Acción
 
-Seleccionar formalmente el siguiente CU del roadmap sin iniciarlo automáticamente.
+Esperar autorización formal para seleccionar el siguiente CU del roadmap; CU-07 no se inicia automáticamente.
