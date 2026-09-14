@@ -92,7 +92,8 @@ function inverseFields(table: RelationalTable, model: RelationalModel): Array<{ 
     if (relation.cardinality === "ONE_TO_ONE" && relation.foreignKey) {
       const owner = model.tables.find((candidate) => candidate.foreignKeys.some((key) => key.name === relation.foreignKey));
       const fk = owner?.foreignKeys.find((key) => key.name === relation.foreignKey);
-      if (owner && fk && owner.name !== table.name) fields.push({ annotations: [`@OneToOne(mappedBy = "${camel(fk.column)}")`], fieldName: camel(owner.name), accessorName: pascal(owner.name), javaType: pascal(owner.name), imports: ["jakarta.persistence.OneToOne", pascal(owner.name)] });
+      const isOppositeParticipant = owner && ((owner.name === relation.sourceTable && table.name === relation.targetTable) || (owner.name === relation.targetTable && table.name === relation.sourceTable));
+      if (owner && fk && isOppositeParticipant) fields.push({ annotations: [`@OneToOne(mappedBy = "${camel(fk.column)}")`], fieldName: camel(owner.name), accessorName: pascal(owner.name), javaType: pascal(owner.name), imports: ["jakarta.persistence.OneToOne", pascal(owner.name)] });
     }
     if (relation.cardinality === "MANY_TO_MANY" && relation.joinTable) {
       const join = model.tables.find((candidate) => candidate.name === relation.joinTable);

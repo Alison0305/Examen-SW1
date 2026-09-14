@@ -8,9 +8,9 @@
 
 **CU activo:** Ninguno. CU-07 no iniciado.
 
-**OpenSpec activo:** Ninguno. CU-06 archivado en `openspec/changes/archive/2026-09-14-cu-06-relationalmodel-generador-backend-spring-boot/`; sus specs se sincronizaron en `openspec/specs/relational-model/spec.md` y `openspec/specs/spring-backend-generator/spec.md`.
+**OpenSpec activo:** Ninguno. El fix `cu-06-fix-relaciones-jpa-inversas` se archivó en `openspec/changes/archive/2026-09-14-cu-06-fix-relaciones-jpa-inversas/` y sincronizó la spec `spring-backend-generator`.
 
-CU-00 a CU-06 y CU-04 EXT están cerrados. CU-06 implementó `@examen-sw1/relational-core`, que proyecta solo entidades UML a un modelo relacional inmutable con diagnósticos navegables, restricciones compuestas, FKs con tipo de PK objetivo y resultado derivado `hasErrors`/`success`. También implementó `@examen-sw1/spring-generator`, con plantillas Handlebars `.hbs`, `GeneratedFile[]` inmutables y deterministas, Gradle Groovy, configuración, aplicación Spring, entidades/enums, repositories, services y controllers estructurales. El pipeline real valida, mapea, genera, compara determinismo, escribe en output temporal ignorado y compila mediante Gradle Wrapper 8.14.4; Temurin Java/javac 21.0.12.1 produjo `BUILD SUCCESSFUL` con exit code 0. Los gates de raíz y `openspec validate --specs` son correctos. CU-07 no está iniciado.
+CU-00 a CU-06 y CU-04 EXT están cerrados. El fix posterior de CU-06 corrigió las relaciones JPA inversas 1:1 para que solo se generen entre participantes reales. Durante la revisión manual se detectó un defecto independiente de lifecycle JPA para Composition: Pedido es el composite y Producto la parte, pero el cascade actual se genera de Producto a Pedido. Su corrección queda pendiente en el change separado `cu-06-fix-composition-lifecycle-jpa`, sin crear ni implementar todavía. CU-07 no está iniciado.
 
 ## Cierre De CU-04
 

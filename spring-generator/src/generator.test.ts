@@ -164,4 +164,28 @@ describe("SpringBackendGenerator", () => {
     expect(first.some((file) => file.path.endsWith("UsuarioProductoFavoritos.java"))).toBe(false);
     expect(first.some((file) => file.path.endsWith("UsuarioProductoHistorial.java"))).toBe(false);
   });
+
+  it("genera el inverse side 1:1 solo en el participante opuesto", () => {
+    const entity = (name: string) => ({ source, name, primaryKey: "id", columns: [{ source, name: "id", type: "BIGINT" as const, nullable: false, identifier: true, unique: false }], uniqueConstraints: [], indexes: [], foreignKeys: [] });
+    const oneToOne: RelationalModel = {
+      tables: [
+        entity("usuario"),
+        { ...entity("perfil"), columns: [...entity("perfil").columns, { source, name: "usuario_id", type: "BIGINT", nullable: false, identifier: false, unique: true }], foreignKeys: [{ source, name: "fk_perfil_usuario_id", column: "usuario_id", targetTable: "usuario", targetColumn: "id", lifecycle: "NONE" }] },
+        entity("producto"),
+        entity("pedido"),
+        entity("categoria"),
+      ],
+      enums: [],
+      relations: [{ source, cardinality: "ONE_TO_ONE", sourceTable: "usuario", targetTable: "perfil", foreignKey: "fk_perfil_usuario_id", lifecycle: "NONE" }],
+      diagnostics: [], hasErrors: false, success: true,
+    };
+    const files = generateSpringBackend(oneToOne);
+    const content = (name: string) => files.find((file) => file.path.endsWith(`entities/${name}.java`))!.content;
+    expect(content("Usuario")).toContain('@OneToOne(mappedBy = "usuarioId")');
+    expect(content("Usuario")).toContain("private Perfil perfil;");
+    expect(content("Perfil")).toContain("private Usuario usuarioId;");
+    expect(content("Producto")).not.toContain("private Perfil perfil;");
+    expect(content("Pedido")).not.toContain("private Perfil perfil;");
+    expect(content("Categoria")).not.toContain("private Perfil perfil;");
+  });
 });

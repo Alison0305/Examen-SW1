@@ -1,10 +1,4 @@
-# spring-backend-generator Specification
-
-## Purpose
-
-Generate a deterministic, safe Spring Boot backend project from a RelationalModel.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Deterministic generated files
 The system SHALL generate ordered `GeneratedFile` artifacts using Handlebars before filesystem writing, and each generated JPA inverse association SHALL represent only the same relational association as its owning field.
@@ -20,10 +14,3 @@ The system SHALL generate ordered `GeneratedFile` artifacts using Handlebars bef
 #### Scenario: Non-participating entity
 - **WHEN** an entity does not participate in a relational association
 - **THEN** its generated source contains no inverse field derived from that association
-
-### Requirement: Safe generated output
-The system SHALL reject duplicate paths, absolute paths and path traversal before writing generated files.
-
-#### Scenario: Unsafe generated path
-- **WHEN** a generated file path escapes the configured output root
-- **THEN** generation reports a blocking error and writes no file outside that root
