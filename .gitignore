@@ -18,6 +18,7 @@ build/
 coverage/
 playwright-report/
 test-results/
+spring-generator/.generated-test/
 
 # Caché
 .turbo/

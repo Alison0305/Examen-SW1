@@ -37,6 +37,7 @@ export type {
   CrudGenerationMetadata,
   DiagramElementLayout,
   DiagramLayout,
+  ForeignKeyOwner,
   GenerationMetadata,
   Multiplicity,
   ProjectDocument,

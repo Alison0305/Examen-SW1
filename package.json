@@ -5,7 +5,9 @@
   "workspaces": [
     "frontend",
     "backend",
-    "uml-core"
+    "uml-core",
+    "relational-core",
+    "spring-generator"
   ],
   "engines": {
     "node": ">=24.0.0"

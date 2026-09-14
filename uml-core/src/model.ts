@@ -50,7 +50,11 @@ export interface GenerationMetadata {
   unique?: boolean;
   sortable?: boolean;
   defaultSort?: "asc" | "desc";
+  identifier?: boolean;
+  indexed?: boolean;
 }
+
+export type ForeignKeyOwner = "SOURCE" | "TARGET";
 
 export interface UmlParameter {
   id: Uuid;
@@ -116,6 +120,7 @@ export interface UmlRelationship {
   targetId: Uuid;
   sourceMultiplicity?: Multiplicity;
   targetMultiplicity?: Multiplicity;
+  foreignKeyOwner?: ForeignKeyOwner;
 }
 
 export interface CanonicalUmlModel {

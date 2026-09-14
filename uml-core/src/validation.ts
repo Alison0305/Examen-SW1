@@ -37,7 +37,8 @@ export type DiagnosticCode =
   | "UML_INVALID_GENERATION_METADATA"
   | "UML_INCOHERENT_GENERATION_METADATA"
   | "UML_INVALID_VISIBILITY"
-  | "UML_INVALID_TYPE";
+  | "UML_INVALID_TYPE"
+  | "UML_INVALID_FOREIGN_KEY_OWNER";
 
 export interface Diagnostic {
   severity: DiagnosticSeverity;
@@ -322,6 +323,9 @@ function validateRelationships(relationships: UmlRelationship[], context: Valida
         addInvalidRelationship(context, `${basePath}.multiplicity`, relationship.id, "Las generalizaciones no admiten multiplicidades.");
       }
     } else {
+      if (relationship.foreignKeyOwner !== undefined && relationship.foreignKeyOwner !== "SOURCE" && relationship.foreignKeyOwner !== "TARGET") {
+        context.diagnostics.push({ severity: "error", code: "UML_INVALID_FOREIGN_KEY_OWNER", message: "El propietario de FK debe ser SOURCE o TARGET.", path: `${basePath}.foreignKeyOwner`, elementId: relationship.id });
+      }
       validateMultiplicity(relationship.sourceMultiplicity, `${basePath}.sourceMultiplicity`, relationship.id, context.diagnostics);
       validateMultiplicity(relationship.targetMultiplicity, `${basePath}.targetMultiplicity`, relationship.id, context.diagnostics);
     }
@@ -490,6 +494,8 @@ function validateGenerationMetadata(
     "required",
     "unique",
     "sortable",
+    "identifier",
+    "indexed",
   ];
 
   booleanKeys.forEach((key) => {

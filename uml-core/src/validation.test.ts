@@ -171,6 +171,20 @@ describe("validación UML", () => {
     expect(codes).toContain("UML_SELF_GENERALIZATION");
   });
 
+  it("acepta metadata de identifier/indexed y owner SOURCE/TARGET, e invalida otro owner", () => {
+    const model = validModel();
+    model.classes[0].attributes[0].generationMetadata = { identifier: true, indexed: true };
+    model.relationships[0].foreignKeyOwner = "SOURCE";
+    expect(validateCanonicalUmlModel(model).diagnostics).toEqual([]);
+    model.relationships[0].foreignKeyOwner = "TARGET";
+    expect(validateCanonicalUmlModel(model).diagnostics).toEqual([]);
+    model.relationships[0].foreignKeyOwner = "OTHER" as "SOURCE";
+
+    expect(validateCanonicalUmlModel(model).diagnostics.map((diagnostic) => diagnostic.code)).toEqual([
+      "UML_INVALID_FOREIGN_KEY_OWNER",
+    ]);
+  });
+
   it("detecta ciclos de herencia", () => {
     const model = validModel();
     model.relationships = [

@@ -2,15 +2,15 @@
 
 ## Estado Actual
 
-**Ciclo actual:** Ciclo 2 — Elaboración y colaboración.
+**Ciclo actual:** Ciclo 3 — Construcción y generación (CU-06 cerrado y archivado).
 
-**Último CU completado:** CU-04 — Landing, gestión de proyectos, membresías e invitaciones.
+**Último CU completado:** CU-06 — UML → RelationalModel y generador backend Spring Boot.
 
-**CU activo:** CU-04 EXT — Bandeja interna de invitaciones (funcionalmente completada; pendiente de cierre formal).
+**CU activo:** Ninguno. CU-07 no iniciado.
 
-**OpenSpec activo:** `cu-04-extension-bandeja-interna-invitaciones` (9/9 tareas marcadas).
+**OpenSpec activo:** Ninguno. CU-06 archivado en `openspec/changes/archive/2026-09-14-cu-06-relationalmodel-generador-backend-spring-boot/`; sus specs se sincronizaron en `openspec/specs/relational-model/spec.md` y `openspec/specs/spring-backend-generator/spec.md`.
 
-CU-00 a CU-05 están cerrados. CU-04 EXT está funcionalmente completada y pendiente de cierre formal: Incremento 1 agregó `GET /invitations`, `POST /invitations/by-id/:id/accept` y `POST /invitations/by-id/:id/reject`; Incremento 2 agregó badge/contador y bandeja MUI interna, con aceptar/rechazar por id. La prueba manual desktop aprobó accept Editor y reject Lector: aceptar revalida invitaciones y proyectos para mostrar el proyecto sin refresh; rechazar lo elimina de la bandeja sin agregarlo a proyectos. El link temporal se conserva. Realtime de entrega se difiere: una invitación creada durante una sesión puede requerir recargar/revalidar `/projects`; una mejora futura reutilizará CU-05 sin un segundo Socket.IO. SMTP está fuera de alcance. No hubo schema gap, cambios Prisma ni migraciones nuevas; Prisma mantiene 5 migraciones. Gates: frontend 121/121, backend 40/40, `uml-core` 57/57, raíz 218/218; lint, typecheck y build correctos. CU-06 no iniciado.
+CU-00 a CU-06 y CU-04 EXT están cerrados. CU-06 implementó `@examen-sw1/relational-core`, que proyecta solo entidades UML a un modelo relacional inmutable con diagnósticos navegables, restricciones compuestas, FKs con tipo de PK objetivo y resultado derivado `hasErrors`/`success`. También implementó `@examen-sw1/spring-generator`, con plantillas Handlebars `.hbs`, `GeneratedFile[]` inmutables y deterministas, Gradle Groovy, configuración, aplicación Spring, entidades/enums, repositories, services y controllers estructurales. El pipeline real valida, mapea, genera, compara determinismo, escribe en output temporal ignorado y compila mediante Gradle Wrapper 8.14.4; Temurin Java/javac 21.0.12.1 produjo `BUILD SUCCESSFUL` con exit code 0. Los gates de raíz y `openspec validate --specs` son correctos. CU-07 no está iniciado.
 
 ## Cierre De CU-04
 
@@ -113,4 +113,4 @@ CU-00 a CU-05 están cerrados. CU-04 EXT está funcionalmente completada y pendi
 
 ## Siguiente Acción
 
-Esperar aceptación para archive, commit y push de CU-04 EXT; no iniciar CU-06.
+Seleccionar formalmente el siguiente CU del roadmap sin iniciarlo automáticamente.

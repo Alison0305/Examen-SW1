@@ -1,0 +1,26 @@
+package {{basePackage}}.entities;
+
+{{#each imports}}import {{this}};
+{{/each}}
+@Entity
+@Table(name = "{{tableName}}")
+{{#if inheritance}}@Inheritance(strategy = InheritanceType.JOINED)
+{{/if}}{{#if joinedChild}}@PrimaryKeyJoinColumn(name = "{{primaryKeyColumn}}")
+{{/if}}public class {{className}}{{#if extendsName}} extends {{extendsName}}{{/if}} {
+{{#each fields}}
+{{#each annotations}}    {{{this}}}
+{{/each}}    private {{{javaType}}} {{fieldName}};
+{{/each}}
+    public {{className}}() {
+    }
+{{#each fields}}
+
+    public {{{javaType}}} get{{accessorName}}() {
+        return {{fieldName}};
+    }
+
+    public void set{{accessorName}}({{{javaType}}} {{fieldName}}) {
+        this.{{fieldName}} = {{fieldName}};
+    }
+{{/each}}
+}
