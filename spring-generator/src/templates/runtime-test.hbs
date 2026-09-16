@@ -1,0 +1,192 @@
+package {{basePackage}};
+
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
+import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+@Testcontainers
+@ActiveProfiles("test")
+@SpringBootTest(classes = {{applicationClass}}.class, webEnvironment = WebEnvironment.RANDOM_PORT)
+class GeneratedApiRuntimeTest {
+    @Container
+    static final PostgreSQLContainer<?> postgresql = new PostgreSQLContainer<>("postgres:17-alpine");
+
+    @LocalServerPort
+    int port;
+
+    @DynamicPropertySource
+    static void databaseProperties(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.url", postgresql::getJdbcUrl);
+        registry.add("spring.datasource.username", postgresql::getUsername);
+        registry.add("spring.datasource.password", postgresql::getPassword);
+    }
+
+    @Test
+    void executesCrudAndValidatesTheRealOpenApiDocument() throws Exception {
+        String base = "http://localhost:" + port + "/api/v1/{{route}}";
+        assertStatus(200, call("POST", base, "{{{createJson}}}"));
+        assertEquals(200, call("GET", base + "/{{idValue}}", null).statusCode());
+        assertStatus(200, call("PATCH", base + "/{{idValue}}", "{{{updateJson}}}"));
+        assertStatus(400, call("PATCH", base + "/{{idValue}}", "{{{patchIdentifierJson}}}"), "BAD_REQUEST");
+        assertStatus(400, call("PATCH", base + "/{{idValue}}", "{{{patchNullJson}}}"), "BAD_REQUEST");
+        assertStatus(200, call("GET", base + "?page=0&size=20&sort={{sortableField}},asc{{#if searchableField}}&filter={{searchableField}}:contains:{{searchValue}}&q={{searchValue}}{{/if}}", null));
+        assertStatus(200, call("GET", base + "/count{{#if searchableField}}?q={{searchValue}}{{/if}}", null));
+        assertStatus(400, call("GET", base + "?page=-1", null), "BAD_REQUEST");
+        assertStatus(400, call("GET", base + "?size=101", null), "BAD_REQUEST");
+        assertStatus(400, call("GET", base + "?sort=noExiste,asc", null), "INVALID_SORT");
+        assertStatus(400, call("GET", base + "?sort={{sortableField}},sideways", null), "INVALID_SORT");
+        assertStatus(400, call("GET", base + "?filter=noExiste:eq:1", null), "INVALID_FILTER");
+        assertStatus(400, call("GET", base + "?filter={{sortableField}}:contains:1", null), "INVALID_FILTER");
+{{#if navigationName}}        assertStatus(200, call("GET", base + "/{{idValue}}/relations/{{navigationName}}", null));
+        assertStatus(400, call("GET", base + "/{{idValue}}/relations/noExiste", null), "INVALID_RELATION");
+{{/if}}        String openApi = call("GET", "http://localhost:" + port + "/v3/api-docs", null).body();
+        String repeatedOpenApi = call("GET", "http://localhost:" + port + "/v3/api-docs", null).body();
+        Files.writeString(Path.of(System.getProperty("generated.openapi.file")), openApi);
+        Files.writeString(Path.of(System.getProperty("generated.openapi.repeated-file")), repeatedOpenApi);
+        assertOpenApi(openApi, repeatedOpenApi);
+        assertStatus(200, call("DELETE", base + "/{{idValue}}", null));
+        assertStatus(404, call("GET", base + "/{{idValue}}", null), "NOT_FOUND");
+    }
+
+{{#if toManyMapping}}    @Test
+    void mapsToManyRelationsWithExactValues() throws Exception {
+        String parentBase = "http://localhost:" + port + "/api/v1/{{toManyMapping.parentRoute}}";
+        String childBase = "http://localhost:" + port + "/api/v1/{{toManyMapping.childRoute}}";
+        assertStatus(200, call("POST", parentBase, "{{{toManyMapping.parentCreateJson}}}"));
+        assertStatus(200, call("POST", childBase, "{{{toManyMapping.childCreateJson}}}"));
+
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode parent = mapper.readTree(call("GET", parentBase + "/{{toManyMapping.parentId}}", null).body());
+        assertExactFields(mapper.readTree("{{{toManyMapping.parentCreateJson}}}"), parent);
+        assertEquals(List.of({{toManyMapping.childId}}L), mapper.convertValue(parent.path("{{toManyMapping.responseField}}"), new com.fasterxml.jackson.core.type.TypeReference<List<Long>>() {}));
+
+        JsonNode related = mapper.readTree(call("GET", parentBase + "/{{toManyMapping.parentId}}/relations/{{toManyMapping.navigationName}}", null).body());
+        assertEquals({{toManyMapping.childId}}, related.path(0).path("id").asLong());
+        assertEquals(1, related.size());
+    }
+
+{{/if}}    private HttpResponse<String> call(String method, String url, String body) throws Exception {
+        HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(url)).header("Content-Type", "application/json");
+        request.method(method, body == null ? HttpRequest.BodyPublishers.noBody() : HttpRequest.BodyPublishers.ofString(body));
+        return HttpClient.newHttpClient().send(request.build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    private void assertStatus(int expected, HttpResponse<String> response) {
+        assertEquals(expected, response.statusCode(), response.body());
+    }
+
+    private void assertStatus(int expected, HttpResponse<String> response, String code) throws Exception {
+        assertStatus(expected, response);
+        assertEquals(code, new ObjectMapper().readTree(response.body()).path("code").asText());
+    }
+
+    private void assertExactFields(JsonNode expected, JsonNode actual) {
+        expected.fields().forEachRemaining(field -> assertEquals(field.getValue(), actual.path(field.getKey()), field.getKey()));
+    }
+
+    private void assertOpenApi(String source, String repeatedSource) throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode api = mapper.readTree(source);
+        JsonNode repeated = mapper.readTree(repeatedSource);
+        assertTrue(api.path("openapi").asText().startsWith("3.1."));
+        assertEquals(api.path("paths"), repeated.path("paths"));
+        assertTrue(api.path("components").path("schemas").has("ApiError"));
+{{#each schemaNames}}        assertTrue(api.path("components").path("schemas").has("{{this}}"));
+{{/each}}        assertFalse(api.path("components").path("schemas").has("MultiValueMapStringString"));
+{{#each queryOperations}}        assertListQueryParameters(api, "{{path}}", {{searchable}});
+        assertCountQueryParameters(api, "{{path}}", {{searchable}});
+{{/each}}        Set<String> operationIds = new HashSet<>();
+{{#each openApiOperations}}        assertOperation(api, "{{path}}", "{{method}}", "{{operationId}}", {{hasSuccessSchema}}, new int[] { {{#each errorStatuses}}{{this}}{{#unless @last}}, {{/unless}}{{/each}} }, operationIds);
+{{/each}}    }
+
+    private void assertOperation(JsonNode api, String path, String method, String operationId, boolean hasSuccessSchema, int[] errors, Set<String> operationIds) {
+        JsonNode operation = api.path("paths").path(path).path(method);
+        assertTrue(operation.isObject(), path + " " + method);
+        assertEquals(operationId, operation.path("operationId").asText());
+        assertTrue(operationIds.add(operationId), "operationId duplicado: " + operationId);
+        if (hasSuccessSchema) {
+            JsonNode content = operation.path("responses").path("200").path("content");
+            assertTrue(content.path("application/json").path("schema").isObject() || content.path("*/*").path("schema").isObject(), path + " " + method + " 200 sin schema");
+        }
+        for (int status : errors) assertTrue(containsApiError(operation.path("responses").path(String.valueOf(status))), path + " " + method + " " + status);
+    }
+
+    private boolean containsApiError(JsonNode node) {
+        if ("#/components/schemas/ApiError".equals(node.path("$ref").asText())) return true;
+        java.util.Iterator<JsonNode> values = node.elements();
+        while (values.hasNext()) if (containsApiError(values.next())) return true;
+        return false;
+    }
+
+    private void assertListQueryParameters(JsonNode api, String path, boolean searchable) {
+        JsonNode parameters = api.path("paths").path(path).path("get").path("parameters");
+        assertParameterNames(parameters, searchable ? new String[] { "page", "size", "sort", "filter", "q" } : new String[] { "page", "size", "sort", "filter" });
+        assertScalarParameter(parameters, "page", "integer", "0", "0", null);
+        assertScalarParameter(parameters, "size", "integer", "20", "0", "100");
+        assertRepeatedStringParameter(parameters, "sort");
+        assertRepeatedStringParameter(parameters, "filter");
+        if (searchable) assertScalarParameter(parameters, "q", "string", null, null, null);
+    }
+
+    private void assertCountQueryParameters(JsonNode api, String path, boolean searchable) {
+        JsonNode parameters = api.path("paths").path(path + "/count").path("get").path("parameters");
+        assertParameterNames(parameters, searchable ? new String[] { "filter", "q" } : new String[] { "filter" });
+        assertRepeatedStringParameter(parameters, "filter");
+        if (searchable) assertScalarParameter(parameters, "q", "string", null, null, null);
+    }
+
+    private void assertParameterNames(JsonNode parameters, String[] expected) {
+        Set<String> names = new HashSet<>();
+        for (JsonNode parameter : parameters) names.add(parameter.path("name").asText());
+        assertEquals(Set.of(expected), names);
+        assertFalse(names.contains("query"));
+    }
+
+    private void assertScalarParameter(JsonNode parameters, String name, String type, String defaultValue, String minimum, String maximum) {
+        JsonNode parameter = parameter(parameters, name);
+        assertEquals("query", parameter.path("in").asText());
+        assertFalse(parameter.path("required").asBoolean());
+        JsonNode schema = parameter.path("schema");
+        assertEquals(type, schema.path("type").asText());
+        if (defaultValue != null) assertEquals(defaultValue, schema.path("default").asText());
+        if (minimum != null) assertEquals(minimum, schema.path("minimum").asText());
+        if (maximum != null) assertEquals(maximum, schema.path("maximum").asText());
+    }
+
+    private void assertRepeatedStringParameter(JsonNode parameters, String name) {
+        JsonNode parameter = parameter(parameters, name);
+        assertEquals("query", parameter.path("in").asText());
+        assertFalse(parameter.path("required").asBoolean());
+        assertEquals("form", parameter.path("style").asText());
+        assertTrue(parameter.path("explode").asBoolean());
+        assertEquals("array", parameter.path("schema").path("type").asText());
+        assertEquals("string", parameter.path("schema").path("items").path("type").asText());
+    }
+
+    private JsonNode parameter(JsonNode parameters, String name) {
+        for (JsonNode parameter : parameters) if (name.equals(parameter.path("name").asText())) return parameter;
+        throw new AssertionError("Parámetro ausente: " + name);
+    }
+}

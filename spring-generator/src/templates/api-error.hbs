@@ -1,0 +1,7 @@
+package {{basePackage}}.api;
+
+import java.util.List;
+
+public record ApiError(int status, String code, String message, String field, String path, List<ApiErrorDetail> details) {
+    public record ApiErrorDetail(String field, String code, String message) {}
+}

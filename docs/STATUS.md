@@ -2,15 +2,15 @@
 
 ## Estado Actual
 
-**Ciclo actual:** Ciclo 3 — Construcción y generación (CU-06 y sus correctivos cerrados).
+**Ciclo actual:** Ciclo 3 — Construcción y generación (CU-07 implementado y validado; pendiente aceptación).
 
 **Último CU completado:** CU-06 — UML → RelationalModel y generador backend Spring Boot.
 
-**CU activo:** Ninguno. CU-07 no iniciado.
+**CU activo:** CU-07 — CRUD avanzado, verificación, OpenAPI, Postman y Domain Manifest (implementado y validado; pendiente aceptación).
 
-**OpenSpec activo:** Ninguno. Los correctivos `cu-06-fix-relaciones-jpa-inversas` y `cu-06-fix-composition-lifecycle-jpa` están archivados y sincronizados en la spec `spring-backend-generator`.
+**OpenSpec activo:** `cu-07-crud-openapi-postman-domain-manifest` (12/12 tareas completadas).
 
-CU-00 a CU-06 y CU-04 EXT están cerrados. El fix posterior de CU-06 corrigió las relaciones JPA inversas 1:1 para que solo se generen entre participantes reales. El correctivo de lifecycle `cu-06-fix-composition-lifecycle-jpa` fue revisado manualmente y aprobado; quedó archivado en `openspec/changes/archive/2026-09-14-cu-06-fix-composition-lifecycle-jpa/`. En la fixture, Pedido es el composite y Producto la parte: `Pedido.productos` genera `cascade = CascadeType.ALL, orphanRemoval = true`, mientras `Producto.pedido` conserva la FK obligatoria sin cascade. También cubre Composition 1:1 para ambos FK owners, y confirma que Association y Aggregation no reciben lifecycle fuerte. Los gates de raíz (`lint`, `typecheck`, 262 tests y `build`) y el pipeline Java 21/Gradle (`BUILD SUCCESSFUL`) pasaron. Docker no fue requerido; Prisma no se modificó. El output temporal de revisión manual fue eliminado. CU-07 no está iniciado.
+CU-00 a CU-06 y CU-04 EXT están cerrados. CU-07 implementó los tres incrementos. El Incremento 3 añadió `domain-manifest.json` v1 permanente en la raíz del backend generado, derivado del RelationalModel y contrastado contra OpenAPI real por ruta, método y operationId. Sus entidades, atributos, relaciones y operaciones tienen campos fijos, orden binario y contenido sin valores variables. El gate generado pasó con Java 21, Gradle 8.14.4 y PostgreSQL Testcontainers; el output y diagnósticos temporales se limpiaron. `npm run lint`, `npm run typecheck`, `npm run test`, `npm run build` y la validación OpenSpec strict pasaron. Prisma y migraciones de UML Studio no se modificaron. Falta la aceptación antes del cierre. CU-08 no está iniciado.
 
 ## Cierre De CU-04
 
@@ -113,4 +113,4 @@ CU-00 a CU-06 y CU-04 EXT están cerrados. El fix posterior de CU-06 corrigió l
 
 ## Siguiente Acción
 
-Esperar autorización formal para seleccionar el siguiente CU del roadmap; CU-07 no se inicia automáticamente.
+Solicitar aceptación explícita de CU-07; no archivar, hacer commit ni iniciar CU-08 antes de recibirla.

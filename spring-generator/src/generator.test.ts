@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RelationalModel } from "@examen-sw1/relational-core";
-import { defaultSpringGeneratorConfig, generateSpringBackend, SpringGeneratorConfigError, SpringGeneratorModelError } from "./index.js";
+import { defaultSpringGeneratorConfig, generateDomainManifest, generateSpringBackend, SpringGeneratorConfigError, SpringGeneratorModelError, verifyDomainManifestOpenApi } from "./index.js";
 
 const source = { elementId: "11111111-1111-4111-8111-111111111111", path: "tables[0]" };
 const model: RelationalModel = {
@@ -24,7 +24,7 @@ describe("SpringBackendGenerator", () => {
     expect(Object.isFrozen(first)).toBe(true);
     expect(Object.isFrozen(first[0])).toBe(true);
     expect(first.map((file) => file.path)).toEqual([...first.map((file) => file.path)].sort());
-    expect(first).toHaveLength(13);
+    expect(first).toHaveLength(30);
   });
 
   it("genera Gradle, configuración y estructura Spring Boot 4.1.1 con Java 21", () => {
@@ -35,9 +35,13 @@ describe("SpringBackendGenerator", () => {
     expect(content("build.gradle")).toContain("spring-boot-starter-webmvc");
     expect(content("build.gradle")).toContain("spring-boot-starter-data-jpa");
     expect(content("build.gradle")).toContain("spring-boot-starter-validation");
+    expect(content("build.gradle")).toContain("springdoc-openapi-starter-webmvc-api:3.1.1");
     expect(content("build.gradle")).toContain("org.postgresql:postgresql");
+    expect(content("build.gradle")).toContain("org.testcontainers:testcontainers-junit-jupiter:2.0.5");
+    expect(content("build.gradle")).toContain("org.testcontainers:testcontainers-postgresql:2.0.5");
     expect(content("settings.gradle")).toBe('rootProject.name = "generated-backend"\n');
-    expect(content("src/main/resources/application.properties")).toBe("spring.application.name=generated-backend\n");
+    expect(content("src/main/resources/application.properties")).toBe("spring.application.name=generated-backend\nspring.jpa.open-in-view=false\n");
+    expect(content("src/test/resources/application-test.properties")).toBe("spring.jpa.hibernate.ddl-auto=create-drop\n");
   });
 
   it("genera imports, anotaciones, enum y relaciones JPA tipadas", () => {
@@ -52,9 +56,113 @@ describe("SpringBackendGenerator", () => {
     expect(entity).not.toContain("CascadeType.ALL");
     expect(entity).toContain('@JoinColumn(name = "usuario_id", referencedColumnName = "id", nullable = false)');
     expect(entity).toContain("private Usuario usuarioId;");
+    expect(files.map((file) => file.content).join("\n")).not.toContain("FetchType.EAGER");
     expect(files.find((file) => file.path.endsWith("enums/EstadoPedido.java"))?.content).toContain("NUEVO,");
     expect(files.find((file) => file.path.endsWith("repositories/UsuarioRepository.java"))?.content).toContain("JpaRepository<Usuario, Long>");
-    expect(files.find((file) => file.path.endsWith("controllers/PedidoController.java"))?.content).toContain('@RequestMapping("/pedido")');
+    expect(files.find((file) => file.path.endsWith("controllers/PedidoController.java"))?.content).toContain('@RequestMapping("/api/v1/pedido")');
+  });
+
+  it("genera DTOs tipados, resolución de relaciones y consultas allow-listed", () => {
+    const files = generateSpringBackend(model);
+    const content = (path: string) => files.find((file) => file.path.endsWith(path))!.content;
+    expect(content("dto/CreatePedidoRequest.java")).toContain("record CreatePedidoRequest(");
+    expect(content("dto/CreatePedidoRequest.java")).toContain("Long usuarioId");
+    expect(content("dto/UpdatePedidoRequest.java")).toContain("PatchField<Long> usuarioId");
+    expect(content("dto/PedidoResponse.java")).toContain("Long usuarioId");
+    expect(content("dto/PatchField.java")).toContain("boolean present");
+    expect(content("services/PedidoService.java")).toContain("UsuarioRepository usuarioIdRepository");
+    expect(content("services/PedidoService.java")).toContain("usuarioIdRepository.findById");
+    expect(content("services/PedidoService.java")).toContain("repository.count(specification(filter, q))");
+    expect(content("services/PedidoService.java")).toContain("import org.springframework.transaction.annotation.Transactional;");
+    expect(content("services/PedidoService.java")).toContain("@Transactional(readOnly = true)");
+    expect(content("services/PedidoService.java")).toContain("@Transactional\n    public PedidoResponse create");
+    expect(content("services/PedidoService.java")).toContain("@Transactional\n    public PedidoResponse update");
+    expect(content("services/PedidoService.java")).toContain("@Transactional\n    public void delete");
+    expect(content("services/PedidoService.java")).not.toContain("FetchType.EAGER");
+    expect(content("services/PedidoService.java")).not.toContain("open-in-view");
+    expect(content("services/PedidoService.java")).toContain("repository.findAll(specification(filter, q)");
+    expect(content("api/QueryParser.java")).toContain("Specification<T> specification");
+    expect(content("api/QueryParser.java")).toContain("INVALID_FILTER");
+    expect(content("api/ApiExceptionHandler.java")).toContain("VALIDATION_ERROR");
+    expect(content("api/ApiExceptionHandler.java")).toContain("INTERNAL_ERROR");
+    expect(content("dto/PageResponse.java")).toContain("record PageResponse<T>(List<T> content, int page, int size, long totalElements, int totalPages)");
+    expect(content("dto/CountResponse.java")).toContain("record CountResponse(long count)");
+    expect(content("controllers/PedidoController.java")).toContain("PageResponse<PedidoResponse> list");
+    expect(content("controllers/PedidoController.java")).not.toContain("Page<PedidoResponse>");
+    expect(content("controllers/PedidoController.java")).toContain("CountResponse count");
+    expect(content("controllers/PedidoController.java")).not.toContain("Map<String, Long>");
+    expect(content("controllers/PedidoController.java")).toContain('@Operation(operationId = "createPedido"');
+    expect(content("controllers/PedidoController.java")).toContain('@Operation(operationId = "getPedido"');
+    expect(content("controllers/PedidoController.java")).toContain('@Operation(operationId = "updatePedido"');
+    expect(content("controllers/PedidoController.java")).toContain('@Operation(operationId = "deletePedido"');
+    expect(content("controllers/PedidoController.java")).toContain('@Operation(operationId = "listPedido"');
+    expect(content("controllers/PedidoController.java")).toContain('@Operation(operationId = "countPedido"');
+    expect(content("controllers/PedidoController.java")).toContain("implementation = ApiError.class");
+    expect(content("services/PedidoService.java")).toContain("new PageResponse<>(response.getContent(), response.getNumber(), response.getSize(), response.getTotalElements(), response.getTotalPages())");
+    expect(content("services/PedidoService.java")).toContain("new CountResponse(repository.count(specification(filter, q)))");
+    expect(content("services/PedidoService.java")).toContain('default -> throw new ApiException(400, "INVALID_RELATION"');
+    expect(content("dto/UpdatePedidoRequest.java")).toContain("rejectIdentifier");
+    expect(content("dto/UpdatePedidoRequest.java")).toContain('"id".equals(name)');
+    expect(content("services/PedidoService.java")).toContain('case "usuarioId" -> entity.getUsuarioId() == null ? null : ResponseMapper.usuario(entity.getUsuarioId())');
+    expect(content("services/PedidoService.java")).not.toContain("return get(id);");
+    expect(content("api/QueryParser.java")).toContain('"true".equalsIgnoreCase(value)');
+    expect(content("api/QueryParser.java")).toContain('"false".equalsIgnoreCase(value)');
+    expect(content("api/QueryParser.java")).toContain("q.toLowerCase(Locale.ROOT)");
+    expect(content("api/QueryParser.java")).toContain("((String) value).toLowerCase(Locale.ROOT)");
+  });
+
+  it("documenta parámetros de consulta explícitos sin exponer MultiValueMap", () => {
+    const searchable: RelationalModel = { ...model, tables: model.tables.map((table) => table.name === "usuario"
+      ? { ...table, columns: table.columns.map((column) => column.name === "email" ? { ...column, searchable: true } : column) }
+      : table) };
+    const files = generateSpringBackend(searchable);
+    const controller = (name: string) => files.find((file) => file.path.endsWith(`controllers/${name}Controller.java`))!.content;
+    const usuario = controller("Usuario");
+    const pedido = controller("Pedido");
+    for (const content of [usuario, pedido]) {
+      expect(content).not.toContain("MultiValueMap");
+      expect(content).toContain('@RequestParam(name = "page", defaultValue = "0") int page');
+      expect(content).toContain('@RequestParam(name = "size", defaultValue = "20") int size');
+      expect(content).toContain('maximum = "100"');
+      expect(content).toContain("HttpServletRequest request");
+      expect(content).toContain("style = ParameterStyle.FORM, explode = Explode.TRUE");
+      expect(content).toContain('values(request, "sort")');
+      expect(content).toContain('values(request, "filter")');
+    }
+    expect(usuario).toContain('@RequestParam(name = "q", required = false) String q');
+    expect(usuario).toContain('service.count(values(request, "filter"), q)');
+    expect(pedido).not.toContain('@RequestParam(name = "q", required = false) String q');
+    expect(pedido).toContain('service.count(values(request, "filter"), null)');
+  });
+
+  it("escapa cuerpos JSON de runtime como literales Java compilables", () => {
+    const runtime = generateSpringBackend(model).find((file) => file.path.endsWith("GeneratedApiRuntimeTest.java"))!.content;
+    expect(runtime).toContain('"{\\"id\\":1,\\"email\\":\\"runtime\\"}"');
+    expect(runtime).toContain('"{\\"email\\":\\"runtime-updated\\"}"');
+  });
+
+  it("genera cobertura runtime de mapeo to-many con valores exactos", () => {
+    const runtime = generateSpringBackend({
+      ...model,
+      tables: model.tables.map((table) => table.name === "usuario" ? { ...table, columns: table.columns.map((column) => column.name === "email" ? { ...column, searchable: true } : column) } : table),
+      relations: [...model.relations, { source, cardinality: "ONE_TO_MANY", sourceTable: "usuario", targetTable: "pedido", foreignKey: "fk_pedido_usuario_id", lifecycle: "NONE" }],
+    }).find((file) => file.path.endsWith("GeneratedApiRuntimeTest.java"))!.content;
+    expect(runtime).toContain("void mapsToManyRelationsWithExactValues()");
+    expect(runtime).toContain('"{\\"id\\":101,\\"email\\":\\"lazy-user@example.test\\"}"');
+    expect(runtime).toContain('"{\\"id\\":102,\\"estado\\":\\"NUEVO\\",\\"usuarioId\\":101}"');
+    expect(runtime).toContain('parent.path("pedidoIds")');
+    expect(runtime).toContain('/relations/pedido');
+  });
+
+  it("preserva presencia PATCH y nullability al resolver referencias", () => {
+    const nullable: RelationalModel = { ...model, tables: [{ ...model.tables[0], columns: model.tables[0].columns.map((column) => column.name === "usuario_id" ? { ...column, nullable: true } : column) }, model.tables[1]] };
+    const files = generateSpringBackend(nullable);
+    const service = files.find((file) => file.path.endsWith("services/PedidoService.java"))!.content;
+    const create = files.find((file) => file.path.endsWith("dto/CreatePedidoRequest.java"))!.content;
+    expect(create).not.toContain("@NotNull Long usuarioId");
+    expect(service).toContain("request.usuarioId() == null ? null : usuarioIdRepository.findById(request.usuarioId())");
+    expect(service).toContain("request.getUsuarioId().value() == null ? null : usuarioIdRepository.findById(request.getUsuarioId().value())");
+    expect(service).not.toContain("usuarioId no puede ser null.");
   });
 
   it("acepta una configuración explícita sin mutar los defaults", () => {
@@ -85,6 +193,34 @@ describe("SpringBackendGenerator", () => {
       expect(file.content).not.toContain("\r");
       expect(file.content).not.toMatch(/uuid|timestamp|202\d/i);
     }
+  });
+
+  it("genera el Domain Manifest v1 raíz con contrato, orden y operaciones estables", () => {
+    const first = generateDomainManifest(model);
+    const manifest = JSON.parse(first) as { schemaVersion: number; entities: Array<{ name: string; resourceName: string; attributes: Array<Record<string, unknown>>; relations: Array<Record<string, unknown>>; operations: Array<Record<string, unknown>> }> };
+    expect(generateDomainManifest(structuredClone(model))).toBe(first);
+    expect(generateSpringBackend(model).find((file) => file.path === "domain-manifest.json")?.content).toBe(first);
+    expect(manifest).toHaveProperty("schemaVersion", 1);
+    expect(Object.keys(manifest)).toEqual(["schemaVersion", "entities"]);
+    expect(manifest.entities.map((entity) => entity.name)).toEqual(["pedido", "usuario"]);
+    expect(Object.keys(manifest.entities[0]!)).toEqual(["name", "resourceName", "attributes", "relations", "operations"]);
+    expect(Object.keys(manifest.entities[0]!.attributes[0]!)).toEqual(["name", "type", "required", "identifier", "unique", "searchable", "sortable", "defaultSort"]);
+    expect(Object.keys(manifest.entities[0]!.relations[0]!)).toEqual(["name", "target", "cardinality", "lifecycle", "required"]);
+    expect(Object.keys(manifest.entities[0]!.operations[0]!)).toEqual(["name", "method", "path"]);
+    expect(manifest.entities[0]!.operations).toContainEqual({ name: "createPedido", method: "POST", path: "/api/v1/pedido" });
+    expect(first).not.toMatch(/timestamp|uuid|localhost|127\.0\.0\.1/i);
+  });
+
+  it("verifica cada operación del Manifest contra OpenAPI", () => {
+    const manifest = generateDomainManifest(model);
+    const document = JSON.parse(manifest) as { entities: Array<{ operations: Array<{ name: string; method: string; path: string }> }> };
+    const paths = Object.fromEntries(document.entities.flatMap((entity) => entity.operations).map((operation) => [operation.path, {}]));
+    for (const operation of document.entities.flatMap((entity) => entity.operations)) {
+      const path = paths[operation.path] as Record<string, unknown>;
+      path[operation.method.toLowerCase()] = { operationId: operation.name };
+    }
+    expect(() => verifyDomainManifestOpenApi(manifest, JSON.stringify({ paths }))).not.toThrow();
+    expect(() => verifyDomainManifestOpenApi(manifest, JSON.stringify({ paths: {} }))).toThrow("OpenAPI no verifica");
   });
 
   it("rechaza literals enum no compilables antes de interpolarlos", () => {
@@ -124,6 +260,20 @@ describe("SpringBackendGenerator", () => {
     expect(perfil).toContain('@PrimaryKeyJoinColumn(name = "id")');
     expect(perfil).not.toContain("@Id");
     expect(files.some((file) => file.path.endsWith("UsuarioProductoFavoritos.java"))).toBe(false);
+    const usuarioResponse = files.find((file) => file.path.endsWith("dto/UsuarioResponse.java"))!.content;
+    const pedidoResponse = files.find((file) => file.path.endsWith("dto/PedidoResponse.java"))!.content;
+    const mapper = files.find((file) => file.path.endsWith("dto/ResponseMapper.java"))!.content;
+    expect(pedidoResponse).toContain("Long usuarioId");
+    expect(usuarioResponse).toContain("Set<Long> pedidoIds");
+    expect(usuarioResponse).toContain("Set<Long> productoIdsUsuarioProductoFavoritos");
+    expect(mapper).toContain("Optional.ofNullable(entity.getUsuarioIdItems()).orElseGet(java.util.Set::of).stream()");
+    expect(mapper).toContain("Optional.ofNullable(entity.getProductoItemsUsuarioProductoFavoritos()).orElseGet(java.util.Set::of).stream()");
+    expect(mapper).toContain(".map(item -> item.getId()).sorted().collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new))");
+    expect(usuarioResponse).not.toContain("Set<Pedido>");
+    expect(usuarioResponse).not.toContain("Set<Producto>");
+    const usuarioService = files.find((file) => file.path.endsWith("services/UsuarioService.java"))!.content;
+    expect(usuarioService).toContain("Optional.ofNullable(entity.getUsuarioIdItems()).orElseGet(java.util.Set::of).stream().sorted(java.util.Comparator.comparing(item -> item.getId())).map(ResponseMapper::pedido).toList()");
+    expect(usuarioService).toContain("Optional.ofNullable(entity.getProductoItemsUsuarioProductoFavoritos()).orElseGet(java.util.Set::of).stream().sorted(java.util.Comparator.comparing(item -> item.getId())).map(ResponseMapper::producto).toList()");
   });
 
   it("genera Aggregation sin cascade ni orphan removal y conserva el mappedBy Java", () => {
@@ -215,5 +365,9 @@ describe("SpringBackendGenerator", () => {
     expect(content("Producto")).not.toContain("private Perfil perfil;");
     expect(content("Pedido")).not.toContain("private Perfil perfil;");
     expect(content("Categoria")).not.toContain("private Perfil perfil;");
+    const usuarioResponse = files.find((file) => file.path.endsWith("dto/UsuarioResponse.java"))!.content;
+    const mapper = files.find((file) => file.path.endsWith("dto/ResponseMapper.java"))!.content;
+    expect(usuarioResponse).toContain("Long perfilId");
+    expect(mapper).toContain("entity.getPerfil() == null ? null : entity.getPerfil().getId()");
   });
 });

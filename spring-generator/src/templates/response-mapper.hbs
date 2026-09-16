@@ -1,0 +1,12 @@
+package {{basePackage}}.dto;
+
+import {{basePackage}}.entities.*;
+
+public final class ResponseMapper {
+    private ResponseMapper() {}
+{{#each mappers}}
+    public static {{entityName}}Response {{methodName}}({{entityName}} entity) {
+        return new {{entityName}}Response({{#each fields}}{{{mapping}}}{{#unless @last}}, {{/unless}}{{/each}});
+    }
+{{/each}}
+}

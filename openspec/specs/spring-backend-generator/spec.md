@@ -42,3 +42,10 @@ The system SHALL project a Composition lifecycle from the relational composite t
 #### Scenario: One-to-one composition
 - **WHEN** a one-to-one Composition is represented by the relational model
 - **THEN** lifecycle annotations are emitted on the composite-to-part association regardless of which participant owns the foreign key
+
+### Requirement: Generated functional API artifacts
+The system SHALL generate deterministic API DTOs, controllers, services, exception handling and contract artifacts from a valid RelationalModel with API metadata.
+
+#### Scenario: Equivalent API model
+- **WHEN** the generator receives equivalent valid relational models and configuration
+- **THEN** all generated API artifact paths and contents are equivalent

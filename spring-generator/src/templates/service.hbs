@@ -1,13 +1,94 @@
 package {{basePackage}}.services;
 
+import {{basePackage}}.api.ApiException;
+import {{basePackage}}.api.QueryParser;
+import {{basePackage}}.dto.Create{{entityName}}Request;
+import {{basePackage}}.dto.Update{{entityName}}Request;
+import {{basePackage}}.dto.{{entityName}}Response;
+import {{basePackage}}.dto.PageResponse;
+import {{basePackage}}.dto.CountResponse;
+import {{basePackage}}.dto.ResponseMapper;
+import {{basePackage}}.entities.{{entityName}};
+import {{basePackage}}.enums.*;
 import {{basePackage}}.repositories.{{entityName}}Repository;
+{{#each relationFields}}import {{../basePackage}}.repositories.{{repositoryType}};
+{{/each}}import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@Transactional(readOnly = true)
 public class {{entityName}}Service {
     private final {{entityName}}Repository repository;
-
-    public {{entityName}}Service({{entityName}}Repository repository) {
+{{#each relationFields}}    private final {{repositoryType}} {{name}}Repository;
+{{/each}}
+    public {{entityName}}Service({{entityName}}Repository repository{{#each relationFields}}, {{repositoryType}} {{name}}Repository{{/each}}) {
         this.repository = repository;
+{{#each relationFields}}        this.{{name}}Repository = {{name}}Repository;
+{{/each}}    }
+
+    @Transactional
+    public {{entityName}}Response create(Create{{entityName}}Request request) {
+        {{entityName}} entity = new {{entityName}}();
+{{#each createFields}}        {{#if relation}}{{#if required}}entity.set{{accessor}}({{name}}Repository.findById(request.{{name}}()).orElseThrow(() -> new ApiException(400, "INVALID_RELATION", "La relación {{name}} no existe.")));
+{{else}}entity.set{{accessor}}(request.{{name}}() == null ? null : {{name}}Repository.findById(request.{{name}}()).orElseThrow(() -> new ApiException(400, "INVALID_RELATION", "La relación {{name}} no existe.")));
+{{/if}}
+{{else}}        entity.set{{accessor}}(request.{{name}}());
+{{/if}}{{/each}}        return response(repository.save(entity));
     }
+
+    public {{entityName}}Response get({{idJavaType}} id) { return response(entity(id)); }
+
+    @Transactional
+    public {{entityName}}Response update({{idJavaType}} id, Update{{entityName}}Request request) {
+        {{entityName}} entity = entity(id);
+{{#each fields}}        if (request.get{{accessor}}().isPresent()) {
+            {{#if required}}if (request.get{{accessor}}().value() == null) throw new ApiException(400, "BAD_REQUEST", "{{name}} no puede ser null.");
+            {{/if}}{{#if relation}}entity.set{{accessor}}(request.get{{accessor}}().value() == null ? null : {{name}}Repository.findById(request.get{{accessor}}().value()).orElseThrow(() -> new ApiException(400, "INVALID_RELATION", "La relación {{name}} no existe.")));
+            {{else}}entity.set{{accessor}}(request.get{{accessor}}().value());
+            {{/if}}
+        }
+{{/each}}        return response(repository.save(entity));
+    }
+
+    @Transactional
+    public void delete({{idJavaType}} id) {
+        try { repository.delete(entity(id)); repository.flush(); }
+        catch (DataIntegrityViolationException exception) { throw new ApiException(409, "CONFLICT", "La eliminación viola una relación existente."); }
+    }
+
+    public CountResponse count(List<String> filter, String q) { return new CountResponse(repository.count(specification(filter, q))); }
+
+    public PageResponse<{{entityName}}Response> list(int page, int size, List<String> sort, List<String> filter, String q) {
+        if (page < 0 || size < 1 || size > 100) throw new ApiException(400, "BAD_REQUEST", "Paginación inválida.");
+        Page<{{entityName}}> result = repository.findAll(specification(filter, q), PageRequest.of(page, size, QueryParser.parseSort(sort, Set.of({{#each sortableFields}}"{{this}}"{{#unless @last}}, {{/unless}}{{/each}}), "{{defaultSort}}", Sort.Direction.{{defaultDirection}})));
+        Page<{{entityName}}Response> response = result.map(this::response);
+        return new PageResponse<>(response.getContent(), response.getNumber(), response.getSize(), response.getTotalElements(), response.getTotalPages());
+    }
+
+    public Object navigate({{idJavaType}} id, String relation) {
+        {{entityName}} entity = entity(id);
+        return switch (relation) {
+{{#each navigationFields}}            case "{{navigationName}}" -> {{{navigation}}};
+{{/each}}            default -> throw new ApiException(400, "INVALID_RELATION", "Relación no navegable.");
+        };
+    }
+
+    private Specification<{{entityName}}> specification(List<String> filter, String q) {
+        return QueryParser.specification(filter, q, Map.ofEntries(
+{{#each queryFields}}            Map.entry("{{name}}", new QueryParser.Field("{{queryPath}}", {{javaType}}.class)){{#unless @last}},{{/unless}}
+{{/each}}        ), List.of({{#each searchableFields}}"{{this}}"{{#unless @last}}, {{/unless}}{{/each}}));
+    }
+    private {{entityName}} entity({{idJavaType}} id) { return repository.findById(id).orElseThrow(() -> new ApiException(404, "NOT_FOUND", "Recurso no encontrado.")); }
+    private {{entityName}}Response response({{entityName}} entity) { return ResponseMapper.{{methodName}}(entity); }
 }

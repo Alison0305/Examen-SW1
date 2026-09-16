@@ -1,9 +1,11 @@
 import { spawn } from "node:child_process";
-import { readFile, rm } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { mapToRelationalModel } from "@examen-sw1/relational-core";
 import { validateCanonicalUmlModel, type CanonicalUmlModel } from "@examen-sw1/uml-core";
 import { generateSpringBackend } from "./generator.js";
+import { verifyDomainManifestOpenApi } from "./domain-manifest.js";
+import { convertOpenApi, verifyPostmanDeterminism } from "./postman.js";
 import { writeGeneratedFiles } from "./writer.js";
 
 const outputRoot = resolve(".generated-test", "backend");
@@ -51,11 +53,11 @@ const fixture: CanonicalUmlModel = {
   packages: [],
   enumerations: [{ id: ids.estado, name: "EstadoPedido", visibility: "public", literals: ["NUEVO", "PAGADO", "ENVIADO"] }],
   classes: [
-    entity(ids.usuario, "Usuario", [attribute("11111111-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "id", { kind: "primitive", name: "integer" }, { identifier: true }), attribute("11111111-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "email", { kind: "primitive", name: "string" }, { required: true, unique: true, indexed: true }), attribute("11111111-cccc-4ccc-8ccc-cccccccccccc", "activo", { kind: "primitive", name: "boolean" }, { required: true })]),
+    entity(ids.usuario, "Usuario", [attribute("11111111-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "id", { kind: "primitive", name: "integer" }, { identifier: true, sortable: true, defaultSort: "asc" }), attribute("11111111-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "email", { kind: "primitive", name: "string" }, { required: true, unique: true, indexed: true, searchable: true, sortable: true }), attribute("11111111-cccc-4ccc-8ccc-cccccccccccc", "activo", { kind: "primitive", name: "boolean" }, { required: true })]),
     entity(ids.perfil, "Perfil", [attribute("22222222-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "id", { kind: "primitive", name: "integer" }, { identifier: true }), attribute("22222222-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "fechaNacimiento", { kind: "primitive", name: "date" })]),
     entity(ids.pedido, "Pedido", [attribute("33333333-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "id", { kind: "primitive", name: "integer" }, { identifier: true }), attribute("33333333-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "estado", { kind: "reference", referenceType: "enumeration", elementId: ids.estado }, { required: true }), attribute("33333333-cccc-4ccc-8ccc-cccccccccccc", "total", { kind: "primitive", name: "number" }, { required: true }), attribute("33333333-dddd-4ddd-8ddd-dddddddddddd", "creadoEn", { kind: "primitive", name: "datetime" }, { required: true })]),
     entity(ids.producto, "Producto", [attribute("44444444-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "id", { kind: "primitive", name: "integer" }, { identifier: true }), attribute("44444444-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "nombre", { kind: "primitive", name: "string" }, { required: true }), attribute("44444444-cccc-4ccc-8ccc-cccccccccccc", "precio", { kind: "primitive", name: "number" }, { required: true })]),
-    entity(ids.categoria, "Categoria", [attribute("55555555-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "id", { kind: "primitive", name: "integer" }, { identifier: true }), attribute("55555555-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "nombre", { kind: "primitive", name: "string" }, { required: true, unique: true })]),
+    entity(ids.categoria, "Categoria", [attribute("55555555-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "id", { kind: "primitive", name: "integer" }, { identifier: true, sortable: true, defaultSort: "asc" }), attribute("55555555-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "nombre", { kind: "primitive", name: "string" }, { required: true, unique: true, searchable: true, sortable: true })]),
   ],
   relationships: [
     { id: ids.oneToOne, name: "perfil", type: "Association", sourceId: ids.usuario, targetId: ids.perfil, sourceMultiplicity: { lower: 1, upper: 1 }, targetMultiplicity: { lower: 1, upper: 1 }, foreignKeyOwner: "TARGET" },
@@ -78,16 +80,30 @@ async function main(): Promise<void> {
   if (!first.some((file) => file.path.endsWith("entities/Usuario.java")) || !first.some((file) => file.path.endsWith("enums/EstadoPedido.java"))) throw new Error("La fixture no produjo los artefactos semánticos esperados.");
   await rm(outputRoot, { recursive: true, force: true });
   const environment = { ...process.env, JAVA_HOME: javaHome, PATH: `${join(javaHome, "bin")};${join(gradleHome, "bin")};${process.env.PATH ?? ""}` };
+  const diagnostics = resolve(".postman-diagnostics");
   try {
     await writeGeneratedFiles(outputRoot, first);
     await run("gradle.bat", ["wrapper", "--gradle-version", "8.14.4"], outputRoot, environment, "crear Gradle Wrapper");
     const wrapperProperties = await readFile(join(outputRoot, "gradle", "wrapper", "gradle-wrapper.properties"), "utf8");
     if (!wrapperProperties.includes("gradle-8.14.4-bin.zip")) throw new Error("El wrapper no quedó fijado a Gradle 8.14.4.");
     await run("gradlew.bat", ["--version"], outputRoot, environment, "verificar Gradle Wrapper");
-    await run("gradlew.bat", ["compileJava", "--info", "--console=plain"], outputRoot, environment, "compilar backend generado");
-    console.log(`Generated backend compiled successfully: ${outputRoot}`);
+    await run("gradlew.bat", ["test", "--info", "--console=plain"], outputRoot, environment, "probar backend generado con PostgreSQL Testcontainers");
+    const openApi = await readFile(join(outputRoot, "build", "openapi.json"), "utf8");
+    const repeatedOpenApi = await readFile(join(outputRoot, "build", "openapi-repeated.json"), "utf8");
+    const manifest = await readFile(join(outputRoot, "domain-manifest.json"), "utf8");
+    verifyDomainManifestOpenApi(manifest, openApi);
+    await mkdir(diagnostics, { recursive: true });
+    await writeFile(join(diagnostics, "openapi.json"), openApi);
+    await writeFile(join(diagnostics, "postman-a.json"), JSON.stringify((await convertOpenApi(openApi)), null, 2));
+    await writeFile(join(diagnostics, "postman-b.json"), JSON.stringify((await convertOpenApi(repeatedOpenApi)), null, 2));
+    const postman = await verifyPostmanDeterminism(openApi, repeatedOpenApi);
+    console.log(`Postman raw SHA-256: ${postman.first.rawSha256}, ${postman.second.rawSha256}`);
+    console.log(`Postman canonical SHA-256: ${postman.first.canonicalSha256}, ${postman.second.canonicalSha256}`);
+    console.log(`Postman JSON diff paths: ${postman.differingPaths.join(", ") || "none"}`);
+    console.log(`Generated backend runtime tests completed successfully: ${outputRoot}`);
   } finally {
     if (process.env.KEEP_GENERATED_BACKEND !== "1") await rm(dirname(outputRoot), { recursive: true, force: true });
+    await rm(diagnostics, { recursive: true, force: true });
   }
 }
 

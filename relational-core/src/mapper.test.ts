@@ -22,6 +22,17 @@ describe("RelationalMapper", () => {
     expect(result).toMatchObject({ hasErrors: false, success: true });
   });
 
+  it("propaga metadata API y bloquea recursos CRUD sin identifier", () => {
+    const input = model();
+    input.classes[0].generationMetadata = { entity: true, crud: { create: true, read: true, update: false, delete: false }, readOnly: true, resourceName: "catalogo-productos" };
+    input.classes[0].attributes.push(attribute("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "nombre", { kind: "primitive", name: "string" }, { searchable: true, sortable: true, defaultSort: "desc" }));
+    const result = mapToRelationalModel(input);
+    expect(result.tables.find((table) => table.name === "producto")).toMatchObject({ resourceName: "catalogo-productos", readOnly: true, crud: { update: false } });
+    expect(result.tables.find((table) => table.name === "producto")?.columns.find((column) => column.name === "nombre")).toMatchObject({ searchable: true, sortable: true, defaultSort: "DESC" });
+    input.classes[0].attributes[0].generationMetadata = {};
+    expect(mapToRelationalModel(input).diagnostics).toContainEqual(expect.objectContaining({ code: "REL_CRUD_REQUIRES_PRIMARY_KEY", severity: "error" }));
+  });
+
   it("hereda el tipo real de PK para FK de asociaciones y no crea FKs sin PK única", () => {
     const input = model();
     input.classes = [entity(ids.user, "Usuario", "string"), entity(ids.order, "Pedido")];

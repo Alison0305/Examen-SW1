@@ -11,7 +11,11 @@ export type RelationalColumn = Readonly<{
   identifier: boolean;
   unique: boolean;
   enumName?: string;
+  searchable?: boolean;
+  sortable?: boolean;
+  defaultSort?: "ASC" | "DESC";
 }>;
+export type RelationalCrudMetadata = Readonly<{ create: boolean; read: boolean; update: boolean; delete: boolean }>;
 export type RelationalForeignKey = Readonly<{
   source: SourceReference;
   name: string;
@@ -34,6 +38,9 @@ export type RelationalTable = Readonly<{
   foreignKeys: readonly RelationalForeignKey[];
   inheritsFrom?: string;
   inheritanceStrategy?: "JOINED";
+  crud?: RelationalCrudMetadata;
+  readOnly?: boolean;
+  resourceName?: string;
 }>;
 export type RelationalEnum = Readonly<{ source: SourceReference; name: string; literals: readonly string[] }>;
 export type RelationalRelation = Readonly<{

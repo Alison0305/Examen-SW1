@@ -30,3 +30,14 @@ The system SHALL project only classes marked as entities, preserve target primar
 #### Scenario: Unsupported source semantics
 - **WHEN** a source identifier is invalid, an attribute type is unsupported, or a relationship reaches a non-entity
 - **THEN** the mapper reports a blocking diagnostic without silently sanitizing the name, creating a fallback column, or creating the relationship
+
+### Requirement: API generation metadata projection
+The system SHALL preserve explicitly declared CRUD, read-only, resource-name, searchable, sortable and default-sort metadata needed by downstream generated API artifacts.
+
+#### Scenario: Metadata absent
+- **WHEN** an entity or attribute omits optional API metadata
+- **THEN** the projection applies documented deterministic defaults without inferring plural forms or business semantics
+
+#### Scenario: Ambiguous default sort
+- **WHEN** more than one attribute declares default sort for an entity, or its attribute is not sortable
+- **THEN** the projection reports a blocking diagnostic

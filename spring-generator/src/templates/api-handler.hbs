@@ -1,0 +1,36 @@
+package {{basePackage}}.api;
+
+import java.util.List;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.ResponseEntity;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+
+@RestControllerAdvice
+public class ApiExceptionHandler {
+    @ExceptionHandler(ApiException.class)
+    public ResponseEntity<ApiError> handle(ApiException exception) {
+        return ResponseEntity.status(exception.status()).body(new ApiError(exception.status(), exception.code(), exception.getMessage(), exception.field(), null, exception.details()));
+    }
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ApiError> validation(MethodArgumentNotValidException exception) {
+        List<ApiError.ApiErrorDetail> details = exception.getBindingResult().getFieldErrors().stream().map(this::detail).toList();
+        return ResponseEntity.badRequest().body(new ApiError(400, "VALIDATION_ERROR", "La solicitud no es válida.", null, null, details));
+    }
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiError> unreadable(HttpMessageNotReadableException exception) {
+        return ResponseEntity.badRequest().body(new ApiError(400, "BAD_REQUEST", "El cuerpo de la solicitud no es válido.", null, null, List.of()));
+    }
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiError> conflict(DataIntegrityViolationException exception) {
+        return ResponseEntity.status(409).body(new ApiError(409, "CONFLICT", "La operación viola una restricción de datos.", null, null, List.of()));
+    }
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ApiError> unexpected(Exception exception) {
+        return ResponseEntity.internalServerError().body(new ApiError(500, "INTERNAL_ERROR", "Error interno de la API.", null, null, List.of()));
+    }
+    private ApiError.ApiErrorDetail detail(FieldError error) { return new ApiError.ApiErrorDetail(error.getField(), error.getCode(), error.getDefaultMessage()); }
+}

@@ -234,6 +234,18 @@ describe("validación UML", () => {
     ]);
   });
 
+  it("bloquea resourceName inválido y defaultSort ambiguo o no sortable", () => {
+    const model = validModel();
+    model.classes[0].generationMetadata = { resourceName: "recursos con espacio" };
+    model.classes[0].attributes.push({ id: ids.otherAttribute, name: "nombre", visibility: "private", type: primitiveType("string"), generationMetadata: { sortable: true, defaultSort: "desc" } });
+    model.classes[0].attributes[0].generationMetadata = { defaultSort: "asc" };
+    expect(validateCanonicalUmlModel(model).diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "UML_INVALID_RESOURCE_NAME", severity: "error" }),
+      expect.objectContaining({ code: "UML_MULTIPLE_DEFAULT_SORT", severity: "error" }),
+      expect.objectContaining({ code: "UML_DEFAULT_SORT_NOT_SORTABLE", severity: "error" }),
+    ]));
+  });
+
   it("mantiene orden determinista de diagnósticos", () => {
     const model = validModel();
     model.classes[0].attributes[0].multiplicity = { lower: -1, upper: 1 };

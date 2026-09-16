@@ -21,6 +21,9 @@ interface MutableTable {
   foreignKeys: RelationalForeignKey[];
   inheritsFrom?: string;
   inheritanceStrategy?: "JOINED";
+  crud: { create: boolean; read: boolean; update: boolean; delete: boolean };
+  readOnly: boolean;
+  resourceName: string;
 }
 
 export function mapToRelationalModel(model: CanonicalUmlModel): RelationalModel {
@@ -69,7 +72,11 @@ function mapClass(clazz: UmlClass, index: number, enumById: Map<string, { name: 
   });
   const identifiers = columns.filter((column) => column.identifier);
   if (identifiers.length !== 1) addDiagnostic(diagnostics, "error", identifiers.length ? "REL_MULTIPLE_PRIMARY_KEYS" : "REL_NO_PRIMARY_KEY", "Una entidad requiere exactamente un identifier.", path, clazz.id);
-  return { source: source(clazz.id, path), name, columns, primaryKey: identifiers.length === 1 ? identifiers[0].name : undefined, uniqueConstraints: columns.filter((column) => column.unique).map((column) => ({ name: `uq_${name}_${column.name}`, columns: [column.name] })), indexes: columns.filter((column) => clazz.attributes.some((attribute) => attribute.id === column.source.elementId && attribute.generationMetadata?.indexed === true)).map((column) => `idx_${name}_${column.name}`), foreignKeys: [] };
+  const declaredCrud = clazz.generationMetadata?.crud;
+  const crud = declaredCrud === false ? { create: false, read: false, update: false, delete: false } : declaredCrud && typeof declaredCrud === "object" ? { create: declaredCrud.create ?? true, read: declaredCrud.read ?? true, update: declaredCrud.update ?? true, delete: declaredCrud.delete ?? true } : { create: true, read: true, update: true, delete: true };
+  const readOnly = clazz.generationMetadata?.readOnly === true;
+  if ((crud.create || crud.update || crud.delete) && identifiers.length !== 1) addDiagnostic(diagnostics, "error", "REL_CRUD_REQUIRES_PRIMARY_KEY", "CRUD requiere exactamente un identifier.", path, clazz.id);
+  return { source: source(clazz.id, path), name, columns, primaryKey: identifiers.length === 1 ? identifiers[0].name : undefined, uniqueConstraints: columns.filter((column) => column.unique).map((column) => ({ name: `uq_${name}_${column.name}`, columns: [column.name] })), indexes: columns.filter((column) => clazz.attributes.some((attribute) => attribute.id === column.source.elementId && attribute.generationMetadata?.indexed === true)).map((column) => `idx_${name}_${column.name}`), foreignKeys: [], crud, readOnly, resourceName: clazz.generationMetadata?.resourceName ?? name };
 }
 
 function mapAttribute(attribute: UmlAttribute, path: string, enumById: Map<string, { name: string; path: string }>, diagnostics: RelationalDiagnostic[]): RelationalColumn | undefined {
@@ -80,7 +87,7 @@ function mapAttribute(attribute: UmlAttribute, path: string, enumById: Map<strin
     addDiagnostic(diagnostics, "error", "REL_UNSUPPORTED_TYPE", "El atributo no tiene un tipo relacional soportado.", path, attribute.id);
     return undefined;
   }
-  return { source: source(attribute.id, path), name: snake(attribute.name), type, nullable: attribute.generationMetadata?.identifier !== true && attribute.generationMetadata?.required !== true, identifier: attribute.generationMetadata?.identifier === true, unique: attribute.generationMetadata?.unique === true, enumName: enumEntry?.name };
+  return { source: source(attribute.id, path), name: snake(attribute.name), type, nullable: attribute.generationMetadata?.identifier !== true && attribute.generationMetadata?.required !== true, identifier: attribute.generationMetadata?.identifier === true, unique: attribute.generationMetadata?.unique === true, enumName: enumEntry?.name, searchable: attribute.generationMetadata?.searchable === true, sortable: attribute.generationMetadata?.sortable === true, defaultSort: attribute.generationMetadata?.defaultSort?.toUpperCase() as "ASC" | "DESC" | undefined };
 }
 
 function mapRelationship(relationship: UmlRelationship, index: number, tables: Map<string, MutableTable>, relations: RelationalRelation[], diagnostics: RelationalDiagnostic[]): void {
@@ -129,7 +136,7 @@ function addJoinTable(name: string, relationship: UmlRelationship, path: string,
     addDiagnostic(diagnostics, "error", "REL_RELATIONSHIP_REQUIRES_PRIMARY_KEY", "Una relación requiere identificadores únicos en ambos extremos.", path, relationship.id);
     return undefined;
   }
-  const join: MutableTable = { source: source(relationship.id, path), name, columns: [], uniqueConstraints: [], indexes: [], foreignKeys: [] };
+  const join: MutableTable = { source: source(relationship.id, path), name, columns: [], uniqueConstraints: [], indexes: [], foreignKeys: [], crud: { create: false, read: false, update: false, delete: false }, readOnly: true, resourceName: name };
   tables.set(`join:${relationship.id}`, join);
   const sourceForeignKey = addForeignKey(join, sourceTable, relationship, path, lifecycle, false, false, diagnostics, `${sourceTable.name}_${sourceKey.name}`);
   const targetForeignKey = addForeignKey(join, targetTable, relationship, path, lifecycle, false, false, diagnostics, `${targetTable.name}_${targetKey.name}`);
@@ -151,7 +158,7 @@ function addForeignKey(owner: MutableTable, target: MutableTable, relationship: 
     return undefined;
   }
   const name = columnName ?? `${target.name}_${targetKey.name}`;
-  const column: RelationalColumn = { source: source(relationship.id, path), name, type: targetKey.type, nullable, identifier: false, unique };
+  const column: RelationalColumn = { source: source(relationship.id, path), name, type: targetKey.type, nullable, identifier: false, unique, searchable: false, sortable: false };
   owner.columns.push(column);
   if (unique) owner.uniqueConstraints.push({ name: `uq_${owner.name}_${name}`, columns: [name] });
   const foreignKey = { source: source(relationship.id, path), name: `fk_${owner.name}_${name}`, column: name, targetTable: target.name, targetColumn: targetKey.name, lifecycle };

@@ -45,7 +45,8 @@ export interface GenerationMetadata {
   auditable?: boolean;
   readOnly?: boolean;
   searchable?: boolean;
-  crud?: CrudGenerationMetadata;
+  crud?: CrudGenerationMetadata | boolean;
+  resourceName?: string;
   required?: boolean;
   unique?: boolean;
   sortable?: boolean;

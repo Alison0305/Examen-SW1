@@ -1,0 +1,28 @@
+package {{basePackage}}.dto;
+
+{{#each imports}}import {{this}};
+{{/each}}{{#if create}}import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+
+public record {{name}}(
+{{#each fields}}    {{#if required}}{{#if stringField}}@NotBlank {{else}}@NotNull {{/if}}{{/if}}{{{javaType}}} {{name}}{{#unless @last}},{{/unless}}
+{{/each}}) {
+}
+{{/if}}{{#if update}}public final class {{name}} {
+{{#each fields}}    private PatchField<{{{javaType}}}> {{name}} = PatchField.absent();
+{{/each}}
+{{#each fields}}
+    public PatchField<{{{javaType}}}> get{{accessor}}() { return {{name}}; }
+    @com.fasterxml.jackson.annotation.JsonSetter("{{name}}")
+    public void set{{accessor}}({{{javaType}}} value) { this.{{name}} = PatchField.of(value); }
+{{/each}}
+    @com.fasterxml.jackson.annotation.JsonAnySetter
+    public void rejectIdentifier(String name, Object value) {
+        if ("{{identifierField}}".equals(name)) throw new {{basePackage}}.api.ApiException(400, "BAD_REQUEST", "El identifier no puede actualizarse.");
+    }
+}
+{{/if}}{{#if response}}public record {{name}}(
+{{#each fields}}    {{{javaType}}} {{name}}{{#unless @last}},{{/unless}}
+{{/each}}) {
+}
+{{/if}}

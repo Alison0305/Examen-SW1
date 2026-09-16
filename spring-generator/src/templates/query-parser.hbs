@@ -1,0 +1,87 @@
+package {{basePackage}}.api;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
+
+public final class QueryParser {
+    public record Field(String path, Class<?> type) {}
+    private QueryParser() {}
+
+    public static Sort parseSort(List<String> values, Set<String> sortable, String fallback, Sort.Direction direction) {
+        if (values == null || values.isEmpty()) return Sort.by(direction, fallback);
+        Sort sort = Sort.unsorted();
+        for (String value : values) {
+            String[] parts = value.split(",", -1);
+            if (parts.length != 2 || !sortable.contains(parts[0])) throw new ApiException(400, "INVALID_SORT", "Campo de orden inválido.");
+            try { sort = sort.and(Sort.by(Sort.Direction.fromString(parts[1]), parts[0])); }
+            catch (IllegalArgumentException exception) { throw new ApiException(400, "INVALID_SORT", "Dirección de orden inválida."); }
+        }
+        return sort;
+    }
+
+    public static <T> Specification<T> specification(List<String> filters, String q, Map<String, Field> fields, List<String> searchable) {
+        List<String[]> parsed = new ArrayList<>();
+        if (filters != null) for (String filter : filters) parsed.add(parseFilter(filter, fields));
+        if (q != null && searchable.isEmpty()) throw new ApiException(400, "INVALID_SEARCH", "No hay campos buscables.");
+        return (root, query, builder) -> {
+            List<jakarta.persistence.criteria.Predicate> predicates = new ArrayList<>();
+            for (String[] filter : parsed) {
+                Field field = fields.get(filter[0]);
+                jakarta.persistence.criteria.Path<?> path = path(root, field.path());
+                Object value = parseValue(filter[2], field.type());
+                predicates.add(predicate(builder, path, filter[1], value, field.type()));
+            }
+            if (q != null) {
+                List<jakarta.persistence.criteria.Predicate> matches = new ArrayList<>();
+                for (String name : searchable) matches.add(builder.like(builder.lower(path(root, fields.get(name).path()).as(String.class)), "%" + q.toLowerCase(Locale.ROOT) + "%"));
+                predicates.add(builder.or(matches.toArray(jakarta.persistence.criteria.Predicate[]::new)));
+            }
+            return builder.and(predicates.toArray(jakarta.persistence.criteria.Predicate[]::new));
+        };
+    }
+
+    private static String[] parseFilter(String value, Map<String, Field> fields) {
+        String[] parts = value.split(":", 3);
+        if (parts.length != 3 || !fields.containsKey(parts[0])) throw new ApiException(400, "INVALID_FILTER", "Filtro inválido.");
+        return parts;
+    }
+    private static jakarta.persistence.criteria.Path<?> path(jakarta.persistence.criteria.From<?, ?> root, String value) {
+        jakarta.persistence.criteria.Path<?> path = root;
+        for (String part : value.split("\\.")) path = path.get(part);
+        return path;
+    }
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    private static Object parseValue(String value, Class<?> type) {
+        try {
+            if (type == String.class) return value;
+            if (type == Long.class) return Long.valueOf(value);
+            if (type == Boolean.class) {
+                if ("true".equalsIgnoreCase(value)) return Boolean.TRUE;
+                if ("false".equalsIgnoreCase(value)) return Boolean.FALSE;
+                throw new IllegalArgumentException("Boolean inválido");
+            }
+            if (type == BigDecimal.class) return new BigDecimal(value);
+            if (type == LocalDate.class) return LocalDate.parse(value);
+            if (type == OffsetDateTime.class) return OffsetDateTime.parse(value);
+            if (type.isEnum()) return Enum.valueOf((Class<? extends Enum>) type, value);
+        } catch (RuntimeException exception) { throw new ApiException(400, "INVALID_FILTER", "Valor de filtro inválido."); }
+        throw new ApiException(400, "INVALID_FILTER", "Tipo de filtro inválido.");
+    }
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    private static jakarta.persistence.criteria.Predicate predicate(jakarta.persistence.criteria.CriteriaBuilder builder, jakarta.persistence.criteria.Path path, String operator, Object value, Class<?> type) {
+        if (type == String.class && "contains".equals(operator)) return builder.like(builder.lower(path.as(String.class)), "%" + ((String) value).toLowerCase(Locale.ROOT) + "%");
+        if ("eq".equals(operator)) return builder.equal(path, value);
+        if ("ne".equals(operator)) return builder.notEqual(path, value);
+        if (type == String.class || type == Boolean.class || type.isEnum()) throw new ApiException(400, "INVALID_FILTER", "Operador de filtro inválido.");
+        if (!(value instanceof Comparable comparable)) throw new ApiException(400, "INVALID_FILTER", "Operador de filtro inválido.");
+        return switch (operator) { case "gt" -> builder.greaterThan(path, comparable); case "gte" -> builder.greaterThanOrEqualTo(path, comparable); case "lt" -> builder.lessThan(path, comparable); case "lte" -> builder.lessThanOrEqualTo(path, comparable); default -> throw new ApiException(400, "INVALID_FILTER", "Operador de filtro inválido."); };
+    }
+}

@@ -36,6 +36,9 @@ export type DiagnosticCode =
   | "UML_INVALID_REVISION"
   | "UML_INVALID_GENERATION_METADATA"
   | "UML_INCOHERENT_GENERATION_METADATA"
+  | "UML_INVALID_RESOURCE_NAME"
+  | "UML_MULTIPLE_DEFAULT_SORT"
+  | "UML_DEFAULT_SORT_NOT_SORTABLE"
   | "UML_INVALID_VISIBILITY"
   | "UML_INVALID_TYPE"
   | "UML_INVALID_FOREIGN_KEY_OWNER";
@@ -229,6 +232,17 @@ function validateClasses(classes: UmlClass[], context: ValidationContext): void 
       umlClass.id,
       context.diagnostics,
     );
+    const metadata = umlClass.generationMetadata;
+    if (metadata?.resourceName !== undefined && !/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(metadata.resourceName)) {
+      context.diagnostics.push({ severity: "error", code: "UML_INVALID_RESOURCE_NAME", message: "resourceName debe ser un segmento de ruta válido.", path: `classes[${classIndex}].generationMetadata.resourceName`, elementId: umlClass.id });
+    }
+    const defaultSorts = umlClass.attributes.filter((attribute) => attribute.generationMetadata?.defaultSort !== undefined);
+    if (defaultSorts.length > 1) {
+      context.diagnostics.push({ severity: "error", code: "UML_MULTIPLE_DEFAULT_SORT", message: "Una entidad puede declarar un solo defaultSort.", path: `classes[${classIndex}].attributes`, elementId: umlClass.id });
+    }
+    defaultSorts.filter((attribute) => attribute.generationMetadata?.sortable !== true).forEach((attribute) => {
+      context.diagnostics.push({ severity: "error", code: "UML_DEFAULT_SORT_NOT_SORTABLE", message: "defaultSort requiere sortable: true.", path: `classes[${classIndex}].attributes[${umlClass.attributes.indexOf(attribute)}].generationMetadata.defaultSort`, elementId: attribute.id });
+    });
     validateAttributes(umlClass.attributes, classIndex, context);
     validateOperations(umlClass.operations, classIndex, context);
   });
@@ -521,19 +535,18 @@ function validateGenerationMetadata(
     });
   }
 
-  if (metadata.defaultSort !== undefined && metadata.sortable !== true) {
-    diagnostics.push({
-      severity: "warning",
-      code: "UML_INCOHERENT_GENERATION_METADATA",
-      message: "defaultSort solo tendrá efecto si sortable está habilitado.",
-      path: `${path}.defaultSort`,
-      elementId,
-    });
+  if (metadata.resourceName !== undefined && typeof metadata.resourceName !== "string") {
+    diagnostics.push({ severity: "error", code: "UML_INVALID_GENERATION_METADATA", message: "resourceName debe ser texto.", path: `${path}.resourceName`, elementId });
   }
 
-  if (metadata.crud) {
+  if (metadata.defaultSort !== undefined && metadata.sortable !== true) {
+    diagnostics.push({ severity: "warning", code: "UML_INCOHERENT_GENERATION_METADATA", message: "defaultSort solo tendrá efecto si sortable está habilitado.", path: `${path}.defaultSort`, elementId });
+  }
+
+  const crud = metadata.crud;
+  if (crud && typeof crud !== "boolean") {
     (["create", "read", "update", "delete"] as const).forEach((key) => {
-      const value = metadata.crud?.[key];
+      const value = crud[key];
       if (value !== undefined && typeof value !== "boolean") {
         diagnostics.push({
           severity: "error",
