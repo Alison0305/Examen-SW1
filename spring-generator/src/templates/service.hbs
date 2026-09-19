@@ -9,7 +9,9 @@ import {{basePackage}}.dto.PageResponse;
 import {{basePackage}}.dto.CountResponse;
 import {{basePackage}}.dto.ResponseMapper;
 import {{basePackage}}.entities.{{entityName}};
+{{#if hasEnums}}
 import {{basePackage}}.enums.*;
+{{/if}}
 import {{basePackage}}.repositories.{{entityName}}Repository;
 {{#each relationFields}}import {{../basePackage}}.repositories.{{repositoryType}};
 {{/each}}import java.util.List;

@@ -2,6 +2,7 @@
 
 import {
   UmlCommandBus,
+  adaptUmlTextProposal,
   createProjectDocument,
   validateProjectDocument,
   type CommandResult,
@@ -9,6 +10,7 @@ import {
   type ProjectDocument,
   type UmlCommand,
   type UmlRelationshipType,
+  type UmlTextProposal,
   type UmlVisibility,
   type Uuid,
 } from "@examen-sw1/uml-core";
@@ -62,6 +64,7 @@ interface WorkspaceState {
   updateRelationshipMultiplicity: (relationshipId: Uuid, end: "source" | "target", multiplicity: string) => void;
   updateRelationshipName: (relationshipId: Uuid, name: string) => CommandResult;
   deleteSelectedRelationship: () => void;
+  applyTextProposal: (proposal: UmlTextProposal) => CommandResult;
   applyAutoLayout: () => Promise<CommandResult>;
   undo: () => void;
   redo: () => void;
@@ -264,6 +267,13 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     if (result.success) {
       set({ selection: null });
     }
+  },
+  applyTextProposal: (proposal) => {
+    const result = applyCommand(set, adaptUmlTextProposal(proposal, createWorkspaceUuid));
+    if (result.success && proposal.type === "DELETE_CLASS" && get().selection?.id === proposal.targetId) {
+      set({ selection: null, focusedElementId: null });
+    }
+    return result;
   },
   applyAutoLayout: async () => {
     const elements = await calculateAutoLayout(get().document);

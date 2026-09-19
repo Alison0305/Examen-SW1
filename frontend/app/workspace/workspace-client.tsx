@@ -10,6 +10,10 @@ import {
   Chip,
   Collapse,
   Divider,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Drawer,
   FormControl,
   IconButton,
@@ -36,7 +40,7 @@ import {
   type NodeChange,
 } from "@xyflow/react";
 import { useEffect, useId, useRef, useState } from "react";
-import type { Diagnostic, ProjectDocument, UmlAttribute, UmlRelationshipType, UmlVisibility } from "@examen-sw1/uml-core";
+import { parseUmlTextProposal, type Diagnostic, type ProjectDocument, type UmlAttribute, type UmlRelationshipType, type UmlTextProposal, type UmlVisibility } from "@examen-sw1/uml-core";
 import { applyVisualNodeChanges, toReactFlowEdges, toReactFlowNodes, type UmlReactFlowNode } from "./react-flow-adapters";
 import { UmlRelationshipEdge } from "./uml-edge";
 import { UmlClassNode, UmlEnumerationNode } from "./uml-nodes";
@@ -320,6 +324,7 @@ function WorkspaceSidebar({ drawer = false, readOnly = false }: Readonly<{ drawe
     <Box component="aside" aria-label="Sidebar" data-testid="workspace-left-column" sx={{ width: drawer ? 280 : "auto", borderRight: "1px solid", borderColor: "grey.300", bgcolor: "background.paper", p: 2, overflow: "auto" }}>
       <Stack spacing={2}>
         <WorkspaceToolbox readOnly={readOnly} />
+        <WorkspaceTextAssistant readOnly={readOnly} />
         <Divider />
         <Box>
           <Typography variant="overline" color="text.secondary">Breadcrumbs</Typography>
@@ -345,6 +350,89 @@ function WorkspaceSidebar({ drawer = false, readOnly = false }: Readonly<{ drawe
       </Stack>
     </Box>
   );
+}
+
+function WorkspaceTextAssistant({ readOnly }: Readonly<{ readOnly: boolean }>) {
+  const applyTextProposal = useWorkspaceStore((state) => state.applyTextProposal);
+  const [input, setInput] = useState("");
+  const [proposal, setProposal] = useState<UmlTextProposal | null>(null);
+  const [rejection, setRejection] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+
+  function interpret() {
+    const result = parseUmlTextProposal(input);
+    if (result.success) {
+      setProposal(result.proposal);
+      setRejection(null);
+    } else {
+      setProposal(null);
+      setRejection(result.message);
+    }
+  }
+
+  function cancel() {
+    setProposal(null);
+    setConfirmingDelete(false);
+  }
+
+  function approve() {
+    if (!proposal) return;
+    if (proposal.type === "DELETE_CLASS") {
+      setConfirmingDelete(true);
+      return;
+    }
+    applyTextProposal(proposal);
+    cancel();
+  }
+
+  function confirmDelete() {
+    if (proposal?.type !== "DELETE_CLASS") return;
+    applyTextProposal(proposal);
+    cancel();
+  }
+
+  return (
+    <Card variant="outlined" aria-label="Asistente textual UML">
+      <CardContent sx={{ py: 1.5, "&:last-child": { pb: 1.5 } }}>
+        <Stack spacing={1.25}>
+          <Typography variant="subtitle2">Asistente textual UML</Typography>
+          <TextField
+            label="Instrucción UML"
+            value={input}
+            onChange={(event) => setInput(event.target.value)}
+            size="small"
+            disabled={readOnly}
+            helperText={'CREATE_CLASS name="..."'}
+          />
+          <Button variant="outlined" onClick={interpret} disabled={readOnly || !input}>Interpretar</Button>
+          {rejection && <Alert severity="error">{rejection}</Alert>}
+          {proposal && <Alert severity="info">
+            <Typography variant="body2">Propuesta: {formatTextProposal(proposal)}</Typography>
+            <Stack direction="row" spacing={1} sx={{ pt: 1 }}>
+              <Button size="small" variant="contained" onClick={approve}>Aprobar</Button>
+              <Button size="small" variant="outlined" onClick={cancel}>Cancelar</Button>
+            </Stack>
+          </Alert>}
+        </Stack>
+      </CardContent>
+      <Dialog open={confirmingDelete} onClose={cancel}>
+        <DialogTitle>Confirmar eliminación de clase</DialogTitle>
+        <DialogContent><Typography>Esta acción eliminará la clase propuesta mediante el Command Bus.</Typography></DialogContent>
+        <DialogActions>
+          <Button onClick={cancel}>Cancelar</Button>
+          <Button color="error" variant="contained" onClick={confirmDelete}>Confirmar eliminación</Button>
+        </DialogActions>
+      </Dialog>
+    </Card>
+  );
+}
+
+function formatTextProposal(proposal: UmlTextProposal): string {
+  switch (proposal.type) {
+    case "CREATE_CLASS": return `Crear clase ${proposal.name}`;
+    case "RENAME_CLASS": return `Renombrar ${proposal.targetId} a ${proposal.name}`;
+    case "DELETE_CLASS": return `Eliminar clase ${proposal.targetId}`;
+  }
 }
 
 function WorkspaceToolbox({ readOnly = false }: Readonly<{ readOnly?: boolean }>) {
@@ -435,6 +523,7 @@ function ClassInspector({ classId }: Readonly<{ classId: string }>) {
   return (
     <Stack spacing={2}>
       <Typography variant="subtitle1">Clase {umlClass.name}</Typography>
+      <TextField label="ID de clase" value={umlClass.id} InputProps={{ readOnly: true }} size="small" />
       <TextField label="Nombre de clase" value={name} onChange={(event) => setName(event.target.value)} size="small" />
       <VisibilitySelect label="Visibilidad de clase" value={visibility} onChange={setVisibility} />
       <Stack direction="row" spacing={1}>

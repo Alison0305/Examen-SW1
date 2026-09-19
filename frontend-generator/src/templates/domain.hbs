@@ -1,0 +1,41 @@
+export const domainManifest = {{{manifestJson}}} as const;
+export type Attribute = {
+  name: string;
+  type: string;
+  required: boolean;
+  identifier: boolean;
+  unique: boolean;
+  searchable: boolean;
+  sortable: boolean;
+  defaultSort: string | null;
+};
+export type Relation = {
+  name: string;
+  target: string;
+  cardinality: string;
+  lifecycle: string;
+  required: boolean;
+};
+export type Operation = {
+  name: string;
+  method: string;
+  path: string;
+};
+export type MutableField = {
+  wireName: string;
+  required: boolean;
+  schemaType?: string;
+  semanticAttribute?: string;
+  semanticRelation?: string;
+  relationTarget?: string;
+};
+export type Entity = {
+  name: string;
+  resourceName: string;
+  attributes: readonly Attribute[];
+  relations: readonly Relation[];
+  operations: readonly Operation[];
+  createFields: readonly MutableField[];
+  updateFields: readonly MutableField[];
+};
+export type RecordValue = Record<string, unknown>;

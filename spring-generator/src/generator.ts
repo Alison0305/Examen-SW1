@@ -33,6 +33,7 @@ export function generateSpringBackend(model: RelationalModel, config: SpringGene
     file("src/main/resources/application.properties", render(templates.properties, config)),
     file("src/test/resources/application-test.properties", render(templates.testProperties, config)),
     file(`${base}/${config.applicationClass}.java`, render(templates.application, config)),
+    file(`${base}/config/CorsConfig.java`, render(templates.corsConfig, { basePackage: config.basePackage })),
     file(`${base}/api/ApiError.java`, render(templates.apiError, { basePackage: config.basePackage })),
     file(`${base}/api/ApiException.java`, render(templates.apiException, { basePackage: config.basePackage })),
     file(`${base}/api/ApiExceptionHandler.java`, render(templates.apiHandler, { basePackage: config.basePackage })),
@@ -57,7 +58,7 @@ export function generateSpringBackend(model: RelationalModel, config: SpringGene
       files.push(file(`${base}/dto/Create${entityName}Request.java`, render(templates.dto, { basePackage: config.basePackage, name: `Create${entityName}Request`, create: true, fields: api.createFields, imports: api.dtoImports })));
       files.push(file(`${base}/dto/Update${entityName}Request.java`, render(templates.dto, { basePackage: config.basePackage, name: `Update${entityName}Request`, update: true, fields: api.fields, identifierField: api.idField, imports: api.dtoImports })));
       files.push(file(`${base}/dto/${entityName}Response.java`, render(templates.dto, { basePackage: config.basePackage, name: `${entityName}Response`, response: true, fields: api.responseFields, imports: api.dtoImports })));
-      files.push(file(`${base}/services/${entityName}Service.java`, render(templates.service, { basePackage: config.basePackage, entityName, methodName: camel(table.name), ...api })));
+      files.push(file(`${base}/services/${entityName}Service.java`, render(templates.service, { basePackage: config.basePackage, entityName, methodName: camel(table.name), hasEnums: model.enums.length > 0, ...api })));
       files.push(file(`${base}/controllers/${entityName}Controller.java`, render(templates.controller, { basePackage: config.basePackage, entityName, route: table.resourceName ?? table.name, ...api })));
     }
   }

@@ -7,7 +7,9 @@
     "backend",
     "uml-core",
     "relational-core",
-    "spring-generator"
+    "spring-generator",
+    "frontend-generator",
+    "assistant-core"
   ],
   "engines": {
     "node": ">=24.0.0"

@@ -830,6 +830,80 @@ describe("Workspace UML manual", () => {
     expect(await screen.findByRole("button", { name: "Nodo clase Clase1" })).toBeInTheDocument();
   });
 
+  it("muestra el ID semántico de una clase seleccionada como solo lectura", async () => {
+    renderWorkspace();
+    await createClass();
+    fireEvent.click(screen.getByRole("button", { name: "Nodo clase Clase1" }));
+    const classId = useWorkspaceStore.getState().document.uml.classes[0].id;
+    const idInput = screen.getByLabelText("ID de clase") as HTMLInputElement;
+    expect(idInput.value).toBe(classId);
+    expect(idInput.readOnly).toBe(true);
+  });
+
+  it("muestra una propuesta textual válida para revisión sin aplicarla", () => {
+    renderWorkspace();
+    const input = screen.getByLabelText("Instrucción UML");
+
+    fireEvent.change(input, { target: { value: 'CREATE_CLASS name="ClaseSmoke"' } });
+    fireEvent.click(screen.getByRole("button", { name: "Interpretar" }));
+    expect(screen.getByText("Propuesta: Crear clase ClaseSmoke")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Aprobar" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cancelar" })).toBeInTheDocument();
+    expect(useWorkspaceStore.getState().document.uml.classes).toEqual([]);
+  });
+
+  it("aprueba una propuesta textual mediante Command Bus y conserva Undo/Redo", async () => {
+    renderWorkspace();
+
+    fireEvent.change(screen.getByLabelText("Instrucción UML"), { target: { value: 'CREATE_CLASS name="ClasePropuesta"' } });
+    fireEvent.click(screen.getByRole("button", { name: "Interpretar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Aprobar" }));
+
+    const classId = useWorkspaceStore.getState().document.uml.classes[0].id;
+    expect(useWorkspaceStore.getState().document.uml.classes).toMatchObject([{ id: classId, name: "ClasePropuesta" }]);
+    expect(screen.getByRole("button", { name: "Deshacer" })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Deshacer" }));
+    expect(useWorkspaceStore.getState().document.uml.classes).toEqual([]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Rehacer" }));
+    expect(useWorkspaceStore.getState().document.uml.classes).toMatchObject([{ id: classId, name: "ClasePropuesta" }]);
+  });
+
+  it("rechaza una propuesta textual inválida sin mutar documento ni layout", () => {
+    renderWorkspace();
+    const before = structuredClone(useWorkspaceStore.getState().document);
+
+    fireEvent.change(screen.getByLabelText("Instrucción UML"), { target: { value: "DROP TABLE classes;" } });
+    fireEvent.click(screen.getByRole("button", { name: "Interpretar" }));
+
+    expect(screen.getByText(/Propuesta inválida/)).toBeInTheDocument();
+    expect(useWorkspaceStore.getState().document).toEqual(before);
+  });
+
+  it("requiere una segunda confirmación antes de eliminar una clase propuesta", async () => {
+    renderWorkspace();
+    await createClass("Clase1");
+    const classId = useWorkspaceStore.getState().document.uml.classes[0].id;
+    const input = screen.getByLabelText("Instrucción UML");
+
+    fireEvent.change(input, { target: { value: `DELETE_CLASS targetId="${classId}"` } });
+    fireEvent.click(screen.getByRole("button", { name: "Interpretar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Aprobar" }));
+    expect(screen.getByRole("heading", { name: "Confirmar eliminación de clase" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(useWorkspaceStore.getState().document.uml.classes).toHaveLength(1);
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "Interpretar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Aprobar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar eliminación" }));
+    expect(useWorkspaceStore.getState().document.uml.classes).toEqual([]);
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Deshacer" }));
+    expect(useWorkspaceStore.getState().document.uml.classes.map((umlClass) => umlClass.id)).toEqual([classId]);
+  });
+
   it("confirma por ACK un renombrado, ignora su eco y emite Undo/Redo colaborativos", async () => {
     renderWorkspace();
     await createClass();

@@ -19,6 +19,9 @@ coverage/
 playwright-report/
 test-results/
 spring-generator/.generated-test/
+frontend-generator/.generated/
+frontend-generator/.generated-assistant-smoke/
+assistant-core/.benchmark-output/
 
 # Caché
 .turbo/

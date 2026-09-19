@@ -24,7 +24,7 @@ describe("SpringBackendGenerator", () => {
     expect(Object.isFrozen(first)).toBe(true);
     expect(Object.isFrozen(first[0])).toBe(true);
     expect(first.map((file) => file.path)).toEqual([...first.map((file) => file.path)].sort());
-    expect(first).toHaveLength(30);
+    expect(first).toHaveLength(31);
   });
 
   it("genera Gradle, configuración y estructura Spring Boot 4.1.1 con Java 21", () => {
@@ -40,7 +40,9 @@ describe("SpringBackendGenerator", () => {
     expect(content("build.gradle")).toContain("org.testcontainers:testcontainers-junit-jupiter:2.0.5");
     expect(content("build.gradle")).toContain("org.testcontainers:testcontainers-postgresql:2.0.5");
     expect(content("settings.gradle")).toBe('rootProject.name = "generated-backend"\n');
-    expect(content("src/main/resources/application.properties")).toBe("spring.application.name=generated-backend\nspring.jpa.open-in-view=false\n");
+    expect(content("src/main/resources/application.properties")).toContain("app.cors.allowed-origin=${APP_CORS_ALLOWED_ORIGIN:http://localhost:3000}");
+    const cors = content("src/main/java/com/examen/sw1/generated/config/CorsConfig.java")!;
+    expect(cors).toContain('addMapping("/api/v1/**")'); expect(cors).toContain('allowedOrigins(allowedOrigin)'); expect(cors).toContain('"GET", "POST", "PATCH", "DELETE", "OPTIONS"'); expect(cors).not.toContain('allowedOrigins("*")');
     expect(content("src/test/resources/application-test.properties")).toBe("spring.jpa.hibernate.ddl-auto=create-drop\n");
   });
 
@@ -60,6 +62,15 @@ describe("SpringBackendGenerator", () => {
     expect(files.find((file) => file.path.endsWith("enums/EstadoPedido.java"))?.content).toContain("NUEVO,");
     expect(files.find((file) => file.path.endsWith("repositories/UsuarioRepository.java"))?.content).toContain("JpaRepository<Usuario, Long>");
     expect(files.find((file) => file.path.endsWith("controllers/PedidoController.java"))?.content).toContain('@RequestMapping("/api/v1/pedido")');
+  });
+
+  it("genera imports de enums solo cuando el modelo los contiene", () => {
+    const withoutEnums: RelationalModel = { ...model, tables: [model.tables[1]!], enums: [], relations: [] };
+    const first = generateSpringBackend(withoutEnums);
+    const second = generateSpringBackend(structuredClone(withoutEnums));
+    expect(first).toEqual(second);
+    expect(first.find((file) => file.path.endsWith("services/UsuarioService.java"))?.content).not.toContain(".enums.*");
+    expect(generateSpringBackend(model).find((file) => file.path.endsWith("services/PedidoService.java"))?.content).toContain("import com.examen.sw1.generated.enums.*;");
   });
 
   it("genera DTOs tipados, resolución de relaciones y consultas allow-listed", () => {

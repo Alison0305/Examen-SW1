@@ -65,6 +65,8 @@ export type {
   ValidationResult,
 } from "./validation.js";
 
+export type { UmlTextProposal, UmlTextProposalParseResult } from "./text-proposal.js";
+
 export {
   UML_PRIMITIVE_TYPES,
   UML_RELATIONSHIP_TYPES,
@@ -85,3 +87,4 @@ export { validateCanonicalUmlModel, validateProjectDocument } from "./validation
 
 export { UmlCommandBus } from "./commands/command-bus.js";
 export { UmlCommandExecutor } from "./commands/executor.js";
+export { adaptUmlTextProposal, parseUmlTextProposal } from "./text-proposal.js";

@@ -1,0 +1,27 @@
+{
+  "name": "@examen-sw1/assistant-core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "benchmark": "npm run build && node dist/benchmark/cli.js",
+    "build": "tsc -p tsconfig.build.json",
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@examen-sw1/uml-core": "*",
+    "@examen-sw1/spring-generator": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "@eslint/js": "^9.34.0",
+    "eslint": "^9.34.0",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.41.0",
+    "vitest": "^3.2.4"
+  }
+}

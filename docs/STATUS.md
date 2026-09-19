@@ -2,15 +2,22 @@
 
 ## Estado Actual
 
-**Ciclo actual:** Ciclo 3 — Construcción y generación (CU-07 implementado y validado; pendiente aceptación).
+**Ciclo actual:** Ciclo 3 — Construcción y generación.
 
-**Último CU completado:** CU-06 — UML → RelationalModel y generador backend Spring Boot.
+**Último CU completado:** CU-08 — Frontend generado y asistentes de texto.
 
-**CU activo:** CU-07 — CRUD avanzado, verificación, OpenAPI, Postman y Domain Manifest (implementado y validado; pendiente aceptación).
+**CU activo:** Ninguno. CU-08 fue archivado; no iniciar CU-09 sin instrucción.
 
-**OpenSpec activo:** `cu-07-crud-openapi-postman-domain-manifest` (12/12 tareas completadas).
+**OpenSpec activo:** Ninguno.
 
-CU-00 a CU-06 y CU-04 EXT están cerrados. CU-07 implementó los tres incrementos. El Incremento 3 añadió `domain-manifest.json` v1 permanente en la raíz del backend generado, derivado del RelationalModel y contrastado contra OpenAPI real por ruta, método y operationId. Sus entidades, atributos, relaciones y operaciones tienen campos fijos, orden binario y contenido sin valores variables. El gate generado pasó con Java 21, Gradle 8.14.4 y PostgreSQL Testcontainers; el output y diagnósticos temporales se limpiaron. `npm run lint`, `npm run typecheck`, `npm run test`, `npm run build` y la validación OpenSpec strict pasaron. Prisma y migraciones de UML Studio no se modificaron. Falta la aceptación antes del cierre. CU-08 no está iniciado.
+CU-08 completó `frontend-generator` y `assistant-core`. El frontend CRUD generado consume Domain Manifest v1 y OpenAPI sin cambiar sus contratos. `AssistantCommand` valida la allow-list antes de IO; el asistente UML adapta propuestas aprobadas exclusivamente a `UmlCommandBus`. Qwen permanece sin runtime, pesos ni inferencia; el benchmark determinista de 19 casos no atribuye métricas a Qwen. Gates finales aprobados: raíz lint/typecheck/test/build, assistant-core 26/26, uml-core 62/62, frontend-generator 23/23, spring-generator 55/55, smokes backend y frontend generado offline, y OpenSpec strict. Domain Manifest v1 no cambió. El cambio se archivó y sus tres specs principales fueron sincronizadas.
+
+## Cierre De CU-08
+
+- Estado: cerrado, archivado y pendiente de commit/push.
+- OpenSpec: `openspec/changes/archive/2026-09-18-cu-08-frontend-generado-asistentes-texto/`.
+- Specs principales: `assistant-core`, `case-text-assistant` y `generated-frontend` sincronizadas y validadas.
+- Progreso: 14/14 tareas completadas.
 
 ## Cierre De CU-04
 
@@ -42,6 +49,7 @@ CU-00 a CU-06 y CU-04 EXT están cerrados. CU-07 implementó los tres incremento
 - CU-02 — Command Bus, Undo/Redo y workspace UML manual.
 - CU-03 — Persistencia, autenticación y ownership.
 - CU-04 — Landing, gestión de proyectos, membresías e invitaciones.
+- CU-08 — Frontend generado y asistentes de texto.
 
 ## OpenSpec Archivado
 
@@ -50,6 +58,7 @@ CU-00 a CU-06 y CU-04 EXT están cerrados. CU-07 implementó los tres incremento
 - `openspec/changes/archive/2026-09-08-cu-02-uml-workspace/`
 - `openspec/changes/archive/2026-09-09-cu-03-persistencia-autenticacion-ownership/`
 - `openspec/changes/archive/2026-09-12-cu-04-landing-proyectos-membresias-invitaciones/`
+- `openspec/changes/archive/2026-09-18-cu-08-frontend-generado-asistentes-texto/`
 
 ## Specs Principales
 
@@ -58,6 +67,9 @@ CU-00 a CU-06 y CU-04 EXT están cerrados. CU-07 implementó los tres incremento
 - `openspec/specs/uml-workspace/spec.md`
 - `openspec/specs/persistencia-autenticacion-ownership/spec.md`
 - `openspec/specs/landing-proyectos-membresias-invitaciones/spec.md`
+- `openspec/specs/assistant-core/spec.md`
+- `openspec/specs/case-text-assistant/spec.md`
+- `openspec/specs/generated-frontend/spec.md`
 
 ## Cierre De CU-01
 
@@ -113,4 +125,4 @@ CU-00 a CU-06 y CU-04 EXT están cerrados. CU-07 implementó los tres incremento
 
 ## Siguiente Acción
 
-Solicitar aceptación explícita de CU-07; no archivar, hacer commit ni iniciar CU-08 antes de recibirla.
+Revisar el commit y push de cierre de CU-08; no iniciar CU-09 sin instrucción.
