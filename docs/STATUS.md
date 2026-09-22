@@ -4,13 +4,20 @@
 
 **Ciclo actual:** Ciclo 3 — Construcción y generación.
 
-**Último CU completado:** CU-08 — Frontend generado y asistentes de texto.
+**Último CU completado:** CU-09 — Voz Vosk y Android Capacitor.
 
-**CU activo:** Ninguno. CU-08 fue archivado; no iniciar CU-09 sin instrucción.
+**CU activo:** Ninguno.
 
 **OpenSpec activo:** Ninguno.
 
-CU-08 completó `frontend-generator` y `assistant-core`. El frontend CRUD generado consume Domain Manifest v1 y OpenAPI sin cambiar sus contratos. `AssistantCommand` valida la allow-list antes de IO; el asistente UML adapta propuestas aprobadas exclusivamente a `UmlCommandBus`. Qwen permanece sin runtime, pesos ni inferencia; el benchmark determinista de 19 casos no atribuye métricas a Qwen. Gates finales aprobados: raíz lint/typecheck/test/build, assistant-core 26/26, uml-core 62/62, frontend-generator 23/23, spring-generator 55/55, smokes backend y frontend generado offline, y OpenSpec strict. Domain Manifest v1 no cambió. El cambio se archivó y sus tres specs principales fueron sincronizadas.
+CU-09 está en 10/10. Galaxy A05 confirmo microfono bajo interaccion, cancelacion, LAN/Vosk, `RESULT`, transcript editable y asistente de datos runtime. El APK final API-LAN confirmo `PREPARAR COMANDO`, `CANCELAR` sin ejecucion y `APROBAR` para `LIST rol`, que devolvio JSON real de Spring/PostgreSQL por LAN. STT NestJS y API Spring permanecen configuraciones separadas. La IP Wi-Fi usada durante el smoke es evidencia temporal y no configuracion persistida.
+
+## Cierre De CU-09
+
+- Estado: cerrado, archivado y pendiente de commit/push.
+- OpenSpec: `openspec/changes/archive/2026-09-22-cu-09-voz-vosk-android-capacitor/`.
+- Progreso: 10/10 tareas completadas.
+- Evidencia final: Galaxy A05 valido Vosk/STT LAN y `AssistantCommand` contra Spring/PostgreSQL LAN; `GET /api/v1/rol` respondio HTTP 200 JSON.
 
 ## Cierre De CU-08
 
@@ -50,6 +57,7 @@ CU-08 completó `frontend-generator` y `assistant-core`. El frontend CRUD genera
 - CU-03 — Persistencia, autenticación y ownership.
 - CU-04 — Landing, gestión de proyectos, membresías e invitaciones.
 - CU-08 — Frontend generado y asistentes de texto.
+- CU-09 — Voz Vosk y Android Capacitor.
 
 ## OpenSpec Archivado
 
@@ -125,4 +133,4 @@ CU-08 completó `frontend-generator` y `assistant-core`. El frontend CRUD genera
 
 ## Siguiente Acción
 
-Revisar el commit y push de cierre de CU-08; no iniciar CU-09 sin instrucción.
+Seleccionar y planificar explicitamente el siguiente CU; CU-10 y CU-11 no se iniciaron.

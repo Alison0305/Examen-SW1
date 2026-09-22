@@ -1,7 +1,8 @@
 export { ASSISTANT_OPERATIONS } from "./contract.js";
 export { ASSISTANT_VALIDATION_DIAGNOSTICS, validateAssistantCommand } from "./validator.js";
 export { ASSISTANT_EXECUTION_DIAGNOSTICS, executeAssistantCommand } from "./executor.js";
-export { inspectLocalTextModel, LOCAL_QWEN3_1_7B_SPIKE_CONFIG, parseStructuredAssistantOutput } from "./local-model-spike.js";
+export { inspectLocalTextModel, LOCAL_QWEN3_1_7B_SPIKE_CONFIG } from "./local-model-spike.js";
+export { parseStructuredAssistantOutput } from "./structured-output.js";
 export type {
   AssistantCommand,
   AssistantCriteria,

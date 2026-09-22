@@ -78,13 +78,14 @@ public class {{entityName}}Service {
         return new PageResponse<>(response.getContent(), response.getNumber(), response.getSize(), response.getTotalElements(), response.getTotalPages());
     }
 
-    public Object navigate({{idJavaType}} id, String relation) {
+{{#if canNavigate}}    public Object navigate({{idJavaType}} id, String relation) {
         {{entityName}} entity = entity(id);
         return switch (relation) {
 {{#each navigationFields}}            case "{{navigationName}}" -> {{{navigation}}};
 {{/each}}            default -> throw new ApiException(400, "INVALID_RELATION", "Relación no navegable.");
         };
     }
+{{/if}}
 
     private Specification<{{entityName}}> specification(List<String> filter, String q) {
         return QueryParser.specification(filter, q, Map.ofEntries(

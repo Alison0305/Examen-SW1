@@ -1,0 +1,5 @@
+export type LanConfig = Readonly<{ host: string; port: string }>;
+export type LanConfigResult = Readonly<{ ok: true; endpoint: string }> | Readonly<{ ok: false; error: string }>;
+const hostname = /^(?=.{1,253}$)(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)(?:\.(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?))*$/;
+function isIpv4(value: string): boolean { const parts = value.split("."); return parts.length === 4 && parts.every((part) => /^\d{1,3}$/.test(part) && Number(part) <= 255); }
+export function buildSpeechEndpoint(config: LanConfig): LanConfigResult { const host = config.host.trim(); const port = config.port.trim(); if (!host || (!hostname.test(host) && !isIpv4(host))) return { ok: false, error: "Ingrese un host LAN IPv4 o nombre de host válido." }; if (["localhost", "127.0.0.1", "::1"].includes(host.toLowerCase())) return { ok: false, error: "localhost representa el teléfono; use el host LAN." }; if (!/^\d+$/.test(port) || Number(port) < 1 || Number(port) > 65535) return { ok: false, error: "Ingrese un puerto entre 1 y 65535." }; return { ok: true, endpoint: `http://${host}:${port}/speech/recognize` }; }

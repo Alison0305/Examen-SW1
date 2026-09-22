@@ -2,12 +2,10 @@
 
 ## Estado Operativo
 
-- CU activo: ninguno. CU-08 está archivado en `openspec/changes/archive/2026-09-18-cu-08-frontend-generado-asistentes-texto/` con 14/14 tareas.
-- Implementado: frontend CRUD generado, `AssistantCommand` validado contra Domain Manifest v1, propuesta UML adaptada exclusivamente a `UmlCommandBus`, spike local neutro de Qwen y benchmark determinista de 19 casos sin inferencia.
-- Validado: gates raíz; `assistant-core` 26/26, `uml-core` 62/62, `frontend-generator` 23/23, `spring-generator` 55/55; smokes backend y frontend generado. El frontend generado aprobó con npm offline estricto y su output temporal está ignorado.
-- Decisión vigente: `assistant-core/dist/browser.js` es el entrypoint de la UI generada y no incluye módulos Node del spike/benchmark. Qwen, node-llama-cpp, pesos y proveedores remotos no están instalados ni configurados.
-- Pendiente: commit y push de cierre de CU-08. No iniciar CU-09.
+- CU-09 cerrado: 10/10; OpenSpec archivado como `2026-09-22-cu-09-voz-vosk-android-capacitor`.
+- Evidencia final: Galaxy A05 valido microfono bajo interaccion, cancelacion, Vosk LAN, transcript editable, `PREPARAR COMANDO`, Cancelar sin ejecucion y Aprobar `LIST rol` con JSON Spring/PostgreSQL real por LAN.
+- APK final: `frontend-generator/.generated-task-3-4-api-lan-fix/frontend/android/app/build/outputs/apk/debug/app-debug.apk`, 4,467,046 bytes, ignorado/no versionado. STT y API Spring se configuran separadamente en runtime; la IP usada en smoke fue evidencia temporal.
 
 ## Siguiente Accion Exacta
 
-1. Completar el commit y push de cierre de CU-08; después detenerse.
+1. No iniciar CU-10 ni CU-11 sin seleccionar y planificar explicitamente el siguiente CU.

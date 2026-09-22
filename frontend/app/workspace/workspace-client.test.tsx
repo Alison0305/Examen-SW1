@@ -852,6 +852,17 @@ describe("Workspace UML manual", () => {
     expect(useWorkspaceStore.getState().document.uml.classes).toEqual([]);
   });
 
+  it("mantiene el transcript en el mismo pipeline revisable y bloquea texto vacío", () => {
+    renderWorkspace();
+    const input = screen.getByLabelText("Instrucción UML");
+    fireEvent.change(input, { target: { value: "   " } });
+    expect(screen.getByRole("button", { name: "Interpretar" })).toBeDisabled();
+    fireEvent.change(input, { target: { value: 'CREATE_CLASS name="Paciente"' } });
+    fireEvent.click(screen.getByRole("button", { name: "Interpretar" }));
+    expect(screen.getByText("Propuesta: Crear clase Paciente")).toBeInTheDocument();
+    expect(useWorkspaceStore.getState().document.uml.classes).toEqual([]);
+  });
+
   it("aprueba una propuesta textual mediante Command Bus y conserva Undo/Redo", async () => {
     renderWorkspace();
 

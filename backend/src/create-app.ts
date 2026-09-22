@@ -16,11 +16,15 @@ export function getFrontendOrigin() {
   return process.env.FRONTEND_ORIGIN ?? DEFAULT_FRONTEND_ORIGIN;
 }
 
+export function getAllowedOrigins() {
+  return [...new Set([getFrontendOrigin(), "http://localhost", "https://localhost"])];
+}
+
 export async function createApp() {
   const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter());
 
   app.enableCors({
-    origin: getFrontendOrigin(),
+    origin: getAllowedOrigins(),
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Authorization", "Content-Type"],
   });

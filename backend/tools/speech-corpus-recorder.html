@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grabador local de corpus STT</title>
+<style>body{font:16px system-ui;margin:2rem;max-width:42rem}button,select{font:inherit;padding:.5rem;margin:.25rem 0}#status{font-weight:600}audio{display:block;width:100%;margin:1rem 0}</style>
+<h1>Grabador local de corpus STT</h1>
+<p>Frase exacta: <strong>crear clase paciente</strong></p>
+<p>Salida: WAV RIFF, PCM signed 16-bit, mono, 16000 Hz.</p>
+<label>Condición <select id="condition"><option value="lento">LENTO</option><option value="rapido">RÁPIDO</option><option value="pronunciacion-clara">PRONUNCIACIÓN CLARA</option></select></label>
+<p id="status">Listo. La grabación solo inicia al presionar Iniciar.</p>
+<button id="start">Iniciar</button><button id="stop" disabled>Detener</button><button id="download" disabled>Descargar WAV</button>
+<audio id="preview" controls></audio>
+<script>
+const filenames={lento:"crear-clase-paciente-lento.wav",rapido:"crear-clase-paciente-rapido.wav","pronunciacion-clara":"crear-clase-paciente-pronunciacion-clara.wav"};
+let stream, recorder, chunks=[], wav;
+const status=document.querySelector("#status"), start=document.querySelector("#start"), stop=document.querySelector("#stop"), download=document.querySelector("#download"), preview=document.querySelector("#preview");
+function stopTracks(){stream?.getTracks().forEach(track=>track.stop());stream=undefined;}
+function wavBlob(samples){const buffer=new ArrayBuffer(44+samples.length*2), view=new DataView(buffer), text=(offset,value)=>[...value].forEach((char,index)=>view.setUint8(offset+index,char.charCodeAt(0)));text(0,"RIFF");view.setUint32(4,36+samples.length*2,true);text(8,"WAVE");text(12,"fmt ");view.setUint32(16,16,true);view.setUint16(20,1,true);view.setUint16(22,1,true);view.setUint32(24,16000,true);view.setUint32(28,32000,true);view.setUint16(32,2,true);view.setUint16(34,16,true);text(36,"data");view.setUint32(40,samples.length*2,true);samples.forEach((sample,index)=>view.setInt16(44+index*2,Math.max(-1,Math.min(1,sample))*32767,true));return new Blob([buffer],{type:"audio/wav"});}
+async function toWav(){const context=new AudioContext({sampleRate:16000});try{const decoded=await context.decodeAudioData(await new Blob(chunks).arrayBuffer());return wavBlob(decoded.getChannelData(0));}finally{await context.close();}}
+start.onclick=async()=>{try{stream=await navigator.mediaDevices.getUserMedia({audio:true});recorder=new MediaRecorder(stream);chunks=[];recorder.ondataavailable=event=>{if(event.data.size)chunks.push(event.data)};recorder.onstop=async()=>{try{wav=await toWav();preview.src=URL.createObjectURL(wav);download.disabled=false;status.textContent="WAV local listo para revisar y descargar."}catch{status.textContent="No se pudo convertir la grabación a WAV."}finally{stopTracks();start.disabled=false;stop.disabled=true;}};recorder.start();start.disabled=true;stop.disabled=false;status.textContent="Grabando..."}catch{stopTracks();status.textContent="No se concedió acceso al micrófono."}};
+stop.onclick=()=>recorder?.stop();download.onclick=()=>{const link=document.createElement("a");link.href=URL.createObjectURL(wav);link.download=filenames[document.querySelector("#condition").value];link.click();URL.revokeObjectURL(link.href)};
+</script>

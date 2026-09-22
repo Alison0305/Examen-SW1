@@ -1,0 +1,8 @@
+import { readFile, writeFile } from "node:fs/promises";
+
+const manifestPath = new URL("../android/app/src/main/AndroidManifest.xml", import.meta.url);
+let manifest = await readFile(manifestPath, "utf8");
+if (!manifest.includes("android.permission.RECORD_AUDIO")) manifest = manifest.replace("<application", '<uses-permission android:name="android.permission.RECORD_AUDIO" />\n\n    <application');
+if (!manifest.includes("android.permission.MODIFY_AUDIO_SETTINGS")) manifest = manifest.replace("<application", '<uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />\n\n    <application');
+if (!manifest.includes("android:usesCleartextTraffic")) manifest = manifest.replace("<application", '<application android:usesCleartextTraffic="true"');
+await writeFile(manifestPath, manifest, "utf8");

@@ -3,7 +3,8 @@
 import { type ComponentProps, useEffect, useRef, useState } from "react";
 import { Alert, AppBar, Box, Button, Checkbox, CircularProgress, Container, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel, MenuItem, Select, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField as MuiTextField, Toolbar, Typography } from "@mui/material";
 import { domainManifest, type Entity, type RecordValue } from "./domain";
-import { AssistantPanel } from "./assistant-panel";
+import { AssistantPanel, AssistantTextProposal } from "./assistant-panel";
+import { VoiceTranscriptInput } from "./voice-transcript-input";
 
 const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
 const operation = (entity: Entity, method: string) => entity.operations.find((item) => item.method === method);
@@ -46,5 +47,6 @@ function GeneratedCrudContent() {
 }
 
 export default function GeneratedCrudApp() {
-  return <Stack spacing={2}><AssistantPanel /><GeneratedCrudContent /></Stack>;
+  const [assistantText, setAssistantText] = useState(""); const [apiHost, setApiHost] = useState(""); const [apiPort, setApiPort] = useState("");
+  return <Stack spacing={2}><VoiceTranscriptInput value={assistantText} onTranscript={setAssistantText} /><Stack direction={ { xs: "column", sm: "row" }} spacing={1}><MuiTextField label="Host API" value={apiHost} onChange={(event) => setApiHost(event.target.value)} helperText="Host LAN del backend Spring; no use localhost." /><MuiTextField label="Puerto API" value={apiPort} onChange={(event) => setApiPort(event.target.value)} inputMode="numeric" /></Stack><AssistantTextProposal text={assistantText} onTextChange={setAssistantText} apiHost={apiHost} apiPort={apiPort} /><AssistantPanel apiHost={apiHost} apiPort={apiPort} /><GeneratedCrudContent /></Stack>;
 }

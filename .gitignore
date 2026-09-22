@@ -1,5 +1,7 @@
 # Dependencias
 node_modules/
+.venv/
+__pycache__/
 
 # Variables de entorno y secretos
 .env
@@ -21,11 +23,14 @@ test-results/
 spring-generator/.generated-test/
 frontend-generator/.generated/
 frontend-generator/.generated-assistant-smoke/
+frontend-generator/.generated-task-3-3/
+frontend-generator/.generated-task-3-4-fix/
 assistant-core/.benchmark-output/
 
 # Caché
 .turbo/
 .cache/
+.gradle-cu09/
 *.tsbuildinfo
 
 # Logs

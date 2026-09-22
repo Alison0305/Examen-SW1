@@ -12,13 +12,18 @@ export function generateFrontend(input: FrontendGeneratorInput): readonly Genera
   const manifest = { schemaVersion: input.domainManifest.schemaVersion, entities: [...input.domainManifest.entities].sort((left, right) => binary(left.name, right.name)).map((entity) => ({ ...entity, ...deriveMutableFields(entity, input.openApi), attributes: [...entity.attributes].sort((left, right) => binary(left.name, right.name)), relations: [...entity.relations].sort((left, right) => binary(left.name, right.name)), operations: [...entity.operations].sort((left, right) => binary(left.name, right.name)) })) };
   const manifestJson = JSON.stringify(manifest, null, 2);
   const files: GeneratedFile[] = [
+    { path: ".gitignore", content: render(templates.gitignore, {}) },
     { path: ".env.example", content: render(templates.envExample, {}) },
     { path: "package.json", content: render(templates.package, { assistantCoreDependency: input.assistantCoreDependency }) },
     { path: "tsconfig.json", content: render(templates.tsconfig, {}) },
     { path: "next.config.ts", content: render(templates.config, {}) },
+    { path: "capacitor.config.ts", content: render(templates.capacitorConfig, {}) },
+    { path: "scripts/configure-android.mjs", content: render(templates.androidSetup, {}) },
     { path: "app/layout.tsx", content: render(templates.layout, {}) },
     { path: "app/page.tsx", content: render(templates.page, {}) },
     { path: "app/assistant-panel.tsx", content: render(templates.assistantPanel, {}) },
+    { path: "app/voice-transcript-input.tsx", content: render(templates.voiceTranscriptInput, {}) },
+    { path: "app/lan-config.ts", content: render(templates.lanConfig, {}) },
     { path: "app/domain.ts", content: render(templates.domain, { manifestJson }) },
   ].map((file) => Object.freeze(file)).sort((left, right) => binary(left.path, right.path));
   return Object.freeze(files);

@@ -43,6 +43,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { parseUmlTextProposal, type Diagnostic, type ProjectDocument, type UmlAttribute, type UmlRelationshipType, type UmlTextProposal, type UmlVisibility } from "@examen-sw1/uml-core";
 import { applyVisualNodeChanges, toReactFlowEdges, toReactFlowNodes, type UmlReactFlowNode } from "./react-flow-adapters";
 import { UmlRelationshipEdge } from "./uml-edge";
+import { VoiceTranscriptInput } from "../voice-transcript-input";
 import { UmlClassNode, UmlEnumerationNode } from "./uml-nodes";
 import { formatMultiplicity, formatType, primitiveTypeNames } from "./workspace-utils";
 import { setWorkspacePersistentChangeListener, setWorkspaceReadOnly, useWorkspaceStore, type WorkspaceSelection, type WorkspaceTool } from "./workspace-store";
@@ -360,6 +361,7 @@ function WorkspaceTextAssistant({ readOnly }: Readonly<{ readOnly: boolean }>) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   function interpret() {
+    if (!input.trim()) return;
     const result = parseUmlTextProposal(input);
     if (result.success) {
       setProposal(result.proposal);
@@ -396,6 +398,7 @@ function WorkspaceTextAssistant({ readOnly }: Readonly<{ readOnly: boolean }>) {
       <CardContent sx={{ py: 1.5, "&:last-child": { pb: 1.5 } }}>
         <Stack spacing={1.25}>
           <Typography variant="subtitle2">Asistente textual UML</Typography>
+          <VoiceTranscriptInput disabled={readOnly} onTranscript={setInput} />
           <TextField
             label="Instrucción UML"
             value={input}
@@ -404,7 +407,7 @@ function WorkspaceTextAssistant({ readOnly }: Readonly<{ readOnly: boolean }>) {
             disabled={readOnly}
             helperText={'CREATE_CLASS name="..."'}
           />
-          <Button variant="outlined" onClick={interpret} disabled={readOnly || !input}>Interpretar</Button>
+          <Button variant="outlined" onClick={interpret} disabled={readOnly || !input.trim()}>Interpretar</Button>
           {rejection && <Alert severity="error">{rejection}</Alert>}
           {proposal && <Alert severity="info">
             <Typography variant="body2">Propuesta: {formatTextProposal(proposal)}</Typography>

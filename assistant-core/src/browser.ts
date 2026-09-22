@@ -1,5 +1,7 @@
 export { ASSISTANT_OPERATIONS } from "./contract.js";
 export { executeAssistantCommand } from "./executor.js";
+export { parseStructuredAssistantOutput } from "./structured-output.js";
+export { validateAssistantCommand } from "./validator.js";
 export type {
   AssistantCommand,
   AssistantFields,

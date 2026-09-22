@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "audioFormat": {
+    "sampleRate": 16000,
+    "channels": 1,
+    "bitDepth": 16,
+    "encoding": "PCM_S16LE"
+  },
+  "samples": [
+    {
+      "id": "baseline-crear-clase-paciente",
+      "audio": "crear-clase-paciente.wav",
+      "goldenTranscript": "crear clase paciente",
+      "conditions": { "baseline": true },
+      "source": "existing-fixture",
+      "transform": null
+    },
+    {
+      "id": "noise-crear-clase-paciente-15db",
+      "audio": "crear-clase-paciente-ruido-15db.wav",
+      "goldenTranscript": "crear clase paciente",
+      "conditions": { "noise": { "type": "white", "snrDb": 15, "seed": 42 } },
+      "source": "derived-local",
+      "transform": { "derivedFrom": "baseline-crear-clase-paciente", "generator": "generate-speech-noise-fixture.py" }
+    },
+    {
+      "id": "speed-slow-crear-clase-paciente",
+      "audio": "crear-clase-paciente-lento.wav",
+      "goldenTranscript": "crear clase paciente",
+      "conditions": { "speed": "slow" },
+      "source": "human-local",
+      "transform": null
+    },
+    {
+      "id": "speed-fast-crear-clase-paciente",
+      "audio": "crear-clase-paciente-rapido.wav",
+      "goldenTranscript": "crear clase paciente",
+      "conditions": { "speed": "fast" },
+      "source": "human-local",
+      "transform": null
+    },
+    {
+      "id": "pronunciation-clear-crear-clase-paciente",
+      "audio": "crear-clase-paciente-pronunciacion-clara.wav",
+      "goldenTranscript": "crear clase paciente",
+      "conditions": { "pronunciation": "clear-articulation" },
+      "source": "human-local",
+      "transform": null
+    }
+  ]
+}
