@@ -1,6 +1,6 @@
 "use client";
 
-import { Alert, Box, Button, CircularProgress, Stack } from "@mui/material";
+import { Alert, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Stack, TextField, Typography } from "@mui/material";
 import { useParams, useRouter } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
 import type { ProjectDocument, UmlCommand } from "@examen-sw1/uml-core";
@@ -10,6 +10,27 @@ import { useSession } from "../../../auth/session";
 import { WorkspaceClient } from "../../../workspace/workspace-client";
 import { invalidateWorkspaceCollaborativeHistory, resetWorkspaceStore, setWorkspaceCollaborativeCommandListener, useWorkspaceStore } from "../../../workspace/workspace-store";
 import { RealtimeEvent, WorkspaceRealtimeClient, type OperationAck, type OperationConflict, type ProjectAccessChangedEvent, type ProjectPresence, type ProjectRealtimeState } from "../../../workspace/realtime-client";
+
+const basePackagePattern = /^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*$/;
+const defaultBasePackage = "com.example.generated";
+
+function downloadZip(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportErrorMessage(cause: unknown): string {
+  if (!(cause instanceof ApiError)) return "No fue posible generar el backend. Intenta nuevamente.";
+  if (cause.status === 400) return "La configuración de exportación no es válida.";
+  if (cause.status === 401) return "Tu sesión expiró. Inicia sesión nuevamente.";
+  if (cause.status === 403) return "No tienes permiso para exportar este proyecto.";
+  if (cause.status === 404) return "Proyecto no encontrado o no disponible.";
+  return "No fue posible generar el backend. Intenta nuevamente.";
+}
 
 function PersistedWorkspace() {
   const { logout } = useSession();
@@ -24,6 +45,10 @@ function PersistedWorkspace() {
   const [connection, setConnection] = useState<"connecting" | "connected" | "reconnecting" | "disconnected" | "resyncing" | "conflict">("connecting");
   const [presence, setPresence] = useState<ProjectPresence[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [basePackage, setBasePackage] = useState(defaultBasePackage);
+  const [exportState, setExportState] = useState<"idle" | "generating" | "success" | "error">("idle");
+  const [exportError, setExportError] = useState<string | null>(null);
   const realtimeRef = useRef<WorkspaceRealtimeClient | null>(null);
   const projectRef = useRef<ProjectDetail | null>(null);
   const connectionRef = useRef(connection);
@@ -179,7 +204,27 @@ function PersistedWorkspace() {
       setConnection("connected");
     } catch { setConnection("disconnected"); }
   };
-  return <><WorkspaceClient projectName={project.name} saveState={connection === "connected" ? "clean" : saveState} onSave={readOnly || connection === "connected" ? undefined : save} onBack={() => router.push("/projects")} onPersistentChange={readOnly || connection === "connected" ? undefined : () => setSaveState((state) => state === "saving" ? state : "dirty")} staleConflict={staleConflict} onReloadServerVersion={reload} readOnly={readOnly} collaboration={{ connection, revision: project.revision, presence, onSelection: (selectionId) => realtimeRef.current?.presence(project.id, { selectionId, activity: true }), onCursor: (cursor) => realtimeRef.current?.presence(project.id, { cursor }), onEditing: (editingElementId) => realtimeRef.current?.presence(project.id, { editingElementId, activity: true }), onResync: () => void reload() }} />{readOnly && <Alert severity="info">Acceso de solo lectura.</Alert>}{staleConflict && <Alert severity="warning">El proyecto tiene una versión más reciente en el servidor.</Alert>}</>;
+  const openExport = () => {
+    setExportError(null);
+    setExportState("idle");
+    setExportDialogOpen(true);
+  };
+  const exportBackend = async () => {
+    if (exportState === "generating" || !basePackagePattern.test(basePackage.trim())) return;
+    setExportState("generating");
+    setExportError(null);
+    try {
+      const result = await api.exportSpring(project.id, basePackage.trim());
+      downloadZip(result.blob, result.filename);
+      setExportState("success");
+      setExportDialogOpen(false);
+    } catch (cause) {
+      setExportError(exportErrorMessage(cause));
+      setExportState("error");
+    }
+  };
+  const validBasePackage = basePackagePattern.test(basePackage.trim());
+  return <><WorkspaceClient projectName={project.name} saveState={connection === "connected" ? "clean" : saveState} onSave={readOnly || connection === "connected" ? undefined : save} onBack={() => router.push("/projects")} onPersistentChange={readOnly || connection === "connected" ? undefined : () => setSaveState((state) => state === "saving" ? state : "dirty")} staleConflict={staleConflict} onReloadServerVersion={reload} onGenerateBackend={openExport} readOnly={readOnly} collaboration={{ connection, revision: project.revision, presence, onSelection: (selectionId) => realtimeRef.current?.presence(project.id, { selectionId, activity: true }), onCursor: (cursor) => realtimeRef.current?.presence(project.id, { cursor }), onEditing: (editingElementId) => realtimeRef.current?.presence(project.id, { editingElementId, activity: true }), onResync: () => void reload() }} />{readOnly && <Alert severity="info">Acceso de solo lectura.</Alert>}{staleConflict && <Alert severity="warning">El proyecto tiene una versión más reciente en el servidor.</Alert>}{exportState === "success" && <Alert severity="success">Backend generado correctamente.</Alert>}<Dialog open={exportDialogOpen} onClose={exportState === "generating" ? undefined : () => setExportDialogOpen(false)} fullWidth maxWidth="sm"><DialogTitle>Generar backend</DialogTitle><DialogContent><Stack spacing={2} sx={{ pt: 1 }}><Typography variant="body2">Se exportará la última versión guardada del proyecto.</Typography><TextField label="Base package" value={basePackage} onChange={(event) => setBasePackage(event.target.value)} error={!validBasePackage} helperText={validBasePackage ? "Ejemplo: com.ejemplo.proyecto" : "Ingresa un paquete Java válido."} disabled={exportState === "generating"} autoFocus /><TextField label="Java" value="Java 21" InputProps={{ readOnly: true }} /><Typography variant="body2" color="text.secondary">Las dependencias del backend generado son fijas.</Typography>{exportError && <Alert severity="error">{exportError}</Alert>}</Stack></DialogContent><DialogActions><Button onClick={() => setExportDialogOpen(false)} disabled={exportState === "generating"}>Cancelar</Button><Button variant="contained" onClick={() => void exportBackend()} disabled={!validBasePackage || exportState === "generating"}>{exportState === "generating" ? "Generando..." : "Generar backend"}</Button></DialogActions></Dialog></>;
 }
 
 export default function PersistedWorkspacePage() { return <Suspense><ProtectedPage><PersistedWorkspace /></ProtectedPage></Suspense>; }

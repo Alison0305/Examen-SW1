@@ -25,7 +25,7 @@ Transformar deterministamente `CanonicalUmlModel` a `RelationalModel` y generar 
 
 ## Reglas Propuestas
 
-- Solo una clase con `generationMetadata.entity: true` se proyecta a tabla. Los nombres fuente deben ser identificadores ASCII válidos; la conversión a `snake_case` solo cambia caso y los espacios, guiones o símbolos generan diagnóstico bloqueante.
+- Una clase se proyecta a tabla salvo que declare explícitamente `generationMetadata.entity: false`; una clase creada manualmente sin metadata sigue siendo exportable. El atributo convencional `id` es identifier salvo que declare `generationMetadata.identifier: false`. Los nombres fuente deben ser identificadores ASCII válidos; la conversión a `snake_case` solo cambia caso y los espacios, guiones o símbolos generan diagnóstico bloqueante.
 - Tipos actuales: `string -> VARCHAR / String`, `integer -> BIGINT / Long`, `boolean -> BOOLEAN / Boolean`, `number -> NUMERIC / BigDecimal`, `date -> DATE / LocalDate`, `datetime -> TIMESTAMP WITH TIME ZONE / OffsetDateTime`. Referencias se resuelven por FK o enum.
 - `required` controla nullability, `unique` genera unique constraint e `indexed` genera índice. `identifier` define una PK única; su ausencia o multiplicidad bloquea FKs sin inventarlas. No hay fuente actual para longitudes, precision/scale o defaults.
 - Enums se generan como enum Java con `@Enumerated(EnumType.STRING)` y columna PostgreSQL textual, para portabilidad y cambios seguros.
@@ -151,3 +151,25 @@ Las tareas OpenSpec 3.1 a 3.3 están completadas. CU-06 cerró con 10/10 tareas:
 - La revisión manual fue aprobada: Pedido es el composite, Producto la parte y el fix previo de inverse side 1:1 se mantiene correcto.
 - Docker no fue requerido; Prisma no se modificó.
 - El correctivo se archivó en `openspec/changes/archive/2026-09-14-cu-06-fix-composition-lifecycle-jpa/` tras sincronizar la spec `spring-backend-generator` y validar `openspec validate --specs` con 9/9 specs correctos. CU-07 no se inició.
+
+## Correctivo Posterior - Exportación Spring Desde Workspace
+
+### Implementación Realizada
+
+- El change `fix-cu-06-export-spring-desde-workspace` conecta el workspace persistido con `POST /projects/:id/exports/spring`, usando exclusivamente `project.document.uml`, `mapToRelationalModel`, `generateSpringBackend` y un ZIP en memoria.
+- El workspace principal muestra `Generar backend`, permite definir solo `basePackage`, informa Java 21 fijo y descarga el Blob con un nombre ZIP seguro. VIEWER conserva acceso a la acción porque exportar requiere `requireView` y no muta el documento.
+- La integración `backend/src/projects/spring-export.integration.test.ts` persiste y recarga un `ProjectDocument` con Rol, Usuario y una asociación 1:N; inspecciona el ZIP del endpoint, verifica entidades, repositorios, servicios, controladores, Gradle y properties. Un cambio de `DiagramLayout` no altera el ZIP y agregar `descripcion` a Rol altera `Rol.java`.
+- El controller entrega el ZIP mediante `FastifyReply.send(zip)` y HTTP 200. Esto evita que el pipeline de Nest/Fastify intente serializar el `Buffer` bajo `application/zip`, origen del error previo `Content-Type doesn't match Reply body...` en la descarga manual.
+- La traza manual confirmó que `ProjectDocument.uml` siempre fue la ruta persistida correcta: `workspace-store` aplica `CreateClass` y `AddAttribute`, la página envía el documento completo a `PUT /projects/:id`, y `ProjectsPersistenceService` lo serializa/deserializa como JSONB. La diferencia con la fixture anterior era que esta insertaba `entity: true` e `identifier: true`, mientras que el workspace real omite ambos. El mapper descartaba por ello Rol y Usuario antes de la generación. Ahora trata las clases sin metadata como entidades y el atributo `id` como identifier, preservando `entity: false` e `identifier: false` explícitos.
+
+### Evidencia Automatizada
+
+- El ZIP se extrajo en `spring-generator/.generated-fix-cu06-e2e/`, ruta ignorada por Git, y `gradle compileJava --no-daemon` terminó con `BUILD SUCCESSFUL` usando Java 21.0.12.1 y Gradle 8.14.4.
+- La asociación genera `@OneToMany(mappedBy = "rolId")` en Rol y `@ManyToOne` con `@JoinColumn(name = "rol_id", referencedColumnName = "id", nullable = false)` en Usuario.
+- Gates: exportación backend 8/8, regresión de mapper 12/12, `spring-generator` 55/55, typechecks, build y lint backend, y typecheck de todos los workspaces correctos; OpenSpec strict y `git diff --check` correctos. Las pruebas frontend previas muestran advertencias no bloqueantes de `act(...)` originadas por React Flow.
+
+### Pendiente Manual
+
+- La prueba manual E2E fue aprobada con el proyecto `Prueba CU06 Backend`: el workspace sincronizó Rol y Usuario con asociación 1:N, `Generar backend` descargó el ZIP y la extracción confirmó entidades, repositories, services, controllers, `build.gradle`, `settings.gradle` y `application.properties`.
+- El backend extraído compiló con `gradle compileJava --no-daemon`: `BUILD SUCCESSFUL in 16s`.
+- El correctivo queda completo en 9/9 y archivado en `openspec/changes/archive/2026-09-22-fix-cu-06-export-spring-desde-workspace/`. El CU-06 histórico permanece archivado sin modificaciones.

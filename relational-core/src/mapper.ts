@@ -38,7 +38,8 @@ export function mapToRelationalModel(model: CanonicalUmlModel): RelationalModel 
   const names = new Set<string>();
   const tableByClassId = new Map<string, MutableTable>();
   ordered(model.classes).forEach((clazz) => {
-    if (clazz.generationMetadata?.entity !== true) return;
+    // Manual workspace classes predate generator metadata; only an explicit false excludes one.
+    if (clazz.generationMetadata?.entity === false) return;
     const table = mapClass(clazz, model.classes.indexOf(clazz), enumById, names, diagnostics);
     tableByClassId.set(clazz.id, table);
   });
@@ -87,7 +88,8 @@ function mapAttribute(attribute: UmlAttribute, path: string, enumById: Map<strin
     addDiagnostic(diagnostics, "error", "REL_UNSUPPORTED_TYPE", "El atributo no tiene un tipo relacional soportado.", path, attribute.id);
     return undefined;
   }
-  return { source: source(attribute.id, path), name: snake(attribute.name), type, nullable: attribute.generationMetadata?.identifier !== true && attribute.generationMetadata?.required !== true, identifier: attribute.generationMetadata?.identifier === true, unique: attribute.generationMetadata?.unique === true, enumName: enumEntry?.name, searchable: attribute.generationMetadata?.searchable === true, sortable: attribute.generationMetadata?.sortable === true, defaultSort: attribute.generationMetadata?.defaultSort?.toUpperCase() as "ASC" | "DESC" | undefined };
+  const identifier = attribute.generationMetadata?.identifier ?? attribute.name === "id";
+  return { source: source(attribute.id, path), name: snake(attribute.name), type, nullable: !identifier && attribute.generationMetadata?.required !== true, identifier, unique: attribute.generationMetadata?.unique === true, enumName: enumEntry?.name, searchable: attribute.generationMetadata?.searchable === true, sortable: attribute.generationMetadata?.sortable === true, defaultSort: attribute.generationMetadata?.defaultSort?.toUpperCase() as "ASC" | "DESC" | undefined };
 }
 
 function mapRelationship(relationship: UmlRelationship, index: number, tables: Map<string, MutableTable>, relations: RelationalRelation[], diagnostics: RelationalDiagnostic[]): void {

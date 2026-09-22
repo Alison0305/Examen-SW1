@@ -86,6 +86,7 @@ export type WorkspaceClientProps = {
   onPersistentChange?: () => void;
   staleConflict?: boolean;
   onReloadServerVersion?: () => void | Promise<void>;
+  onGenerateBackend?: () => void;
   readOnly?: boolean;
   collaboration?: {
     connection: "connecting" | "connected" | "reconnecting" | "disconnected" | "resyncing" | "conflict";
@@ -98,7 +99,7 @@ export type WorkspaceClientProps = {
   };
 };
 
-export function WorkspaceClient({ projectName, saveState, onSave, onBack, onPersistentChange, staleConflict, onReloadServerVersion, readOnly = false, collaboration }: Readonly<WorkspaceClientProps>) {
+export function WorkspaceClient({ projectName, saveState, onSave, onBack, onPersistentChange, staleConflict, onReloadServerVersion, onGenerateBackend, readOnly = false, collaboration }: Readonly<WorkspaceClientProps>) {
   useEffect(() => {
     setWorkspacePersistentChangeListener(onPersistentChange);
     setWorkspaceReadOnly(readOnly);
@@ -106,12 +107,12 @@ export function WorkspaceClient({ projectName, saveState, onSave, onBack, onPers
   }, [onPersistentChange, readOnly]);
   return (
     <ReactFlowProvider>
-      <WorkspaceContent projectName={projectName} saveState={saveState} onSave={onSave} onBack={onBack} staleConflict={staleConflict} onReloadServerVersion={onReloadServerVersion} readOnly={readOnly} collaboration={collaboration} />
+      <WorkspaceContent projectName={projectName} saveState={saveState} onSave={onSave} onBack={onBack} staleConflict={staleConflict} onReloadServerVersion={onReloadServerVersion} onGenerateBackend={onGenerateBackend} readOnly={readOnly} collaboration={collaboration} />
     </ReactFlowProvider>
   );
 }
 
-function WorkspaceContent({ projectName, saveState, onSave, onBack, staleConflict, onReloadServerVersion, readOnly = false, collaboration }: Readonly<WorkspaceClientProps>) {
+function WorkspaceContent({ projectName, saveState, onSave, onBack, staleConflict, onReloadServerVersion, onGenerateBackend, readOnly = false, collaboration }: Readonly<WorkspaceClientProps>) {
   const store = useWorkspaceStore();
   const flow = useReactFlow();
   const [, setViewportVersion] = useState(0);
@@ -158,6 +159,7 @@ function WorkspaceContent({ projectName, saveState, onSave, onBack, staleConflic
         onBack={onBack}
         staleConflict={staleConflict}
           onReloadServerVersion={onReloadServerVersion}
+          onGenerateBackend={onGenerateBackend}
           readOnly={readOnly}
           collaboration={collaboration}
       />
@@ -278,6 +280,7 @@ function WorkspaceAppBar({
   onBack,
   staleConflict,
   onReloadServerVersion,
+  onGenerateBackend,
   readOnly = false,
   collaboration,
 }: Readonly<{ compact: boolean; onFitView: () => void; onOpenInspector: () => void; onOpenSidebar: () => void } & WorkspaceClientProps>) {
@@ -289,6 +292,7 @@ function WorkspaceAppBar({
           {projectName ?? "Proyecto UML local"}
         </Typography>
         {onBack && <Button variant="text" onClick={onBack}>Volver a proyectos</Button>}
+        {onGenerateBackend && <Button variant="contained" color="secondary" onClick={onGenerateBackend}>Generar backend</Button>}
         {onSave && <Button variant="contained" onClick={() => void onSave()} disabled={saveState !== "dirty" || readOnly}>Guardar</Button>}
         {onSave && <Typography variant="caption">{saveState === "saving" ? "Guardando..." : saveState === "dirty" ? "Cambios sin guardar" : "Guardado"}</Typography>}
         {collaboration && <Stack direction="row" spacing={0.5} alignItems="center" aria-label="Colaboradores">

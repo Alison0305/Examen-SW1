@@ -2,10 +2,9 @@
 
 ## Estado Operativo
 
-- CU-09 cerrado: 10/10; OpenSpec archivado como `2026-09-22-cu-09-voz-vosk-android-capacitor`.
-- Evidencia final: Galaxy A05 valido microfono bajo interaccion, cancelacion, Vosk LAN, transcript editable, `PREPARAR COMANDO`, Cancelar sin ejecucion y Aprobar `LIST rol` con JSON Spring/PostgreSQL real por LAN.
-- APK final: `frontend-generator/.generated-task-3-4-api-lan-fix/frontend/android/app/build/outputs/apk/debug/app-debug.apk`, 4,467,046 bytes, ignorado/no versionado. STT y API Spring se configuran separadamente en runtime; la IP usada en smoke fue evidencia temporal.
-
-## Siguiente Accion Exacta
-
-1. No iniciar CU-10 ni CU-11 sin seleccionar y planificar explicitamente el siguiente CU.
+- Correctivo CU-06 completado en 9/9, aprobado manualmente con `Prueba CU06 Backend` y archivado en `openspec/changes/archive/2026-09-22-fix-cu-06-export-spring-desde-workspace/`.
+- Flujo validado: workspace → `POST /projects/:id/exports/spring` → `ProjectDocument.uml` → `CanonicalUmlModel` → mapper → generator → ZIP → Blob → descarga.
+- Rol, Usuario y su asociación 1:N se verificaron en el ZIP, junto con repositories, services, controllers, Gradle y properties.
+- `gradle compileJava --no-daemon` del ZIP descargado terminó con `BUILD SUCCESSFUL in 16s`.
+- Fixes preservados: `FastifyReply.send(zip)` y proyección de clases manuales sin metadata, con exclusiones explícitas `entity: false` e `identifier: false`.
+- No hay CU activo. No iniciar CU-10 ni CU-11 en este cierre.

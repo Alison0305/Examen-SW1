@@ -98,6 +98,33 @@ describe("cliente API y sesión", () => {
     }
   });
 
+  it("exporta Spring como Blob autenticado y usa un nombre ZIP seguro", async () => {
+    const onUnauthorized = vi.fn();
+    const blob = new Blob(["zip"], { type: "application/zip" });
+    const fetcher = vi.fn().mockResolvedValue({
+      status: 201,
+      ok: true,
+      blob: vi.fn().mockResolvedValue(blob),
+      headers: new Headers({ "Content-Disposition": 'attachment; filename="spring-backend-project-1.zip"' }),
+    });
+    const client = createApiClient({ getToken: () => "secret-token", onUnauthorized, fetcher, apiBaseUrl: "http://api.test" });
+
+    await expect(client.exportSpring("project-1", "bo.edu.examen")).resolves.toEqual({ blob, filename: "spring-backend-project-1.zip" });
+    expect(fetcher).toHaveBeenCalledWith("http://api.test/projects/project-1/exports/spring", expect.objectContaining({ method: "POST", body: JSON.stringify({ basePackage: "bo.edu.examen" }) }));
+    expect((fetcher.mock.calls[0][1].headers as Headers).get("Authorization")).toBe("Bearer secret-token");
+    expect((fetcher.mock.calls[0][1].headers as Headers).get("Content-Type")).toBe("application/json");
+
+    fetcher.mockResolvedValueOnce({ status: 401, ok: false, json: vi.fn().mockResolvedValue({ message: "No autorizado" }) });
+    await expect(client.exportSpring("project-1", "bo.edu.examen")).rejects.toMatchObject({ status: 401 });
+    expect(onUnauthorized).toHaveBeenCalledOnce();
+
+    fetcher.mockResolvedValueOnce({ status: 201, ok: true, blob: vi.fn().mockResolvedValue(blob), headers: new Headers({ "Content-Disposition": 'attachment; filename="../inseguro.zip"' }) });
+    await expect(client.exportSpring("project-1", "bo.edu.examen")).resolves.toEqual({ blob, filename: "spring-backend-project-1.zip" });
+
+    fetcher.mockRejectedValueOnce(new TypeError("NetworkError"));
+    await expect(client.exportSpring("project-1", "bo.edu.examen")).rejects.toThrow("NetworkError");
+  });
+
   it("usa los endpoints de membresías e invitaciones sin exponer secretos en tipos públicos", async () => {
     const fetcher = vi.fn().mockResolvedValue({ status: 204, ok: true });
     const client = createApiClient({ getToken: () => "secret-token", onUnauthorized: vi.fn(), fetcher, apiBaseUrl: "http://api.test" });

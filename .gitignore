@@ -21,10 +21,15 @@ coverage/
 playwright-report/
 test-results/
 spring-generator/.generated-test/
+spring-generator/.generated-fix-cu06-e2e/
 frontend-generator/.generated/
 frontend-generator/.generated-assistant-smoke/
 frontend-generator/.generated-task-3-3/
 frontend-generator/.generated-task-3-4-fix/
+frontend-generator/.generated-task-3-4-api-lan-fix/
+frontend-generator/.generated-task-3-4-assistant-fix/
+frontend-generator/.generated-task-3-4-fetch-fix/
+spring-generator/.generated-task-3-4-api-smoke/
 assistant-core/.benchmark-output/
 
 # Caché

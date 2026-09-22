@@ -20,6 +20,7 @@ const realtime = vi.hoisted(() => ({
 }));
 const client = {
   login: vi.fn(), register: vi.fn(), me: vi.fn(), listProjects: vi.fn(), createProject: vi.fn(), renameProject: vi.fn(), deleteProject: vi.fn(), getProject: vi.fn(), saveProject: vi.fn(),
+  exportSpring: vi.fn(),
 };
 
 vi.mock("next/navigation", () => ({
@@ -236,6 +237,74 @@ describe("ruta de workspace persistido", () => {
     expect(useWorkspaceStore.getState().document).toEqual(detail.document);
     expect(screen.queryByText("Cambios sin guardar")).not.toBeInTheDocument();
     expect(client.saveProject).not.toHaveBeenCalled();
+  });
+
+  it("muestra Generar backend para VIEWER y permite cancelar su configuración", async () => {
+    const detail = createProjectDetailFixture({ id: "project-1", accessRole: "VIEWER" });
+    sessionStorage.setItem("examen-sw1.access-token", "test-token");
+    client.me.mockResolvedValue({ id: "user-1", email: "user@example.test" });
+    client.getProject.mockResolvedValue(detail);
+
+    render(<SessionProvider client={{ login: client.login, register: client.register, me: client.me }}><PersistedWorkspacePage /></SessionProvider>);
+    fireEvent.click(await screen.findByRole("button", { name: "Generar backend" }));
+    expect(screen.getByRole("heading", { name: "Generar backend" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Base package")).toHaveValue("com.example.generated");
+    expect(screen.getByLabelText("Java")).toHaveValue("Java 21");
+    expect(screen.getByText("Las dependencias del backend generado son fijas.")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Base package"), { target: { value: "../inseguro" } });
+    expect(screen.getByText("Ingresa un paquete Java válido.")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Generar backend" }).at(-1)).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(client.exportSpring).not.toHaveBeenCalled();
+  });
+
+  it("solicita solo el paquete, descarga el Blob y evita doble generación", async () => {
+    const detail = createProjectDetailFixture({ id: "project-1" });
+    let resolveExport!: (value: { blob: Blob; filename: string }) => void;
+    const createObjectURL = vi.fn(() => "blob:export");
+    const revokeObjectURL = vi.fn();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    vi.stubGlobal("URL", { createObjectURL, revokeObjectURL });
+    client.exportSpring.mockReturnValue(new Promise((resolve) => { resolveExport = resolve; }));
+    sessionStorage.setItem("examen-sw1.access-token", "test-token");
+    client.me.mockResolvedValue({ id: "user-1", email: "user@example.test" });
+    client.getProject.mockResolvedValue(detail);
+
+    render(<SessionProvider client={{ login: client.login, register: client.register, me: client.me }}><PersistedWorkspacePage /></SessionProvider>);
+    fireEvent.click(await screen.findByRole("button", { name: "Generar backend" }));
+    const confirm = screen.getAllByRole("button", { name: "Generar backend" }).at(-1)!;
+    fireEvent.click(confirm);
+    fireEvent.click(confirm);
+    expect(client.exportSpring).toHaveBeenCalledOnce();
+    expect(client.exportSpring).toHaveBeenCalledWith("project-1", "com.example.generated");
+    expect(screen.getByRole("button", { name: "Generando..." })).toBeDisabled();
+
+    const blob = new Blob(["zip"], { type: "application/zip" });
+    await act(async () => { resolveExport({ blob, filename: "spring-backend-project-1.zip" }); });
+    expect(createObjectURL).toHaveBeenCalledWith(blob);
+    expect(click).toHaveBeenCalledOnce();
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:export");
+    expect(screen.getByText("Backend generado correctamente.")).toBeInTheDocument();
+    click.mockRestore();
+  });
+
+  it.each([400, 401, 403, 404, 500])("muestra un error controlado y no descarga ante HTTP %s", async (status) => {
+    const detail = createProjectDetailFixture({ id: "project-1" });
+    const createObjectURL = vi.fn();
+    vi.stubGlobal("URL", { createObjectURL, revokeObjectURL: vi.fn() });
+    client.exportSpring.mockRejectedValue(new ApiError(status, "detalle interno"));
+    sessionStorage.setItem("examen-sw1.access-token", "test-token");
+    client.me.mockResolvedValue({ id: "user-1", email: "user@example.test" });
+    client.getProject.mockResolvedValue(detail);
+
+    render(<SessionProvider client={{ login: client.login, register: client.register, me: client.me }}><PersistedWorkspacePage /></SessionProvider>);
+    fireEvent.click(await screen.findByRole("button", { name: "Generar backend" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Generar backend" }).at(-1)!);
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(screen.queryByText("detalle interno")).not.toBeInTheDocument();
+    expect(createObjectURL).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Generar backend" })).toBeEnabled();
   });
 
   it.each(["OWNER", "EDITOR"] as const)("permite mover y guardar un nodo para %s", async (accessRole) => {

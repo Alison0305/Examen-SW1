@@ -29,7 +29,7 @@ describe("RelationalMapper", () => {
     const result = mapToRelationalModel(input);
     expect(result.tables.find((table) => table.name === "producto")).toMatchObject({ resourceName: "catalogo-productos", readOnly: true, crud: { update: false } });
     expect(result.tables.find((table) => table.name === "producto")?.columns.find((column) => column.name === "nombre")).toMatchObject({ searchable: true, sortable: true, defaultSort: "DESC" });
-    input.classes[0].attributes[0].generationMetadata = {};
+    input.classes[0].attributes[0].generationMetadata = { identifier: false };
     expect(mapToRelationalModel(input).diagnostics).toContainEqual(expect.objectContaining({ code: "REL_CRUD_REQUIRES_PRIMARY_KEY", severity: "error" }));
   });
 
@@ -39,7 +39,7 @@ describe("RelationalMapper", () => {
     input.relationships = [{ id: ids.relation, type: "Association", sourceId: ids.user, targetId: ids.order, sourceMultiplicity: { lower: 1, upper: 1 }, targetMultiplicity: { lower: 0, upper: "unbounded" } }];
     const result = mapToRelationalModel(input);
     expect(result.tables.find((table) => table.name === "pedido")?.columns.find((column) => column.name === "usuario_id")?.type).toBe("VARCHAR");
-    input.classes[0].attributes[0].generationMetadata = {};
+    input.classes[0].attributes[0].generationMetadata = { identifier: false };
     const missing = mapToRelationalModel(input);
     expect(missing.tables.find((table) => table.name === "pedido")?.foreignKeys).toEqual([]);
     expect(missing.diagnostics).toContainEqual(expect.objectContaining({ code: "REL_RELATIONSHIP_REQUIRES_PRIMARY_KEY", severity: "error" }));
@@ -70,15 +70,30 @@ describe("RelationalMapper", () => {
     expect(mapToRelationalModel(input).tables.map((table) => table.name)).toContain("producto_usuario_relation_66666666666646668666666666666666");
   });
 
-  it("omite no-entidades y bloquea relaciones que las alcanzan", () => {
+  it("omite clases excluidas explícitamente y bloquea relaciones que las alcanzan", () => {
     const input = model();
-    input.classes[2].generationMetadata = undefined;
+    input.classes[2].generationMetadata = { entity: false };
     input.relationships = [{ id: ids.relation, type: "Association", sourceId: ids.user, targetId: ids.profile, sourceMultiplicity: { lower: 1, upper: 1 }, targetMultiplicity: { lower: 1, upper: 1 } }];
     const result = mapToRelationalModel(input);
     expect(result.tables.map((table) => table.name)).not.toContain("perfil");
     expect(result.relations).toEqual([]);
     expect(result).toMatchObject({ hasErrors: true, success: false });
     expect(result.diagnostics).toContainEqual(expect.objectContaining({ code: "REL_NON_ENTITY_RELATIONSHIP" }));
+  });
+
+  it("proyecta clases manuales sin metadata y reconoce id como clave convencional", () => {
+    const input: CanonicalUmlModel = {
+      packages: [], enumerations: [],
+      classes: [
+        { id: ids.user, name: "Usuario", visibility: "public", operations: [], attributes: [attribute("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "id", { kind: "primitive", name: "integer" }), attribute("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "email", { kind: "primitive", name: "string" })] },
+        { id: ids.profile, name: "Rol", visibility: "public", operations: [], attributes: [attribute("cccccccc-cccc-4ccc-8ccc-cccccccccccc", "id", { kind: "primitive", name: "integer" }), attribute("dddddddd-dddd-4ddd-8ddd-dddddddddddd", "nombre", { kind: "primitive", name: "string" })] },
+      ],
+      relationships: [{ id: ids.relation, type: "Association", sourceId: ids.profile, targetId: ids.user, sourceMultiplicity: { lower: 1, upper: 1 }, targetMultiplicity: { lower: 0, upper: "unbounded" } }],
+    };
+
+    const result = mapToRelationalModel(input);
+    expect(result).toMatchObject({ success: true, tables: [{ name: "rol", primaryKey: "id" }, { name: "usuario", primaryKey: "id" }] });
+    expect(result.relations).toHaveLength(1);
   });
 
   it("rechaza nombres fuente con espacios, guiones o símbolos sin sanearlos", () => {

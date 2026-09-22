@@ -13,6 +13,7 @@ export type ProjectMember = { userId: string; email: string; role: ProjectMember
 export type ProjectInvitation = { id: string; projectId: string; invitedById: string; email: string; role: ProjectMemberRole; status: "PENDING" | "ACCEPTED" | "REJECTED" | "REVOKED"; expiresAt: string; createdAt: string; resolvedAt: string | null };
 export type CreatedProjectInvitation = ProjectInvitation & { token: string };
 export type PendingProjectInvitation = Omit<ProjectInvitation, "email" | "invitedById" | "resolvedAt"> & { project: { id: string; name: string }; invitedBy: { email: string } };
+export type SpringExport = { blob: Blob; filename: string };
 
 export type ApiClient = {
   login(email: string, password: string): Promise<string>;
@@ -36,6 +37,7 @@ export type ApiClient = {
   listMyInvitations(): Promise<PendingProjectInvitation[]>;
   acceptInvitationById(id: string): Promise<ProjectInvitation>;
   rejectInvitationById(id: string): Promise<ProjectInvitation>;
+  exportSpring(id: string, basePackage: string): Promise<SpringExport>;
 };
 
 export class ApiError extends Error {
@@ -77,6 +79,35 @@ async function request<T>(
   return response.status === 204 ? undefined as T : response.json() as Promise<T>;
 }
 
+function safeZipFilename(value: string | null, projectId: string): string {
+  const candidate = value?.match(/filename\s*=\s*(?:"([^"]+)"|([^;\s]+))/i)?.[1] ?? value?.match(/filename\s*=\s*(?:"([^"]+)"|([^;\s]+))/i)?.[2];
+  if (candidate && /^[A-Za-z0-9][A-Za-z0-9._-]*\.zip$/.test(candidate)) return candidate;
+  return `spring-backend-${projectId.replace(/[^A-Za-z0-9-]/g, "") || "project"}.zip`;
+}
+
+async function requestSpringExport(id: string, basePackage: string, { getToken, onUnauthorized, fetcher = fetch, apiBaseUrl = API_BASE_URL }: ApiClientOptions): Promise<SpringExport> {
+  const headers = new Headers({ "Content-Type": "application/json" });
+  const token = getToken();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+
+  const response = await fetcher(`${apiBaseUrl}/projects/${encodeURIComponent(id)}/exports/spring`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ basePackage }),
+    cache: "no-store",
+  });
+  if (response.status === 401) onUnauthorized();
+  if (!response.ok) {
+    const body = await response.json().catch(() => null) as { message?: string | string[] } | null;
+    const message = Array.isArray(body?.message) ? body.message.join(" ") : body?.message;
+    throw new ApiError(response.status, message ?? "No fue posible generar el backend.");
+  }
+  return {
+    blob: await response.blob(),
+    filename: safeZipFilename(response.headers.get("Content-Disposition"), id),
+  };
+}
+
 export function createApiClient(options: ApiClientOptions): ApiClient {
   return {
     async login(email, password) {
@@ -110,5 +141,6 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     listMyInvitations: () => request<PendingProjectInvitation[]>("/invitations", options),
     acceptInvitationById: (id) => request<ProjectInvitation>(`/invitations/by-id/${encodeURIComponent(id)}/accept`, options, { method: "POST" }),
     rejectInvitationById: (id) => request<ProjectInvitation>(`/invitations/by-id/${encodeURIComponent(id)}/reject`, options, { method: "POST" }),
+    exportSpring: (id, basePackage) => requestSpringExport(id, basePackage, options),
   };
 }

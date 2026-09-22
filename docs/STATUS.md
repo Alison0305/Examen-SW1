@@ -8,9 +8,11 @@
 
 **CU activo:** Ninguno.
 
-**OpenSpec activo:** Ninguno.
+**Último correctivo cerrado:** CU-06 — exportación Spring desde workspace.
 
-CU-09 está en 10/10. Galaxy A05 confirmo microfono bajo interaccion, cancelacion, LAN/Vosk, `RESULT`, transcript editable y asistente de datos runtime. El APK final API-LAN confirmo `PREPARAR COMANDO`, `CANCELAR` sin ejecucion y `APROBAR` para `LIST rol`, que devolvio JSON real de Spring/PostgreSQL por LAN. STT NestJS y API Spring permanecen configuraciones separadas. La IP Wi-Fi usada durante el smoke es evidencia temporal y no configuracion persistida.
+**OpenSpec archivado:** `openspec/changes/archive/2026-09-22-fix-cu-06-export-spring-desde-workspace/`.
+
+El correctivo CU-06 está completo en 9/9. Con el proyecto `Prueba CU06 Backend`, la prueba manual creó Rol y Usuario con asociación 1:N, guardó el `ProjectDocument`, descargó el ZIP mediante `Generar backend` y compiló el contenido extraído con `gradle compileJava --no-daemon`: `BUILD SUCCESSFUL in 16s`. El flujo usa exclusivamente `document.uml` como `CanonicalUmlModel`; `DiagramLayout` sigue siendo visual. El endpoint autenticado entrega el ZIP binario con `FastifyReply.send(zip)`. Las clases manuales sin metadata se proyectan salvo `entity: false` y el atributo `id` es identifier salvo `identifier: false`.
 
 ## Cierre De CU-09
 
@@ -133,4 +135,4 @@ CU-09 está en 10/10. Galaxy A05 confirmo microfono bajo interaccion, cancelacio
 
 ## Siguiente Acción
 
-Seleccionar y planificar explicitamente el siguiente CU; CU-10 y CU-11 no se iniciaron.
+No iniciar CU-10 ni CU-11 en este cierre.
