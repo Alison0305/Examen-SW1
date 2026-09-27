@@ -37,10 +37,11 @@ export function mapToRelationalModel(model: CanonicalUmlModel): RelationalModel 
   });
   const names = new Set<string>();
   const tableByClassId = new Map<string, MutableTable>();
+  const associationClassIds = new Set(model.relationships.filter((relationship) => relationship.type === "Association" && relationship.associationClassId).map((relationship) => relationship.associationClassId!));
   ordered(model.classes).forEach((clazz) => {
     // Manual workspace classes predate generator metadata; only an explicit false excludes one.
     if (clazz.generationMetadata?.entity === false) return;
-    const table = mapClass(clazz, model.classes.indexOf(clazz), enumById, names, diagnostics);
+    const table = mapClass(clazz, model.classes.indexOf(clazz), enumById, names, diagnostics, associationClassIds.has(clazz.id));
     tableByClassId.set(clazz.id, table);
   });
 
@@ -61,7 +62,7 @@ export function mapToRelationalModel(model: CanonicalUmlModel): RelationalModel 
   });
 }
 
-function mapClass(clazz: UmlClass, index: number, enumById: Map<string, { name: string; path: string }>, names: Set<string>, diagnostics: RelationalDiagnostic[]): MutableTable {
+function mapClass(clazz: UmlClass, index: number, enumById: Map<string, { name: string; path: string }>, names: Set<string>, diagnostics: RelationalDiagnostic[], associationClass: boolean): MutableTable {
   const path = `classes[${index}]`;
   const name = snake(clazz.name);
   validateName(clazz.name, path, clazz.id, diagnostics, "Nombre no generable");
@@ -71,7 +72,12 @@ function mapClass(clazz: UmlClass, index: number, enumById: Map<string, { name: 
     const mapped = mapAttribute(attribute, `${path}.attributes[${clazz.attributes.indexOf(attribute)}]`, enumById, diagnostics);
     return mapped ? [mapped] : [];
   });
-  const identifiers = columns.filter((column) => column.identifier);
+  let identifiers = columns.filter((column) => column.identifier);
+  if (associationClass && identifiers.length === 0) {
+    const technicalName = columns.some((column) => column.name === "id") ? "association_id" : "id";
+    columns.unshift({ source: source(clazz.id, path), name: technicalName, type: "BIGINT", nullable: false, identifier: true, generated: true, unique: false, searchable: false, sortable: false });
+    identifiers = columns.filter((column) => column.identifier);
+  }
   if (identifiers.length !== 1) addDiagnostic(diagnostics, "error", identifiers.length ? "REL_MULTIPLE_PRIMARY_KEYS" : "REL_NO_PRIMARY_KEY", "Una entidad requiere exactamente un identifier.", path, clazz.id);
   const declaredCrud = clazz.generationMetadata?.crud;
   const crud = declaredCrud === false ? { create: false, read: false, update: false, delete: false } : declaredCrud && typeof declaredCrud === "object" ? { create: declaredCrud.create ?? true, read: declaredCrud.read ?? true, update: declaredCrud.update ?? true, delete: declaredCrud.delete ?? true } : { create: true, read: true, update: true, delete: true };
@@ -109,6 +115,22 @@ function mapRelationship(relationship: UmlRelationship, index: number, tables: M
   const targetMany = isMany(relationship.targetMultiplicity.upper);
   const lifecycle: RelationalLifecycle = relationship.type === "Composition" ? "COMPOSITION" : "NONE";
   if (sourceMany && targetMany) {
+    if (relationship.associationClassId) {
+      const associationTable = tables.get(relationship.associationClassId);
+      if (!associationTable) {
+        addDiagnostic(diagnostics, "error", "REL_INVALID_ASSOCIATION_CLASS", "La Association Class debe referenciar una entidad existente.", path, relationship.associationClassId);
+        return;
+      }
+      const sourceForeignKey = addForeignKey(associationTable, sourceTable, relationship, path, lifecycle, false, false, diagnostics);
+      const targetForeignKey = addForeignKey(associationTable, targetTable, relationship, path, lifecycle, false, false, diagnostics);
+      if (sourceForeignKey && targetForeignKey) {
+        const columns = [sourceForeignKey.column, targetForeignKey.column].sort(binary);
+        associationTable.uniqueConstraints.push({ name: `uq_${associationTable.name}_${columns.join("_")}`, columns });
+      }
+      if (sourceForeignKey) relations.push({ source: source(relationship.id, path), cardinality: "MANY_TO_ONE", sourceTable: associationTable.name, targetTable: sourceTable.name, foreignKey: sourceForeignKey.name, lifecycle });
+      if (targetForeignKey) relations.push({ source: source(relationship.id, path), cardinality: "MANY_TO_ONE", sourceTable: associationTable.name, targetTable: targetTable.name, foreignKey: targetForeignKey.name, lifecycle });
+      return;
+    }
     const joinTable = addJoinTable(joinTableName(relationship, sourceTable, targetTable), relationship, path, sourceTable, targetTable, lifecycle, tables, diagnostics);
     relations.push({ source: source(relationship.id, path), cardinality: "MANY_TO_MANY", sourceTable: sourceTable.name, targetTable: targetTable.name, joinTable: joinTable?.name, lifecycle });
     return;

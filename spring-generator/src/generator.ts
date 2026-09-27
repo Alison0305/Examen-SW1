@@ -206,6 +206,7 @@ function entityView(table: RelationalTable, model: RelationalModel, basePackage:
   const fields = table.columns.filter((column) => column !== inheritedId).sort((a, b) => binary(a.name, b.name)).map((column) => columnField(table, column, model.relations));
   const inverse = inverseFields(table, model);
   const imports = new Set(["jakarta.persistence.Column", "jakarta.persistence.Entity", "jakarta.persistence.Id", "jakarta.persistence.Table"]);
+  if (table.uniqueConstraints.length) imports.add("jakarta.persistence.UniqueConstraint");
   if (table.inheritanceStrategy === "JOINED") { imports.add("jakarta.persistence.Inheritance"); imports.add("jakarta.persistence.InheritanceType"); }
   if (table.inheritsFrom) { imports.add(`${basePackage}.entities.${pascal(table.inheritsFrom)}`); imports.add("jakarta.persistence.PrimaryKeyJoinColumn"); }
   for (const field of [...fields, ...inverse]) for (const item of field.imports) imports.add(item.startsWith("java.") || item.startsWith("jakarta.") ? item : `${basePackage}.entities.${item}`);
@@ -217,14 +218,15 @@ function entityView(table: RelationalTable, model: RelationalModel, basePackage:
       imports.add("jakarta.persistence.EnumType");
     }
   }
-  return { basePackage, className: pascal(table.name), tableName: table.name, extendsName: table.inheritsFrom ? pascal(table.inheritsFrom) : undefined, inheritance: table.inheritanceStrategy === "JOINED", joinedChild: Boolean(table.inheritsFrom), primaryKeyColumn: table.primaryKey, fields: [...fields, ...inverse].sort((a, b) => binary(a.fieldName, b.fieldName)), imports: [...imports].sort(binary) };
+  return { basePackage, className: pascal(table.name), tableName: table.name, tableAnnotation: table.uniqueConstraints.length ? `@Table(name = "${table.name}", uniqueConstraints = {${table.uniqueConstraints.map((constraint) => `@UniqueConstraint(columnNames = {${constraint.columns.map((column) => `"${column}"`).join(", ")}})`).join(", ")}})` : `@Table(name = "${table.name}")`, extendsName: table.inheritsFrom ? pascal(table.inheritsFrom) : undefined, inheritance: table.inheritanceStrategy === "JOINED", joinedChild: Boolean(table.inheritsFrom), primaryKeyColumn: table.primaryKey, fields: [...fields, ...inverse].sort((a, b) => binary(a.fieldName, b.fieldName)), imports: [...imports].sort(binary) };
 }
 
 function columnField(table: RelationalTable, column: RelationalColumn, relations: readonly RelationalRelation[]) {
   const foreignKey = table.foreignKeys.find((item) => item.column === column.name);
   const relation = foreignKey ? relations.find((item) => item.foreignKey === foreignKey.name) : undefined;
-  const annotations = column.identifier ? ["@Id"] : [];
+  const annotations = column.identifier ? ["@Id", ...(column.generated ? ["@GeneratedValue(strategy = GenerationType.IDENTITY)"] : [])] : [];
   const imports: string[] = [];
+  if (column.generated) imports.push("jakarta.persistence.GeneratedValue", "jakarta.persistence.GenerationType");
   if (column.enumName) annotations.push("@Enumerated(EnumType.STRING)");
   if (foreignKey) {
     const compositionOwner = relation?.lifecycle === "COMPOSITION" && relation.cardinality === "ONE_TO_ONE" && relation.sourceTable === table.name;

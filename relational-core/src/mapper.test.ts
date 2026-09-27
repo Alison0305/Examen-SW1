@@ -8,6 +8,33 @@ const entity = (id: string, name: string, keyType: "string" | "integer" = "integ
 function model(): CanonicalUmlModel { return { packages: [], enumerations: [{ id: ids.status, name: "Estado", visibility: "public", literals: ["NUEVO", "ACTIVO"] }], classes: [entity(ids.product, "Producto"), entity(ids.order, "Pedido", "integer", [attribute("99999999-9999-4999-8999-999999999999", "estado", { kind: "reference", referenceType: "enumeration", elementId: ids.status }, { required: true, unique: true, indexed: true })]), entity(ids.profile, "Perfil"), entity(ids.user, "Usuario")], relationships: [] }; }
 
 describe("RelationalMapper", () => {
+  it("reutiliza la tabla de Association Class con PK surrogate, FKs y unique sin mutar UML", () => {
+    const associationClassId = "99999999-9999-4999-8999-999999999999";
+    const input: CanonicalUmlModel = { packages: [], enumerations: [], classes: [entity(ids.user, "Cliente"), entity(ids.product, "Producto"), { id: associationClassId, name: "ClienteProducto", visibility: "public", attributes: [], operations: [], generationMetadata: { entity: true } }], relationships: [{ id: ids.relation, type: "Association", sourceId: ids.user, targetId: ids.product, sourceMultiplicity: { lower: 0, upper: "unbounded" }, targetMultiplicity: { lower: 0, upper: "unbounded" }, associationClassId }] };
+    const result = mapToRelationalModel(input);
+    const table = result.tables.find((item) => item.name === "cliente_producto")!;
+    expect(result.tables).toHaveLength(3);
+    expect(table.primaryKey).toBe("id");
+    expect(table.columns.find((column) => column.name === "id")).toMatchObject({ type: "BIGINT", generated: true });
+    expect(table.foreignKeys.map((key) => key.targetTable).sort()).toEqual(["cliente", "producto"]);
+    expect(table.uniqueConstraints[0]?.columns).toHaveLength(2);
+    expect(result.relations.filter((relation) => relation.cardinality === "MANY_TO_MANY")).toHaveLength(0);
+    expect(result.relations.filter((relation) => relation.cardinality === "MANY_TO_ONE")).toHaveLength(2);
+    expect(input.classes[2].attributes).toEqual([]);
+  });
+
+  it("mantiene PK UML normal, atributos propios, N:M histórica e invalida referencias de Association Class", () => {
+    const associationClassId = "99999999-9999-4999-8999-999999999999";
+    const input: CanonicalUmlModel = { packages: [], enumerations: [], classes: [entity(ids.user, "Cliente"), entity(ids.product, "Producto"), { id: associationClassId, name: "ClienteProducto", visibility: "public", attributes: [attribute("aaaaaaaa-1111-4111-8111-111111111111", "fechaAlta", { kind: "primitive", name: "date" })], operations: [], generationMetadata: { entity: true } }], relationships: [{ id: ids.relation, type: "Association", sourceId: ids.user, targetId: ids.product, sourceMultiplicity: { lower: 0, upper: "unbounded" }, targetMultiplicity: { lower: 0, upper: "unbounded" }, associationClassId }] };
+    const explicit = mapToRelationalModel(input);
+    expect(explicit.tables.find((table) => table.name === "cliente_producto")?.columns.find((column) => column.name === "fecha_alta")).toBeDefined();
+    expect(explicit.tables.find((table) => table.name === "cliente")?.columns.find((column) => column.name === "id")?.generated).not.toBe(true);
+    delete input.relationships[0].associationClassId;
+    const historical = mapToRelationalModel(input);
+    expect(historical.relations.some((relation) => relation.cardinality === "MANY_TO_MANY")).toBe(true);
+    input.relationships[0].associationClassId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    expect(mapToRelationalModel(input).diagnostics).toContainEqual(expect.objectContaining({ code: "REL_INVALID_ASSOCIATION_CLASS" }));
+  });
   it("proyecta primitivas, enum, PK, restricciones y colecciones inmutables", () => {
     const input = model();
     input.classes[0].attributes.push(attribute("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "texto", { kind: "primitive", name: "string" }), attribute("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "activo", { kind: "primitive", name: "boolean" }), attribute("cccccccc-cccc-4ccc-8ccc-cccccccccccc", "importe", { kind: "primitive", name: "number" }), attribute("dddddddd-dddd-4ddd-8ddd-dddddddddddd", "fecha", { kind: "primitive", name: "date" }), attribute("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee", "creadoEn", { kind: "primitive", name: "datetime" }));

@@ -3,7 +3,7 @@ package {{basePackage}}.entities;
 {{#each imports}}import {{this}};
 {{/each}}
 @Entity
-@Table(name = "{{tableName}}")
+{{{tableAnnotation}}}
 {{#if inheritance}}@Inheritance(strategy = InheritanceType.JOINED)
 {{/if}}{{#if joinedChild}}@PrimaryKeyJoinColumn(name = "{{primaryKeyColumn}}")
 {{/if}}public class {{className}}{{#if extendsName}} extends {{extendsName}}{{/if}} {

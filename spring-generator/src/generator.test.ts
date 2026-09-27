@@ -17,6 +17,24 @@ const model: RelationalModel = {
 };
 
 describe("SpringBackendGenerator", () => {
+  it("genera una Association Class explícita con identidad surrogate, unique y dos ManyToOne", () => {
+    const association: RelationalModel = { tables: [
+      { source, name: "cliente", primaryKey: "id", columns: [{ source, name: "id", type: "BIGINT", nullable: false, identifier: true, unique: false }], uniqueConstraints: [], indexes: [], foreignKeys: [] },
+      { source, name: "producto", primaryKey: "id", columns: [{ source, name: "id", type: "BIGINT", nullable: false, identifier: true, unique: false }], uniqueConstraints: [], indexes: [], foreignKeys: [] },
+      { source, name: "cliente_producto", primaryKey: "id", columns: [{ source, name: "id", type: "BIGINT", nullable: false, identifier: true, generated: true, unique: false }, { source, name: "cliente_id", type: "BIGINT", nullable: false, identifier: false, unique: false }, { source, name: "producto_id", type: "BIGINT", nullable: false, identifier: false, unique: false }, { source, name: "fecha_alta", type: "DATE", nullable: true, identifier: false, unique: false }], uniqueConstraints: [{ name: "uq_cliente_producto_cliente_id_producto_id", columns: ["cliente_id", "producto_id"] }], indexes: [], foreignKeys: [{ source, name: "fk_cliente_producto_cliente_id", column: "cliente_id", targetTable: "cliente", targetColumn: "id", lifecycle: "NONE" }, { source, name: "fk_cliente_producto_producto_id", column: "producto_id", targetTable: "producto", targetColumn: "id", lifecycle: "NONE" }] },
+    ], enums: [], relations: [{ source, cardinality: "MANY_TO_ONE", sourceTable: "cliente_producto", targetTable: "cliente", foreignKey: "fk_cliente_producto_cliente_id", lifecycle: "NONE" }, { source, cardinality: "MANY_TO_ONE", sourceTable: "cliente_producto", targetTable: "producto", foreignKey: "fk_cliente_producto_producto_id", lifecycle: "NONE" }], diagnostics: [], hasErrors: false, success: true };
+    const files = generateSpringBackend(association);
+    const entity = files.find((file) => file.path.endsWith("entities/ClienteProducto.java"))!.content;
+    expect(entity).toContain("@GeneratedValue(strategy = GenerationType.IDENTITY)");
+    expect(entity).toContain('@UniqueConstraint(columnNames = {"cliente_id", "producto_id"})');
+    expect((entity.match(/@ManyToOne/g) ?? [])).toHaveLength(2);
+    expect(entity).toContain("private Long id;");
+    expect(entity).toContain("private LocalDate fechaAlta;");
+    expect(entity).not.toContain("@ManyToMany");
+    expect(entity).not.toContain("@JoinTable");
+    expect(files.filter((file) => file.path.endsWith("entities/ClienteProducto.java"))).toHaveLength(1);
+    expect(files.find((file) => file.path.endsWith("repositories/ClienteProductoRepository.java"))?.content).toContain("JpaRepository<ClienteProducto, Long>");
+  });
   it("genera archivos ordenados, inmutables y deterministas", () => {
     const first = generateSpringBackend(model);
     const second = generateSpringBackend(structuredClone(model));

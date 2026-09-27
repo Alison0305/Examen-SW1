@@ -9,6 +9,7 @@ export type RelationalColumn = Readonly<{
   type: RelationalType;
   nullable: boolean;
   identifier: boolean;
+  generated?: boolean;
   unique: boolean;
   enumName?: string;
   searchable?: boolean;

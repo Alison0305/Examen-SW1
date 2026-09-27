@@ -126,6 +126,17 @@ export interface CreateRelationshipCommand {
   targetMultiplicity?: Multiplicity;
 }
 
+export interface CreateManyToManyAssociationCommand {
+  type: "CreateManyToManyAssociation";
+  sourceId: Uuid;
+  targetId: Uuid;
+  intermediateClassId?: Uuid;
+  associationId?: Uuid;
+  identifierId?: Uuid;
+  sourceRelationshipId?: Uuid;
+  targetRelationshipId?: Uuid;
+}
+
 export interface DeleteRelationshipCommand {
   type: "DeleteRelationship";
   relationshipId: Uuid;
@@ -136,6 +147,7 @@ export interface UpdateMultiplicityCommand {
   relationshipId: Uuid;
   end: "source" | "target";
   multiplicity?: Multiplicity;
+  associationClassId?: Uuid;
 }
 
 export interface UpdateRelationshipNameCommand {
@@ -190,6 +202,7 @@ export type UmlCommand =
   | AddEnumerationLiteralCommand
   | RemoveEnumerationLiteralCommand
   | CreateRelationshipCommand
+  | CreateManyToManyAssociationCommand
   | DeleteRelationshipCommand
   | UpdateMultiplicityCommand
   | UpdateRelationshipNameCommand

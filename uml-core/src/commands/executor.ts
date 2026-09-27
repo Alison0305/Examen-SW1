@@ -1,5 +1,6 @@
 import {
   createUuid,
+  isManyToManyRelationship,
   type CanonicalUmlModel,
   type DiagramElementLayout,
   type ProjectDocument,
@@ -72,11 +73,11 @@ export class UmlCommandExecutor {
           return rejected(document, [unknownReference(command.classId, "classes", "La clase a eliminar no existe.")]);
         }
         const removedRelationshipIds = candidate.uml.relationships
-          .filter((relationship) => relationship.sourceId === command.classId || relationship.targetId === command.classId)
+          .filter((relationship) => relationship.sourceId === command.classId || relationship.targetId === command.classId || relationship.associationClassId === command.classId)
           .map((relationship) => relationship.id);
         candidate.uml.classes.splice(classIndex, 1);
         candidate.uml.relationships = candidate.uml.relationships.filter(
-          (relationship) => relationship.sourceId !== command.classId && relationship.targetId !== command.classId,
+          (relationship) => relationship.sourceId !== command.classId && relationship.targetId !== command.classId && relationship.associationClassId !== command.classId,
         );
         candidate.layout.elements = candidate.layout.elements.filter(
           (entry) => entry.elementId !== command.classId && !removedRelationshipIds.includes(entry.elementId),
@@ -194,17 +195,28 @@ export class UmlCommandExecutor {
         if (command.relationshipType === "Generalization" && (command.sourceMultiplicity || command.targetMultiplicity)) {
           return rejected(document, [{ severity: "error", code: "UML_INVALID_RELATIONSHIP", message: "Las generalizaciones no admiten multiplicidades.", path: "relationships.multiplicity" }]);
         }
-        const candidate = cloneDocument(document);
-        candidate.uml.relationships.push({
+        const relationship: UmlRelationship = {
           id: command.relationshipId ?? this.uuidFactory(),
           type: command.relationshipType,
           sourceId: command.sourceId,
           targetId: command.targetId,
           sourceMultiplicity: command.sourceMultiplicity,
           targetMultiplicity: command.targetMultiplicity,
-        });
+        };
+        if (isManyToManyRelationship(relationship)) {
+          return this.createManyToManyAssociation(document, {
+            type: "CreateManyToManyAssociation",
+            sourceId: relationship.sourceId,
+            targetId: relationship.targetId,
+            associationId: relationship.id,
+          }, relationship);
+        }
+        const candidate = cloneDocument(document);
+        candidate.uml.relationships.push(relationship);
         return this.validateCandidate(document, candidate);
       }
+      case "CreateManyToManyAssociation":
+        return this.createManyToManyAssociation(document, command);
       case "DeleteRelationship": {
         const candidate = cloneDocument(document);
         const relationshipIndex = candidate.uml.relationships.findIndex(
@@ -230,6 +242,18 @@ export class UmlCommandExecutor {
           relationship.sourceMultiplicity = command.multiplicity;
         } else {
           relationship.targetMultiplicity = command.multiplicity;
+        }
+        if (isManyToManyRelationship(relationship)) {
+          if (relationship.associationClassId) {
+            return this.validateCandidate(document, candidate);
+          }
+          return this.createManyToManyAssociation(document, {
+            type: "CreateManyToManyAssociation",
+            sourceId: relationship.sourceId,
+            targetId: relationship.targetId,
+            associationId: relationship.id,
+            intermediateClassId: command.associationClassId,
+          }, relationship);
         }
         return this.validateCandidate(document, candidate);
       }
@@ -302,6 +326,36 @@ export class UmlCommandExecutor {
     }
   }
 
+  private createManyToManyAssociation(document: ProjectDocument, command: Extract<UmlCommand, { type: "CreateManyToManyAssociation" }>, existingAssociation?: UmlRelationship): CommandResult {
+    const source = findClass(document.uml, command.sourceId);
+    const target = findClass(document.uml, command.targetId);
+    if (!source || !target || source.id === target.id) {
+      return rejected(document, [unknownReference(!source ? command.sourceId : command.targetId, "relationships", "Las clases de la asociación N:M deben existir y ser diferentes.")]);
+    }
+
+    if (hasIntermediateAssociation(document.uml, source.id, target.id)) {
+      return rejected(document, [{ severity: "error", code: "UML_INVALID_RELATIONSHIP", message: "La asociación N:M ya tiene una clase intermedia.", path: "relationships" }]);
+    }
+
+    const candidate = cloneDocument(document);
+    const className = intermediateClassName(candidate.uml, source.name, target.name);
+    const intermediateClassId = command.intermediateClassId ?? this.uuidFactory();
+    candidate.uml.classes.push({
+      id: intermediateClassId,
+      name: className,
+      visibility: "public",
+      attributes: [],
+      operations: [],
+    });
+    candidate.layout.elements.push(intermediateLayout(document, source.id, target.id, intermediateClassId));
+    const association = existingAssociation ?? { id: command.associationId ?? this.uuidFactory(), type: "Association" as const, sourceId: source.id, targetId: target.id, sourceMultiplicity: { lower: 0, upper: "unbounded" as const }, targetMultiplicity: { lower: 0, upper: "unbounded" as const } };
+    association.associationClassId = intermediateClassId;
+    const associationIndex = candidate.uml.relationships.findIndex((relationship) => relationship.id === association.id);
+    if (associationIndex >= 0) candidate.uml.relationships[associationIndex] = association;
+    else candidate.uml.relationships.push(association);
+    return this.validateCandidate(document, candidate);
+  }
+
   private validateCandidate(original: ProjectDocument, candidate: ProjectDocument, deletionSnapshot?: DeletionSnapshot): CommandResult {
     candidate.revision = original.revision + 1;
     candidate.updatedAt = this.nowFactory().toISOString();
@@ -328,6 +382,18 @@ function createLayoutEntry(elementId: Uuid, layout: DiagramElementLayoutInput | 
     width: layout?.width,
     height: layout?.height,
   };
+}
+
+function intermediateLayout(document: ProjectDocument, sourceId: Uuid, targetId: Uuid, intermediateId: Uuid): DiagramElementLayout {
+  const source = document.layout.elements.find((entry) => entry.elementId === sourceId);
+  const target = document.layout.elements.find((entry) => entry.elementId === targetId);
+  let x = source && target ? (source.x + target.x) / 2 : source ? source.x + 220 : target ? target.x - 220 : 100 + document.uml.classes.length * 40;
+  let y = source && target ? (source.y + target.y) / 2 : source?.y ?? target?.y ?? 100 + document.uml.classes.length * 30;
+
+  while (document.layout.elements.some((entry) => Math.abs(entry.x - x) < 180 && Math.abs(entry.y - y) < 120)) {
+    y += 140;
+  }
+  return { elementId: intermediateId, x, y, width: 180, height: 120 };
 }
 
 function cloneDocument(document: ProjectDocument): ProjectDocument {
@@ -386,6 +452,26 @@ function findRelationship(model: CanonicalUmlModel, relationshipId: Uuid): UmlRe
 
 function findAttribute(model: CanonicalUmlModel, classId: Uuid, attributeId: Uuid): UmlAttribute | undefined {
   return findClass(model, classId)?.attributes.find((attribute) => attribute.id === attributeId);
+}
+
+function hasIntermediateAssociation(model: CanonicalUmlModel, sourceId: Uuid, targetId: Uuid): boolean {
+  return model.classes.some((intermediate) => {
+    return model.relationships.some((relationship) => relationship.sourceId === sourceId && relationship.targetId === targetId && relationship.associationClassId === intermediate.id);
+  });
+}
+
+function intermediateClassName(model: CanonicalUmlModel, sourceName: string, targetName: string): string {
+  const base = `${pascalCase(sourceName)}${pascalCase(targetName)}`;
+  if (!model.classes.some((umlClass) => umlClass.name === base)) return base;
+  const related = `${base}Relacion`;
+  if (!model.classes.some((umlClass) => umlClass.name === related)) return related;
+  let index = 2;
+  while (model.classes.some((umlClass) => umlClass.name === `${related}${index}`)) index += 1;
+  return `${related}${index}`;
+}
+
+function pascalCase(name: string): string {
+  return name ? `${name[0]!.toUpperCase()}${name.slice(1)}` : name;
 }
 
 function hasModelElement(model: CanonicalUmlModel, elementId: Uuid): boolean {

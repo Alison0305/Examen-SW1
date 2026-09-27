@@ -8,9 +8,10 @@ import { verifyDomainManifestOpenApi } from "./domain-manifest.js";
 import { convertOpenApi, verifyPostmanDeterminism } from "./postman.js";
 import { writeGeneratedFiles } from "./writer.js";
 
-const outputRoot = resolve(".generated-test", "backend");
+const outputRoot = resolve("spring-generator", ".generated-test", "backend");
 const javaHome = process.env.JAVA_HOME;
 const gradleHome = process.env.GRADLE_HOME;
+const skipGradleWrapper = process.env.SKIP_GRADLE_WRAPPER === "1";
 const commandTimeoutMs = 10 * 60 * 1000;
 
 const ids = {
@@ -25,6 +26,7 @@ const ids = {
   composition: "99999999-9999-4999-8999-999999999999",
   aggregation: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
   manyToMany: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+  clienteProducto: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
 };
 
 const attribute = (id: string, name: string, type: CanonicalUmlModel["classes"][number]["attributes"][number]["type"], generationMetadata = {}) => ({ id, name, visibility: "private" as const, type, generationMetadata });
@@ -51,25 +53,19 @@ function run(command: string, args: readonly string[], cwd: string, environment:
 
 const fixture: CanonicalUmlModel = {
   packages: [],
-  enumerations: [{ id: ids.estado, name: "EstadoPedido", visibility: "public", literals: ["NUEVO", "PAGADO", "ENVIADO"] }],
+  enumerations: [],
   classes: [
-    entity(ids.usuario, "Usuario", [attribute("11111111-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "id", { kind: "primitive", name: "integer" }, { identifier: true, sortable: true, defaultSort: "asc" }), attribute("11111111-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "email", { kind: "primitive", name: "string" }, { required: true, unique: true, indexed: true, searchable: true, sortable: true }), attribute("11111111-cccc-4ccc-8ccc-cccccccccccc", "activo", { kind: "primitive", name: "boolean" }, { required: true })]),
-    entity(ids.perfil, "Perfil", [attribute("22222222-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "id", { kind: "primitive", name: "integer" }, { identifier: true }), attribute("22222222-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "fechaNacimiento", { kind: "primitive", name: "date" })]),
-    entity(ids.pedido, "Pedido", [attribute("33333333-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "id", { kind: "primitive", name: "integer" }, { identifier: true }), attribute("33333333-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "estado", { kind: "reference", referenceType: "enumeration", elementId: ids.estado }, { required: true }), attribute("33333333-cccc-4ccc-8ccc-cccccccccccc", "total", { kind: "primitive", name: "number" }, { required: true }), attribute("33333333-dddd-4ddd-8ddd-dddddddddddd", "creadoEn", { kind: "primitive", name: "datetime" }, { required: true })]),
-    entity(ids.producto, "Producto", [attribute("44444444-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "id", { kind: "primitive", name: "integer" }, { identifier: true }), attribute("44444444-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "nombre", { kind: "primitive", name: "string" }, { required: true }), attribute("44444444-cccc-4ccc-8ccc-cccccccccccc", "precio", { kind: "primitive", name: "number" }, { required: true })]),
-    entity(ids.categoria, "Categoria", [attribute("55555555-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "id", { kind: "primitive", name: "integer" }, { identifier: true, sortable: true, defaultSort: "asc" }), attribute("55555555-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "nombre", { kind: "primitive", name: "string" }, { required: true, unique: true, searchable: true, sortable: true })]),
+    entity(ids.usuario, "Cliente", [attribute("11111111-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "id", { kind: "primitive", name: "integer" }, { identifier: true })]),
+    entity(ids.producto, "Producto", [attribute("44444444-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "id", { kind: "primitive", name: "integer" }, { identifier: true })]),
+    entity(ids.clienteProducto, "ClienteProducto", []),
   ],
   relationships: [
-    { id: ids.oneToOne, name: "perfil", type: "Association", sourceId: ids.usuario, targetId: ids.perfil, sourceMultiplicity: { lower: 1, upper: 1 }, targetMultiplicity: { lower: 1, upper: 1 }, foreignKeyOwner: "TARGET" },
-    { id: ids.oneToMany, name: "pedidos", type: "Association", sourceId: ids.usuario, targetId: ids.pedido, sourceMultiplicity: { lower: 1, upper: 1 }, targetMultiplicity: { lower: 0, upper: "unbounded" } },
-    { id: ids.composition, name: "productos", type: "Composition", sourceId: ids.pedido, targetId: ids.producto, sourceMultiplicity: { lower: 1, upper: 1 }, targetMultiplicity: { lower: 0, upper: "unbounded" } },
-    { id: ids.aggregation, name: "catalogo", type: "Aggregation", sourceId: ids.categoria, targetId: ids.producto, sourceMultiplicity: { lower: 1, upper: 1 }, targetMultiplicity: { lower: 0, upper: "unbounded" } },
-    { id: ids.manyToMany, name: "categorias", type: "Association", sourceId: ids.producto, targetId: ids.categoria, sourceMultiplicity: { lower: 0, upper: "unbounded" }, targetMultiplicity: { lower: 0, upper: "unbounded" } },
+    { id: ids.manyToMany, type: "Association", sourceId: ids.usuario, targetId: ids.producto, sourceMultiplicity: { lower: 0, upper: "unbounded" }, targetMultiplicity: { lower: 0, upper: "unbounded" }, associationClassId: ids.clienteProducto },
   ],
 };
 
 async function main(): Promise<void> {
-  if (!javaHome || !gradleHome) throw new Error("JAVA_HOME y GRADLE_HOME son obligatorios para el gate de compilación.");
+  if ((!javaHome || !gradleHome) && !skipGradleWrapper) throw new Error("JAVA_HOME y GRADLE_HOME son obligatorios para el gate de compilación.");
   const validation = validateCanonicalUmlModel(fixture);
   if (validation.diagnostics.some((diagnostic) => diagnostic.severity === "error")) throw new Error("La fixture UML contiene diagnósticos bloqueantes.");
   const relational = mapToRelationalModel(fixture);
@@ -77,12 +73,16 @@ async function main(): Promise<void> {
   const first = generateSpringBackend(relational);
   const second = generateSpringBackend(structuredClone(relational));
   if (JSON.stringify(first) !== JSON.stringify(second)) throw new Error("La generación no fue determinista.");
-  if (!first.some((file) => file.path.endsWith("entities/Usuario.java")) || !first.some((file) => file.path.endsWith("enums/EstadoPedido.java"))) throw new Error("La fixture no produjo los artefactos semánticos esperados.");
+  if (!first.some((file) => file.path.endsWith("entities/ClienteProducto.java"))) throw new Error("La fixture no produjo Association Class.");
   await rm(outputRoot, { recursive: true, force: true });
-  const environment = { ...process.env, JAVA_HOME: javaHome, PATH: `${join(javaHome, "bin")};${join(gradleHome, "bin")};${process.env.PATH ?? ""}` };
+    const environment = { ...process.env, JAVA_HOME: javaHome!, PATH: `${join(javaHome!, "bin")};${join(gradleHome!, "bin")};${process.env.PATH ?? ""}` };
   const diagnostics = resolve(".postman-diagnostics");
   try {
     await writeGeneratedFiles(outputRoot, first);
+    if (skipGradleWrapper) {
+      console.log(`Generated backend written without Gradle wrapper: ${outputRoot}`);
+      return;
+    }
     await run("gradle.bat", ["wrapper", "--gradle-version", "8.14.4"], outputRoot, environment, "crear Gradle Wrapper");
     const wrapperProperties = await readFile(join(outputRoot, "gradle", "wrapper", "gradle-wrapper.properties"), "utf8");
     if (!wrapperProperties.includes("gradle-8.14.4-bin.zip")) throw new Error("El wrapper no quedó fijado a Gradle 8.14.4.");

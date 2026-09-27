@@ -64,6 +64,20 @@ function workspaceDocument(): ProjectDocument {
   return bus.document;
 }
 
+function associationClassDocument(): ProjectDocument {
+  const document = createProjectDocument({ id: projectId, now: new Date("2026-09-27T00:00:00.000Z") });
+  const clienteId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const productoId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  const associationClassId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+  document.uml.classes.push(
+    { id: clienteId, name: "Cliente", visibility: "public", generationMetadata: { entity: true }, operations: [], attributes: [{ id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", name: "id", visibility: "private", type: { kind: "primitive", name: "integer" }, generationMetadata: { identifier: true } }] },
+    { id: productoId, name: "Producto", visibility: "public", generationMetadata: { entity: true }, operations: [], attributes: [{ id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee", name: "id", visibility: "private", type: { kind: "primitive", name: "integer" }, generationMetadata: { identifier: true } }] },
+    { id: associationClassId, name: "ClienteProducto", visibility: "public", generationMetadata: { entity: true }, operations: [], attributes: [] },
+  );
+  document.uml.relationships.push({ id: "ffffffff-ffff-4fff-8fff-ffffffffffff", name: "productos", type: "Association", sourceId: clienteId, targetId: productoId, sourceMultiplicity: { lower: 0, upper: "unbounded" }, targetMultiplicity: { lower: 0, upper: "unbounded" }, associationClassId });
+  return document;
+}
+
 async function writeZipContents(files: Record<string, Uint8Array>): Promise<void> {
   await rm(outputRoot, { recursive: true, force: true });
   for (const [path, content] of Object.entries(files)) {
@@ -185,5 +199,24 @@ describe("Spring export persisted ProjectDocument integration", () => {
     expect(strFromU8(files[rolePath]!)).toContain('@OneToMany(mappedBy = "rolId")');
     expect(strFromU8(files[userPath]!)).toContain('@JoinColumn(name = "rol_id", referencedColumnName = "id", nullable = false)');
     expect(document.layout.elements).toHaveLength(2);
+  });
+
+  it("exporta una Association Class mediante el endpoint como ZIP compilable", async () => {
+    let stored: Record<string, unknown> | null = null;
+    const prisma = { project: { create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => (stored = { ...data, id: projectId, revision: 1, createdAt: new Date(), updatedAt: new Date() })), findUnique: vi.fn(async () => stored) } };
+    const persistence = new ProjectsPersistenceService(prisma as never);
+    const access = { requireView: vi.fn().mockResolvedValue("OWNER") };
+    await persistence.createProject(userId, "Association Class", associationClassDocument());
+    const module = await Test.createTestingModule({ controllers: [SpringExportController], providers: [SpringExportService, { provide: ProjectsPersistenceService, useValue: persistence }, { provide: ProjectAccessService, useValue: access }] }).overrideGuard(JwtAuthGuard).useValue({ canActivate(context: { switchToHttp(): { getRequest(): { authenticatedUser?: { id: string } } } }) { context.switchToHttp().getRequest().authenticatedUser = { id: userId }; return true; } }).compile();
+    app = module.createNestApplication<NestFastifyApplication>(new FastifyAdapter());
+    await app.init(); await app.getHttpAdapter().getInstance().ready();
+    const response = await request(app.getHttpServer()).post(`/projects/${projectId}/exports/spring`).send({ basePackage: "com.example.association" }).buffer(true).parse((source, callback) => { const chunks: Buffer[] = []; source.on("data", (chunk: Buffer) => chunks.push(chunk)); source.on("end", () => callback(null, Buffer.concat(chunks))); }).expect("Content-Type", /application\/zip/).expect(200);
+    expect(response.body.length).toBeGreaterThan(0);
+    const files = filesFrom(response.body); await writeZipContents(files);
+    const paths = Object.keys(files); const entity = strFromU8(files["src/main/java/com/example/association/entities/ClienteProducto.java"]!);
+    expect(paths.filter((path) => path.endsWith("entities/Cliente.java"))).toHaveLength(1); expect(paths.filter((path) => path.endsWith("entities/Producto.java"))).toHaveLength(1); expect(paths.filter((path) => path.endsWith("entities/ClienteProducto.java"))).toHaveLength(1);
+    expect(paths).toEqual(expect.arrayContaining(["build.gradle", "settings.gradle", "src/main/java/com/example/association/repositories/ClienteProductoRepository.java", "src/main/java/com/example/association/services/ClienteProductoService.java", "src/main/java/com/example/association/controllers/ClienteProductoController.java"]));
+    expect(entity).toContain("@Entity"); expect(entity).toContain("@Table"); expect(entity).toContain("@UniqueConstraint"); expect(entity).toContain("@Id"); expect(entity).toContain("@GeneratedValue(strategy = GenerationType.IDENTITY)"); expect(entity).toContain("Long id"); expect(entity).toContain("@ManyToOne"); expect(entity).toContain('@JoinColumn(name = "cliente_id"'); expect(entity).toContain('@JoinColumn(name = "producto_id"'); expect(entity).not.toContain("@ManyToMany"); expect(entity).not.toContain("@JoinTable");
+    expect(strFromU8(files["src/main/java/com/example/association/entities/Cliente.java"]!)).not.toContain("@ManyToMany"); expect(strFromU8(files["src/main/java/com/example/association/entities/Producto.java"]!)).not.toContain("@ManyToMany"); expect(strFromU8(files["src/main/java/com/example/association/repositories/ClienteProductoRepository.java"]!)).toContain("JpaRepository<ClienteProducto, Long>");
   });
 });

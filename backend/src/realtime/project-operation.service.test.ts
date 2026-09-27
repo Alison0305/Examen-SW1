@@ -44,6 +44,28 @@ function setup(existing: unknown = null, revision = 1) {
 }
 
 describe("ProjectOperationService", () => {
+  it("persiste una association class con el ID del comando y acepta mover ese mismo elemento", async () => {
+    const associationId = "66666666-6666-4666-8666-666666666666";
+    const productId = "77777777-7777-4777-8777-777777777777";
+    const associationClassId = "88888888-8888-4888-8888-888888888888";
+    const document = createProjectDocument({ id: projectId });
+    document.uml.classes.push({ id: classId, name: "Cliente", visibility: "public", attributes: [], operations: [] }, { id: productId, name: "Producto", visibility: "public", attributes: [], operations: [] });
+    document.layout.elements.push({ elementId: classId, x: 0, y: 0 }, { elementId: productId, x: 400, y: 0 });
+    document.uml.relationships.push({ id: associationId, type: "Association", sourceId: classId, targetId: productId, sourceMultiplicity: { lower: 1, upper: 1 }, targetMultiplicity: { lower: 0, upper: "unbounded" } });
+    const first = setup();
+    first.tx.project.findUnique.mockResolvedValue({ id: projectId, revision: 1, document });
+    const conversion: UmlCommand = { type: "UpdateMultiplicity", relationshipId: associationId, end: "source", multiplicity: { lower: 0, upper: "unbounded" }, associationClassId };
+
+    await expect(first.service.apply(actorId, dto({ command: conversion }))).resolves.toMatchObject({ revision: 2, command: conversion });
+    const persisted = first.tx.project.updateMany.mock.calls[0][0].data.document as typeof document;
+    expect(persisted.uml.classes.find((entry) => entry.id === associationClassId)).toMatchObject({ attributes: [] });
+    expect(persisted.uml.relationships[0]).toMatchObject({ id: associationId, associationClassId, sourceMultiplicity: { lower: 0, upper: "unbounded" }, targetMultiplicity: { lower: 0, upper: "unbounded" } });
+    expect(persisted.layout.elements.some((entry) => entry.elementId === associationClassId)).toBe(true);
+
+    const second = setup(null, 2);
+    second.tx.project.findUnique.mockResolvedValue({ id: projectId, revision: 2, document: persisted });
+    await expect(second.service.apply(actorId, dto({ baseRevision: 2, operationId: "99999999-9999-4999-8999-999999999999", command: { type: "MoveElement", elementId: associationClassId, x: 220, y: 180 } }))).resolves.toMatchObject({ revision: 3 });
+  });
   it("autoriza antes de consultar recibos", async () => {
     const { service, prisma, access } = setup();
     access.requireEdit.mockRejectedValueOnce(new Error("forbidden"));

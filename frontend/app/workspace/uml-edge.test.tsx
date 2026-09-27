@@ -55,6 +55,20 @@ describe("UmlRelationshipEdge", () => {
     expect(screen.getByTestId(`uml-edge-${ids.relationship}`)).toHaveTextContent("tiene");
   });
 
+  it("dibuja un enlace discontinuo derivado para una association class sin multiplicidades", () => {
+    resetWorkspaceStore(documentWithRelationship("Association"));
+    const route = calculateUmlEdgeRoute({ x: 0, y: 0, width: 180, height: 120 }, { x: 360, y: 0, width: 180, height: 120 });
+    const props = {
+      id: ids.relationship, sourceX: 180, sourceY: 60, targetX: 360, targetY: 60, selected: false,
+      data: { relationshipType: "Association", label: "", sourceMultiplicityLabel: "0..*", targetMultiplicityLabel: "0..*", selected: false, route, associationClassPosition: { x: 270, y: 300 } },
+    } as EdgeProps<UmlReactFlowEdge>;
+    render(<UmlRelationshipEdge {...props} />);
+
+    expect(screen.getByTestId(`uml-association-class-link-${ids.relationship}`)).toHaveStyle({ strokeDasharray: "5 4" });
+    expect(screen.getByTestId(`uml-edge-${ids.relationship}-source-multiplicity`)).toHaveTextContent("0..*");
+    expect(screen.getByTestId(`uml-edge-${ids.relationship}-target-multiplicity`)).toHaveTextContent("0..*");
+  });
+
   it("mantiene Generalization sin editor ni label", () => {
     renderEdge("Generalization");
     fireEvent.doubleClick(screen.getByTestId(`uml-edge-path-${ids.relationship}`));

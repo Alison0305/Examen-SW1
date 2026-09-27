@@ -27,6 +27,10 @@ The system SHALL project only classes marked as entities, preserve target primar
 - **WHEN** two N:M relationships connect the same entity pair
 - **THEN** each relationship has a distinct deterministic join table and each join table has a composite unique constraint over its two foreign-key columns
 
+#### Scenario: Explicit Association Class
+- **WHEN** una Association N:M tiene `associationClassId`
+- **THEN** usa una única tabla explícita con PK surrogate relacional `generated: true`, dos FKs, unique compuesto y dos `MANY_TO_ONE`, sin join table ni `MANY_TO_MANY` adicional
+
 #### Scenario: Unsupported source semantics
 - **WHEN** a source identifier is invalid, an attribute type is unsupported, or a relationship reaches a non-entity
 - **THEN** the mapper reports a blocking diagnostic without silently sanitizing the name, creating a fallback column, or creating the relationship

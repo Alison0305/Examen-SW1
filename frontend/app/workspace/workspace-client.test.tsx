@@ -648,6 +648,36 @@ describe("Workspace UML manual", () => {
     });
   });
 
+  it("proyecta la clase intermedia N:M con layout, persistible mediante el documento, y Undo/Redo", async () => {
+    renderWorkspace();
+    await createTwoClassesAndRelationship("Association");
+    const relationshipId = useWorkspaceStore.getState().document.uml.relationships[0]!.id;
+
+    act(() => {
+      useWorkspaceStore.getState().updateRelationshipMultiplicity(relationshipId, "source", "0..*");
+      useWorkspaceStore.getState().updateRelationshipMultiplicity(relationshipId, "target", "0..*");
+    });
+
+    const transformed = useWorkspaceStore.getState().document;
+    const intermediate = transformed.uml.classes.find((umlClass) => umlClass.name === "Clase1Clase2");
+    expect(intermediate).toBeDefined();
+    expect(transformed.uml.relationships).toHaveLength(2);
+    const intermediateLayout = transformed.layout.elements.find((entry) => entry.elementId === intermediate?.id);
+    expect(toReactFlowNodes(transformed).find((node) => node.id === intermediate?.id)?.position).toEqual({ x: intermediateLayout?.x, y: intermediateLayout?.y });
+
+    act(() => useWorkspaceStore.getState().undo());
+    expect(useWorkspaceStore.getState().document.uml.classes).toHaveLength(2);
+    expect(useWorkspaceStore.getState().document.uml.relationships).toHaveLength(1);
+
+    act(() => useWorkspaceStore.getState().redo());
+    expect(useWorkspaceStore.getState().document.uml.classes.some((umlClass) => umlClass.id === intermediate?.id)).toBe(true);
+
+    const reloaded = structuredClone(useWorkspaceStore.getState().document);
+    resetWorkspaceStore(reloaded);
+    expect(useWorkspaceStore.getState().document).toEqual(reloaded);
+    expect(toReactFlowNodes(useWorkspaceStore.getState().document).find((node) => node.id === intermediate?.id)?.position).toEqual({ x: intermediateLayout?.x, y: intermediateLayout?.y });
+  });
+
   it("conserva el draft de destino al guardar primero la multiplicidad de origen", async () => {
     renderWorkspace();
     await createTwoClassesAndRelationship("Association");

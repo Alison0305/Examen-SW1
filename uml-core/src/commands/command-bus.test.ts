@@ -5,6 +5,7 @@ import {
   classReferenceType,
   createProjectDocument,
   enumerationReferenceType,
+  isManyMultiplicity,
   multiplicity,
   primitiveType,
   type ProjectDocument,
@@ -25,6 +26,9 @@ const ids = {
   relationship: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
   otherRelationship: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
   missing: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+  intermediateClass: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+  intermediateAttribute: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+  intermediateRelationship: "ffffffff-ffff-4fff-8fff-ffffffffffff",
 };
 
 const timestamp = new Date("2026-09-05T10:00:00.000Z");
@@ -60,6 +64,12 @@ function documentWithTwoClasses(): ProjectDocument {
   return document;
 }
 
+function documentWithCustomerProduct(): ProjectDocument {
+  const document = documentWithTwoClasses();
+  document.uml.classes[1]!.name = "Producto";
+  return document;
+}
+
 function executor(): UmlCommandExecutor {
   return new UmlCommandExecutor({ nowFactory: () => nextTimestamp });
 }
@@ -75,6 +85,14 @@ function externalClass(name: string = "MutacionExterna") {
 }
 
 describe("UmlCommandExecutor", () => {
+  it("centraliza la detección de multiplicidad many mediante upper unbounded", () => {
+    expect(isManyMultiplicity({ lower: 0, upper: "unbounded" })).toBe(true);
+    expect(isManyMultiplicity({ lower: 1, upper: "unbounded" })).toBe(true);
+    expect(isManyMultiplicity({ lower: 1, upper: 1 })).toBe(false);
+    expect(isManyMultiplicity({ lower: 0, upper: 1 })).toBe(false);
+    expect(isManyMultiplicity(undefined)).toBe(false);
+  });
+
   it("crea clases con entrada de layout y CommandResult exitoso", () => {
     const document = emptyDocument();
     const result = executor().execute(document, {
@@ -384,6 +402,79 @@ describe("UmlCommandExecutor", () => {
     expect(rejected.diagnostics).toMatchObject([{ code: "UML_INVALID_MULTIPLICITY", elementId: ids.relationship }]);
   });
 
+  it("transforma una asociación N:M en clase intermedia y dos relaciones sin conservar la directa", () => {
+    const document = documentWithCustomerProduct();
+    const result = executor().execute(document, {
+      type: "CreateManyToManyAssociation",
+      sourceId: ids.class,
+      targetId: ids.otherClass,
+      intermediateClassId: ids.intermediateClass,
+      identifierId: ids.intermediateAttribute,
+      sourceRelationshipId: ids.relationship,
+      targetRelationshipId: ids.intermediateRelationship,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.document.uml.classes.map((umlClass) => umlClass.name)).toEqual(["Cliente", "Producto", "ClienteProducto"]);
+    expect(result.document.uml.classes[2]).toMatchObject({ id: ids.intermediateClass, attributes: [] });
+    expect(result.document.uml.relationships).toEqual([
+      expect.objectContaining({ sourceId: ids.class, targetId: ids.otherClass, sourceMultiplicity: { lower: 0, upper: "unbounded" }, targetMultiplicity: { lower: 0, upper: "unbounded" }, associationClassId: ids.intermediateClass }),
+    ]);
+    expect(result.document.layout.elements).toContainEqual({ elementId: ids.intermediateClass, x: 125, y: 160, width: 180, height: 120 });
+  });
+
+  it("redirige CreateRelationship N:M a la transformación atómica", () => {
+    const result = executor().execute(documentWithCustomerProduct(), {
+      type: "CreateRelationship",
+      relationshipId: ids.relationship,
+      relationshipType: "Association",
+      sourceId: ids.class,
+      targetId: ids.otherClass,
+      sourceMultiplicity: multiplicity(0, "unbounded"),
+      targetMultiplicity: multiplicity(0, "unbounded"),
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.document.uml.classes.map((umlClass) => umlClass.name)).toEqual(["Cliente", "Producto", "ClienteProducto"]);
+    expect(result.document.uml.relationships).toHaveLength(1);
+    expect(result.document.uml.relationships[0]).toMatchObject({ sourceId: ids.class, targetId: ids.otherClass });
+  });
+
+  it("conserva asociaciones que no son N:M", () => {
+    const document = documentWithCustomerProduct();
+    const oneMany = executor().execute(document, { type: "CreateRelationship", relationshipId: ids.relationship, relationshipType: "Association", sourceId: ids.class, targetId: ids.otherClass, sourceMultiplicity: multiplicity(1), targetMultiplicity: multiplicity(0, "unbounded") });
+    expect(oneMany.success).toBe(true);
+    expect(oneMany.document.uml.classes).toHaveLength(2);
+    expect(oneMany.document.uml.relationships).toHaveLength(1);
+
+    const oneOne = executor().execute(document, { type: "CreateRelationship", relationshipId: ids.relationship, relationshipType: "Association", sourceId: ids.class, targetId: ids.otherClass, sourceMultiplicity: multiplicity(1), targetMultiplicity: multiplicity(1) });
+    expect(oneOne.success).toBe(true);
+    expect(oneOne.document.uml.classes).toHaveLength(2);
+  });
+
+  it("resuelve colisiones manuales y rechaza repetir una transformación ya existente", () => {
+    const document = documentWithCustomerProduct();
+    document.uml.classes.push({ id: ids.thirdClass, name: "ClienteProducto", visibility: "public", attributes: [], operations: [] });
+    document.layout.elements.push({ elementId: ids.thirdClass, x: 0, y: 0 });
+    const created = executor().execute(document, { type: "CreateManyToManyAssociation", sourceId: ids.class, targetId: ids.otherClass, intermediateClassId: ids.intermediateClass, identifierId: ids.intermediateAttribute, sourceRelationshipId: ids.relationship, targetRelationshipId: ids.intermediateRelationship });
+    expect(created.success).toBe(true);
+    expect(created.document.uml.classes.map((umlClass) => umlClass.name)).toContain("ClienteProductoRelacion");
+
+    const repeated = executor().execute(created.document, { type: "CreateManyToManyAssociation", sourceId: ids.class, targetId: ids.otherClass });
+    expect(repeated.success).toBe(false);
+    expect(repeated.document).toEqual(created.document);
+  });
+
+  it("transforma una relación al editar la segunda multiplicidad a N:M", () => {
+    const document = documentWithCustomerProduct();
+    document.uml.relationships.push({ id: ids.relationship, type: "Association", sourceId: ids.class, targetId: ids.otherClass, sourceMultiplicity: multiplicity(1), targetMultiplicity: multiplicity(0, "unbounded") });
+    const transformed = executor().execute(document, { type: "UpdateMultiplicity", relationshipId: ids.relationship, end: "source", multiplicity: multiplicity(0, "unbounded") });
+    expect(transformed.success).toBe(true);
+    expect(transformed.document.uml.classes.map((umlClass) => umlClass.name)).toContain("ClienteProducto");
+    expect(transformed.document.uml.relationships).toHaveLength(1);
+    expect(transformed.document.uml.relationships[0]).toMatchObject({ sourceId: ids.class, targetId: ids.otherClass, associationClassId: expect.any(String) });
+  });
+
   it("actualiza, normaliza y elimina nombres opcionales de relaciones nombrables", () => {
     const document = documentWithTwoClasses();
     document.uml.relationships.push({
@@ -584,6 +675,35 @@ describe("UmlCommandExecutor", () => {
 });
 
 describe("UmlCommandBus", () => {
+  it("deshace y rehace una asociación N:M completa con una sola intención", () => {
+    const bus = new UmlCommandBus(documentWithCustomerProduct(), { executor: executor() });
+    const before = bus.document;
+    const created = bus.execute({ type: "CreateManyToManyAssociation", sourceId: ids.class, targetId: ids.otherClass, intermediateClassId: ids.intermediateClass, identifierId: ids.intermediateAttribute, sourceRelationshipId: ids.relationship, targetRelationshipId: ids.intermediateRelationship });
+
+    expect(created.success).toBe(true);
+    expect(bus.getHistoryState()).toMatchObject({ undoCount: 1, redoCount: 0 });
+    expect(bus.document.uml.classes).toHaveLength(3);
+    expect(bus.document.uml.relationships).toHaveLength(1);
+
+    expect(bus.undo()).toEqual(before);
+    expect(bus.getHistoryState()).toMatchObject({ undoCount: 0, redoCount: 1 });
+
+    const redone = bus.redo();
+    expect(redone?.uml.classes.map((umlClass) => umlClass.id)).toContain(ids.intermediateClass);
+    expect(redone?.uml.relationships.map((relationship) => relationship.id)).toHaveLength(1);
+    expect(redone?.layout.elements.some((entry) => entry.elementId === ids.intermediateClass)).toBe(true);
+  });
+
+  it("elimina una clase intermedia junto con sus relaciones incidentes", () => {
+    const created = executor().execute(documentWithCustomerProduct(), { type: "CreateManyToManyAssociation", sourceId: ids.class, targetId: ids.otherClass, intermediateClassId: ids.intermediateClass, identifierId: ids.intermediateAttribute, sourceRelationshipId: ids.relationship, targetRelationshipId: ids.intermediateRelationship });
+    expect(created.success).toBe(true);
+    const deleted = executor().execute(created.document, { type: "DeleteClass", classId: ids.intermediateClass });
+
+    expect(deleted.success).toBe(true);
+    expect(deleted.document.uml.classes.map((umlClass) => umlClass.id)).not.toContain(ids.intermediateClass);
+    expect(deleted.document.uml.relationships).toEqual([]);
+  });
+
   it("solo comandos aceptados generan historial y Undo/Redo restauran snapshots", () => {
     const bus = new UmlCommandBus(emptyDocument(), { executor: executor() });
 

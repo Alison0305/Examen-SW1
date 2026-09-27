@@ -19,6 +19,7 @@ export interface UmlEdgeData extends Record<string, unknown> {
   targetMultiplicityLabel: string;
   selected: boolean;
   route: UmlEdgeRoute;
+  associationClassPosition?: { x: number; y: number };
 }
 
 export type UmlReactFlowNode = Node<UmlNodeData>;
@@ -86,6 +87,12 @@ export function toReactFlowEdges(document: ProjectDocument, selectedId?: string,
       targetMultiplicityLabel: formatMultiplicity(relationship.targetMultiplicity),
       selected: selectedId === relationship.id,
       route: calculateUmlEdgeRoute(nodeBounds(document, layout.get(relationship.sourceId), relationship.sourceId, measuredById.get(relationship.sourceId)), nodeBounds(document, layout.get(relationship.targetId), relationship.targetId, measuredById.get(relationship.targetId))),
+      associationClassPosition: relationship.associationClassId
+        ? (() => {
+            const entry = layout.get(relationship.associationClassId);
+            return entry ? { x: entry.x + (entry.width ?? 180) / 2, y: entry.y + (entry.height ?? 120) / 2 } : undefined;
+          })()
+        : undefined,
     },
   }));
 }

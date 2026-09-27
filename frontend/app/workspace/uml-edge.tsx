@@ -30,6 +30,7 @@ export function UmlRelationshipEdge(props: EdgeProps<UmlReactFlowEdge>) {
     { x: props.targetX, y: props.targetY, width: 0, height: 0 },
   );
   const labelPosition = routeLabelPosition(route);
+  const associationClassPosition = props.data?.associationClassPosition;
   const diamond = relationshipType === "Aggregation" || relationshipType === "Composition" ? calculateDiamondGeometry(route.points[0], route.points[1] ?? route.points[0]) : undefined;
   const visibleRoute = diamond ? { ...route, points: [diamond.lineStart, ...route.points.slice(1)] } : route;
   const editable = relationshipType !== "Generalization";
@@ -64,6 +65,14 @@ export function UmlRelationshipEdge(props: EdgeProps<UmlReactFlowEdge>) {
           strokeWidth: selected ? 2 : 1.5,
         }}
       />
+      {associationClassPosition && (
+        <path
+          data-testid={`uml-association-class-link-${props.id}`}
+          d={`M ${labelPosition.x} ${labelPosition.y} L ${associationClassPosition.x} ${associationClassPosition.y}`}
+          fill="none"
+          style={{ stroke, strokeWidth: 1.5, strokeDasharray: "5 4", pointerEvents: "none" }}
+        />
+      )}
       {diamond && (
         <polygon
           data-testid={`uml-${relationshipType.toLowerCase()}-diamond-${props.id}`}

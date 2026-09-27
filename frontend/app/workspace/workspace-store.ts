@@ -255,7 +255,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     }
   },
   updateRelationshipMultiplicity: (relationshipId, end, multiplicity) => {
-    applyCommand(set, { type: "UpdateMultiplicity", relationshipId, end, multiplicity: parseMultiplicity(multiplicity) });
+    applyCommand(set, { type: "UpdateMultiplicity", relationshipId, end, multiplicity: parseMultiplicity(multiplicity), associationClassId: createWorkspaceUuid() });
   },
   updateRelationshipName: (relationshipId, name) => applyCommand(set, { type: "UpdateRelationshipName", relationshipId, name }),
   deleteSelectedRelationship: () => {

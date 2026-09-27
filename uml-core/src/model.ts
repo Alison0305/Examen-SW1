@@ -33,6 +33,10 @@ export interface Multiplicity {
   upper: number | "unbounded";
 }
 
+export function isManyMultiplicity(value: Multiplicity | undefined): boolean {
+  return value?.upper === "unbounded";
+}
+
 export interface CrudGenerationMetadata {
   create?: boolean;
   read?: boolean;
@@ -122,6 +126,11 @@ export interface UmlRelationship {
   sourceMultiplicity?: Multiplicity;
   targetMultiplicity?: Multiplicity;
   foreignKeyOwner?: ForeignKeyOwner;
+  associationClassId?: Uuid;
+}
+
+export function isManyToManyRelationship(relationship: UmlRelationship): boolean {
+  return relationship.type === "Association" && isManyMultiplicity(relationship.sourceMultiplicity) && isManyMultiplicity(relationship.targetMultiplicity);
 }
 
 export interface CanonicalUmlModel {
