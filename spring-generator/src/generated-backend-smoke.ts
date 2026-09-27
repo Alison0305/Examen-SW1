@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { mapToRelationalModel } from "@examen-sw1/relational-core";
 import { validateCanonicalUmlModel, type CanonicalUmlModel } from "@examen-sw1/uml-core";
 import { generateSpringBackend } from "./generator.js";
@@ -8,7 +9,7 @@ import { verifyDomainManifestOpenApi } from "./domain-manifest.js";
 import { convertOpenApi, verifyPostmanDeterminism } from "./postman.js";
 import { writeGeneratedFiles } from "./writer.js";
 
-const outputRoot = resolve("spring-generator", ".generated-test", "backend");
+const outputRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", ".generated-test", "backend");
 const javaHome = process.env.JAVA_HOME;
 const gradleHome = process.env.GRADLE_HOME;
 const skipGradleWrapper = process.env.SKIP_GRADLE_WRAPPER === "1";

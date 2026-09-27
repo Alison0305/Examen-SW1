@@ -25,6 +25,10 @@ describe("SpringBackendGenerator", () => {
     ], enums: [], relations: [{ source, cardinality: "MANY_TO_ONE", sourceTable: "cliente_producto", targetTable: "cliente", foreignKey: "fk_cliente_producto_cliente_id", lifecycle: "NONE" }, { source, cardinality: "MANY_TO_ONE", sourceTable: "cliente_producto", targetTable: "producto", foreignKey: "fk_cliente_producto_producto_id", lifecycle: "NONE" }], diagnostics: [], hasErrors: false, success: true };
     const files = generateSpringBackend(association);
     const entity = files.find((file) => file.path.endsWith("entities/ClienteProducto.java"))!.content;
+    const create = files.find((file) => file.path.endsWith("dto/CreateClienteProductoRequest.java"))!.content;
+    const update = files.find((file) => file.path.endsWith("dto/UpdateClienteProductoRequest.java"))!.content;
+    const service = files.find((file) => file.path.endsWith("services/ClienteProductoService.java"))!.content;
+    const response = files.find((file) => file.path.endsWith("dto/ClienteProductoResponse.java"))!.content;
     expect(entity).toContain("@GeneratedValue(strategy = GenerationType.IDENTITY)");
     expect(entity).toContain('@UniqueConstraint(columnNames = {"cliente_id", "producto_id"})');
     expect((entity.match(/@ManyToOne/g) ?? [])).toHaveLength(2);
@@ -34,6 +38,8 @@ describe("SpringBackendGenerator", () => {
     expect(entity).not.toContain("@JoinTable");
     expect(files.filter((file) => file.path.endsWith("entities/ClienteProducto.java"))).toHaveLength(1);
     expect(files.find((file) => file.path.endsWith("repositories/ClienteProductoRepository.java"))?.content).toContain("JpaRepository<ClienteProducto, Long>");
+    expect(create).toContain("Long clienteId"); expect(create).toContain("Long productoId"); expect(create).not.toContain("Long id");
+    expect(update).not.toContain(" id;"); expect(service).not.toContain("entity.setId(request.id())"); expect(response).toContain("Long id");
   });
   it("genera archivos ordenados, inmutables y deterministas", () => {
     const first = generateSpringBackend(model);

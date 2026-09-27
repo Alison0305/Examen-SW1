@@ -7,7 +7,7 @@ Generate a deterministic, safe Spring Boot backend project from a RelationalMode
 ## Requirements
 
 ### Requirement: Deterministic generated files
-The system SHALL generate ordered `GeneratedFile` artifacts using Handlebars before filesystem writing, and each generated JPA inverse association SHALL represent only the same relational association as its owning field.
+The system SHALL generate ordered `GeneratedFile` artifacts using Handlebars before filesystem writing, each generated JPA inverse association SHALL represent only the same relational association as its owning field, and relational columns marked `generated` SHALL be excluded from create/update input and assignments while remaining in entities and responses.
 
 #### Scenario: Equivalent relational model
 - **WHEN** the generator receives the same RelationalModel and configuration
@@ -20,6 +20,14 @@ The system SHALL generate ordered `GeneratedFile` artifacts using Handlebars bef
 #### Scenario: Non-participating entity
 - **WHEN** an entity does not participate in a relational association
 - **THEN** its generated source contains no inverse field derived from that association
+
+#### Scenario: Generated surrogate identifier
+- **WHEN** an entity has a primary key with `generated: true`
+- **THEN** its create and update requests omit that column, its create service does not assign it, and its entity and response retain it
+
+#### Scenario: Non-generated identifier
+- **WHEN** an identifier is not marked generated
+- **THEN** its existing create contract remains unchanged
 
 ### Requirement: Safe generated output
 The system SHALL reject duplicate paths, absolute paths and path traversal before writing generated files.

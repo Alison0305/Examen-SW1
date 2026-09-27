@@ -214,9 +214,15 @@ describe("Spring export persisted ProjectDocument integration", () => {
     expect(response.body.length).toBeGreaterThan(0);
     const files = filesFrom(response.body); await writeZipContents(files);
     const paths = Object.keys(files); const entity = strFromU8(files["src/main/java/com/example/association/entities/ClienteProducto.java"]!);
+    const create = strFromU8(files["src/main/java/com/example/association/dto/CreateClienteProductoRequest.java"]!);
+    const update = strFromU8(files["src/main/java/com/example/association/dto/UpdateClienteProductoRequest.java"]!);
+    const service = strFromU8(files["src/main/java/com/example/association/services/ClienteProductoService.java"]!);
+    const dto = strFromU8(files["src/main/java/com/example/association/dto/ClienteProductoResponse.java"]!);
+    const repository = strFromU8(files["src/main/java/com/example/association/repositories/ClienteProductoRepository.java"]!);
     expect(paths.filter((path) => path.endsWith("entities/Cliente.java"))).toHaveLength(1); expect(paths.filter((path) => path.endsWith("entities/Producto.java"))).toHaveLength(1); expect(paths.filter((path) => path.endsWith("entities/ClienteProducto.java"))).toHaveLength(1);
     expect(paths).toEqual(expect.arrayContaining(["build.gradle", "settings.gradle", "src/main/java/com/example/association/repositories/ClienteProductoRepository.java", "src/main/java/com/example/association/services/ClienteProductoService.java", "src/main/java/com/example/association/controllers/ClienteProductoController.java"]));
     expect(entity).toContain("@Entity"); expect(entity).toContain("@Table"); expect(entity).toContain("@UniqueConstraint"); expect(entity).toContain("@Id"); expect(entity).toContain("@GeneratedValue(strategy = GenerationType.IDENTITY)"); expect(entity).toContain("Long id"); expect(entity).toContain("@ManyToOne"); expect(entity).toContain('@JoinColumn(name = "cliente_id"'); expect(entity).toContain('@JoinColumn(name = "producto_id"'); expect(entity).not.toContain("@ManyToMany"); expect(entity).not.toContain("@JoinTable");
     expect(strFromU8(files["src/main/java/com/example/association/entities/Cliente.java"]!)).not.toContain("@ManyToMany"); expect(strFromU8(files["src/main/java/com/example/association/entities/Producto.java"]!)).not.toContain("@ManyToMany"); expect(strFromU8(files["src/main/java/com/example/association/repositories/ClienteProductoRepository.java"]!)).toContain("JpaRepository<ClienteProducto, Long>");
+    expect(create).toContain("Long clienteId"); expect(create).toContain("Long productoId"); expect(create).not.toContain("Long id"); expect(update).not.toContain(" id;"); expect(service).not.toContain("entity.setId(request.id())"); expect(dto).toContain("Long id"); expect(repository).toContain("JpaRepository<ClienteProducto, Long>");
   });
 });
