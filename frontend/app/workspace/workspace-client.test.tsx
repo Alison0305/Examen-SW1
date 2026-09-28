@@ -661,7 +661,17 @@ describe("Workspace UML manual", () => {
     const transformed = useWorkspaceStore.getState().document;
     const intermediate = transformed.uml.classes.find((umlClass) => umlClass.name === "Clase1Clase2");
     expect(intermediate).toBeDefined();
-    expect(transformed.uml.relationships).toHaveLength(2);
+    expect(transformed.uml.relationships).toEqual([
+      expect.objectContaining({
+        id: relationshipId,
+        type: "Association",
+        sourceId: transformed.uml.classes[0]!.id,
+        targetId: transformed.uml.classes[1]!.id,
+        sourceMultiplicity: { lower: 0, upper: "unbounded" },
+        targetMultiplicity: { lower: 0, upper: "unbounded" },
+        associationClassId: intermediate?.id,
+      }),
+    ]);
     const intermediateLayout = transformed.layout.elements.find((entry) => entry.elementId === intermediate?.id);
     expect(toReactFlowNodes(transformed).find((node) => node.id === intermediate?.id)?.position).toEqual({ x: intermediateLayout?.x, y: intermediateLayout?.y });
 

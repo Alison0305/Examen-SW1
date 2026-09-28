@@ -28,6 +28,9 @@ const ids = {
   aggregation: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
   manyToMany: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
   clienteProducto: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+  empleado: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+  empleadoRelacion: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+  recursiveManyToMany: "ffffffff-ffff-4fff-8fff-ffffffffffff",
 };
 
 const attribute = (id: string, name: string, type: CanonicalUmlModel["classes"][number]["attributes"][number]["type"], generationMetadata = {}) => ({ id, name, visibility: "private" as const, type, generationMetadata });
@@ -59,9 +62,12 @@ const fixture: CanonicalUmlModel = {
     entity(ids.usuario, "Cliente", [attribute("11111111-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "id", { kind: "primitive", name: "integer" }, { identifier: true })]),
     entity(ids.producto, "Producto", [attribute("44444444-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "id", { kind: "primitive", name: "integer" }, { identifier: true })]),
     entity(ids.clienteProducto, "ClienteProducto", []),
+    entity(ids.empleado, "Empleado", [attribute("12121212-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "id", { kind: "primitive", name: "integer" }, { identifier: true })]),
+    entity(ids.empleadoRelacion, "EmpleadoRelacion", []),
   ],
   relationships: [
     { id: ids.manyToMany, type: "Association", sourceId: ids.usuario, targetId: ids.producto, sourceMultiplicity: { lower: 0, upper: "unbounded" }, targetMultiplicity: { lower: 0, upper: "unbounded" }, associationClassId: ids.clienteProducto },
+    { id: ids.recursiveManyToMany, type: "Association", sourceId: ids.empleado, targetId: ids.empleado, sourceMultiplicity: { lower: 0, upper: "unbounded" }, targetMultiplicity: { lower: 0, upper: "unbounded" }, associationClassId: ids.empleadoRelacion },
   ],
 };
 

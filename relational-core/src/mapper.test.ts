@@ -8,6 +8,29 @@ const entity = (id: string, name: string, keyType: "string" | "integer" = "integ
 function model(): CanonicalUmlModel { return { packages: [], enumerations: [{ id: ids.status, name: "Estado", visibility: "public", literals: ["NUEVO", "ACTIVO"] }], classes: [entity(ids.product, "Producto"), entity(ids.order, "Pedido", "integer", [attribute("99999999-9999-4999-8999-999999999999", "estado", { kind: "reference", referenceType: "enumeration", elementId: ids.status }, { required: true, unique: true, indexed: true })]), entity(ids.profile, "Perfil"), entity(ids.user, "Usuario")], relationships: [] }; }
 
 describe("RelationalMapper", () => {
+  it("desambigua ambas referencias de una N:M recursiva", () => {
+    const input: CanonicalUmlModel = { packages: [], enumerations: [], classes: [entity(ids.user, "Empleado")], relationships: [{ id: ids.relation, type: "Association", sourceId: ids.user, targetId: ids.user, sourceMultiplicity: { lower: 0, upper: "unbounded" }, targetMultiplicity: { lower: 0, upper: "unbounded" } }] };
+    const result = mapToRelationalModel(input);
+    const join = result.tables.find((table) => table.name !== "empleado")!;
+    expect(join.foreignKeys).toEqual(expect.arrayContaining([expect.objectContaining({ column: "source_empleado_id", targetTable: "empleado" }), expect.objectContaining({ column: "target_empleado_id", targetTable: "empleado" })]));
+    expect(join.uniqueConstraints[0]?.columns).toEqual(["source_empleado_id", "target_empleado_id"]);
+    expect(result).toEqual(mapToRelationalModel(structuredClone(input)));
+  });
+  it("reutiliza la Association Class de una N:M recursiva sin join table", () => {
+    const associationClassId = "99999999-9999-4999-8999-999999999999";
+    const input: CanonicalUmlModel = { packages: [], enumerations: [], classes: [entity(ids.user, "Empleado"), { id: associationClassId, name: "EmpleadoRelacion", visibility: "public", attributes: [], operations: [], generationMetadata: { entity: true } }], relationships: [{ id: ids.relation, type: "Association", sourceId: ids.user, targetId: ids.user, sourceMultiplicity: { lower: 0, upper: "unbounded" }, targetMultiplicity: { lower: 0, upper: "unbounded" }, associationClassId }] };
+    const result = mapToRelationalModel(input); const association = result.tables.find((table) => table.name === "empleado_relacion")!;
+    expect(result.tables).toHaveLength(2); expect(association.columns.find((column) => column.name === "id")).toMatchObject({ generated: true });
+    expect(association.foreignKeys).toEqual(expect.arrayContaining([expect.objectContaining({ column: "source_empleado_id", targetTable: "empleado" }), expect.objectContaining({ column: "target_empleado_id", targetTable: "empleado" })]));
+    expect(association.uniqueConstraints[0]?.columns).toEqual(["source_empleado_id", "target_empleado_id"]); expect(result.relations.filter((relation) => relation.cardinality === "MANY_TO_ONE")).toHaveLength(2); expect(result.relations.filter((relation) => relation.cardinality === "MANY_TO_MANY")).toHaveLength(0);
+  });
+  it("deriva la nullability de una FK recursiva del extremo que referencia", () => {
+    const optional: CanonicalUmlModel = { packages: [], enumerations: [], classes: [entity(ids.user, "Empleado")], relationships: [{ id: ids.relation, type: "Association", sourceId: ids.user, targetId: ids.user, sourceMultiplicity: { lower: 0, upper: 1 }, targetMultiplicity: { lower: 1, upper: "unbounded" } }] };
+    const optionalResult = mapToRelationalModel(optional);
+    expect(optionalResult.tables.find((table) => table.name === "empleado")!.columns.find((column) => column.name === "empleado_id")!.nullable).toBe(true);
+    optional.relationships[0].sourceMultiplicity = { lower: 1, upper: 1 };
+    expect(mapToRelationalModel(optional).tables.find((table) => table.name === "empleado")!.columns.find((column) => column.name === "empleado_id")!.nullable).toBe(false);
+  });
   it("reutiliza la tabla de Association Class con PK surrogate, FKs y unique sin mutar UML", () => {
     const associationClassId = "99999999-9999-4999-8999-999999999999";
     const input: CanonicalUmlModel = { packages: [], enumerations: [], classes: [entity(ids.user, "Cliente"), entity(ids.product, "Producto"), { id: associationClassId, name: "ClienteProducto", visibility: "public", attributes: [], operations: [], generationMetadata: { entity: true } }], relationships: [{ id: ids.relation, type: "Association", sourceId: ids.user, targetId: ids.product, sourceMultiplicity: { lower: 0, upper: "unbounded" }, targetMultiplicity: { lower: 0, upper: "unbounded" }, associationClassId }] };

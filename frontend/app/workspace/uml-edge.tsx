@@ -29,10 +29,17 @@ export function UmlRelationshipEdge(props: EdgeProps<UmlReactFlowEdge>) {
     { x: props.sourceX, y: props.sourceY, width: 0, height: 0 },
     { x: props.targetX, y: props.targetY, width: 0, height: 0 },
   );
-  const labelPosition = routeLabelPosition(route);
+  const selfLoop = props.source === props.target;
+  const labelPosition = selfLoop
+    ? { x: props.sourceX + 76, y: props.sourceY - 4 }
+    : routeLabelPosition(route);
   const associationClassPosition = props.data?.associationClassPosition;
   const diamond = relationshipType === "Aggregation" || relationshipType === "Composition" ? calculateDiamondGeometry(route.points[0], route.points[1] ?? route.points[0]) : undefined;
   const visibleRoute = diamond ? { ...route, points: [diamond.lineStart, ...route.points.slice(1)] } : route;
+  const selfLoopPath = `M ${props.sourceX} ${props.sourceY} C ${props.sourceX + 90} ${props.sourceY - 70}, ${props.sourceX + 90} ${props.sourceY + 70}, ${props.sourceX} ${props.sourceY + 30}`;
+  const multiplicityPositions = selfLoop
+    ? { source: { x: props.sourceX + 34, y: props.sourceY - 42 }, target: { x: props.sourceX + 96, y: props.sourceY + 40 } }
+    : routeMultiplicityLabelPositions(visibleRoute);
   const editable = relationshipType !== "Generalization";
   const label = props.data?.label ?? "";
   function saveName() {
@@ -57,7 +64,7 @@ export function UmlRelationshipEdge(props: EdgeProps<UmlReactFlowEdge>) {
         data-testid={`uml-edge-path-${props.id}`}
         className="react-flow__edge-path"
         onDoubleClick={openEditor}
-        d={routePath(visibleRoute)}
+          d={selfLoop ? selfLoopPath : routePath(visibleRoute)}
         fill="none"
         markerEnd={markerEndId ? `url(#${markerEndId})` : undefined}
         style={{
@@ -114,7 +121,7 @@ export function UmlRelationshipEdge(props: EdgeProps<UmlReactFlowEdge>) {
           selected={selected}
           sourceMultiplicityLabel={props.data?.sourceMultiplicityLabel ?? ""}
           targetMultiplicityLabel={props.data?.targetMultiplicityLabel ?? ""}
-          positions={routeMultiplicityLabelPositions(visibleRoute)}
+          positions={multiplicityPositions}
         />
       </EdgeLabelRenderer>
     </>

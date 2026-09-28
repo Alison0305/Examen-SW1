@@ -5,6 +5,14 @@ import { InvalidProjectDocumentError, ProjectsPersistenceService, StaleProjectRe
 const ownerId = "11111111-1111-4111-8111-111111111111";
 
 describe("ProjectsPersistenceService", () => {
+  it("recarga una Association recursiva con multiplicidades independientes", async () => {
+    const relationshipId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const document = createProjectDocument({ id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", now: new Date("2026-09-27T00:00:00.000Z") });
+    document.uml.classes.push({ id: ownerId, name: "Empleado", visibility: "public", attributes: [], operations: [] });
+    document.uml.relationships.push({ id: relationshipId, type: "Association", sourceId: ownerId, targetId: ownerId, sourceMultiplicity: { lower: 0, upper: 1 }, targetMultiplicity: { lower: 0, upper: "unbounded" } });
+    const service = new ProjectsPersistenceService({ project: { findUnique: vi.fn().mockResolvedValue({ id: document.id, document: JSON.parse(JSON.stringify(document)) }) } } as never);
+    await expect(service.findProject(document.id)).resolves.toMatchObject({ document: { uml: { relationships: [expect.objectContaining({ id: relationshipId, sourceId: ownerId, targetId: ownerId, sourceMultiplicity: { lower: 0, upper: 1 }, targetMultiplicity: { lower: 0, upper: "unbounded" } })] } } });
+  });
   it("recarga una association class y su posición movida desde el JSON serializado", async () => {
     const clientId = "44444444-4444-4444-8444-444444444444";
     const productId = "55555555-5555-4555-8555-555555555555";

@@ -329,8 +329,8 @@ export class UmlCommandExecutor {
   private createManyToManyAssociation(document: ProjectDocument, command: Extract<UmlCommand, { type: "CreateManyToManyAssociation" }>, existingAssociation?: UmlRelationship): CommandResult {
     const source = findClass(document.uml, command.sourceId);
     const target = findClass(document.uml, command.targetId);
-    if (!source || !target || source.id === target.id) {
-      return rejected(document, [unknownReference(!source ? command.sourceId : command.targetId, "relationships", "Las clases de la asociación N:M deben existir y ser diferentes.")]);
+    if (!source || !target) {
+      return rejected(document, [unknownReference(!source ? command.sourceId : command.targetId, "relationships", "Las clases de la asociación N:M deben existir.")]);
     }
 
     if (hasIntermediateAssociation(document.uml, source.id, target.id)) {

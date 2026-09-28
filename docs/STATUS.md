@@ -8,11 +8,19 @@
 
 **CU activo:** Ninguno.
 
-**Último correctivo cerrado:** CU-06 — exportación Spring desde workspace.
+**Último correctivo cerrado:** asociación recursiva de clases.
 
 **OpenSpec archivado:** `openspec/changes/archive/2026-09-22-fix-cu-06-export-spring-desde-workspace/`.
 
 El correctivo CU-06 está completo en 9/9. Con el proyecto `Prueba CU06 Backend`, la prueba manual creó Rol y Usuario con asociación 1:N, guardó el `ProjectDocument`, descargó el ZIP mediante `Generar backend` y compiló el contenido extraído con `gradle compileJava --no-daemon`: `BUILD SUCCESSFUL in 16s`. El flujo usa exclusivamente `document.uml` como `CanonicalUmlModel`; `DiagramLayout` sigue siendo visual. El endpoint autenticado entrega el ZIP binario con `FastifyReply.send(zip)`. Las clases manuales sin metadata se proyectan salvo `entity: false` y el atributo `id` es identifier salvo `identifier: false`.
+
+## Cierre De Asociación Recursiva
+
+- Estado: cerrado, archivado y validado manualmente.
+- OpenSpec: `openspec/changes/archive/2026-09-27-feat-recursive-class-association/`.
+- Resultado: una Association puede referir la misma clase, se representa como self-loop, conserva multiplicidades independientes y sigue la ruta de persistencia, realtime y Undo/Redo.
+- Generación: el mapper mantiene el rol propietario para derivar nullability en self associations; `0..1 ↔ 1..*` genera una FK opcional y la API Spring permite crear y actualizar la relación con `null`.
+- Validación: gates de frontend, backend, relational-core, spring-generator y typecheck raíz correctos; ZIP productivo compiló con Gradle y la prueba manual CRUD fue satisfactoria.
 
 ## Cierre De CU-09
 

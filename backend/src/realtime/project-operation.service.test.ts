@@ -44,6 +44,29 @@ function setup(existing: unknown = null, revision = 1) {
 }
 
 describe("ProjectOperationService", () => {
+  it("acepta una Association recursiva sin duplicarla", async () => {
+    const document = createProjectDocument({ id: projectId });
+    document.uml.classes.push({ id: classId, name: "Empleado", visibility: "public", attributes: [], operations: [] });
+    const { service, tx } = setup();
+    tx.project.findUnique.mockResolvedValue({ id: projectId, revision: 1, document });
+    const recursive: UmlCommand = { type: "CreateRelationship", relationshipId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", relationshipType: "Association", sourceId: classId, targetId: classId, sourceMultiplicity: { lower: 0, upper: 1 }, targetMultiplicity: { lower: 0, upper: "unbounded" } };
+    await expect(service.apply(actorId, dto({ command: recursive }))).resolves.toMatchObject({ command: recursive });
+    const persisted = tx.project.updateMany.mock.calls[0][0].data.document as typeof document;
+    expect(persisted.uml.relationships).toEqual([expect.objectContaining({ id: recursive.relationshipId, sourceId: classId, targetId: classId, sourceMultiplicity: recursive.sourceMultiplicity, targetMultiplicity: recursive.targetMultiplicity })]);
+  });
+  it("crea una sola Association Class para una N:M recursiva", async () => {
+    const relationshipId = "abababab-abab-4bab-8bab-abababababab";
+    const associationClassId = "cdcdcdcd-cdcd-4dcd-8dcd-cdcdcdcdcdcd";
+    const document = createProjectDocument({ id: projectId });
+    document.uml.classes.push({ id: classId, name: "Empleado", visibility: "public", attributes: [], operations: [] });
+    document.uml.relationships.push({ id: relationshipId, type: "Association", sourceId: classId, targetId: classId, sourceMultiplicity: { lower: 0, upper: "unbounded" }, targetMultiplicity: { lower: 0, upper: 1 } });
+    const { service, tx } = setup(); tx.project.findUnique.mockResolvedValue({ id: projectId, revision: 1, document });
+    const command: UmlCommand = { type: "UpdateMultiplicity", relationshipId, end: "target", multiplicity: { lower: 0, upper: "unbounded" }, associationClassId };
+    await expect(service.apply(actorId, dto({ command }))).resolves.toMatchObject({ command });
+    const persisted = tx.project.updateMany.mock.calls[0][0].data.document as typeof document;
+    expect(persisted.uml.relationships).toEqual([expect.objectContaining({ id: relationshipId, type: "Association", sourceId: classId, targetId: classId, sourceMultiplicity: { lower: 0, upper: "unbounded" }, targetMultiplicity: { lower: 0, upper: "unbounded" }, associationClassId })]);
+    expect(persisted.uml.classes.filter((entry) => entry.id === associationClassId)).toHaveLength(1);
+  });
   it("persiste una association class con el ID del comando y acepta mover ese mismo elemento", async () => {
     const associationId = "66666666-6666-4666-8666-666666666666";
     const productId = "77777777-7777-4777-8777-777777777777";

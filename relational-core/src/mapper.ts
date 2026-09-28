@@ -121,8 +121,9 @@ function mapRelationship(relationship: UmlRelationship, index: number, tables: M
         addDiagnostic(diagnostics, "error", "REL_INVALID_ASSOCIATION_CLASS", "La Association Class debe referenciar una entidad existente.", path, relationship.associationClassId);
         return;
       }
-      const sourceForeignKey = addForeignKey(associationTable, sourceTable, relationship, path, lifecycle, false, false, diagnostics);
-      const targetForeignKey = addForeignKey(associationTable, targetTable, relationship, path, lifecycle, false, false, diagnostics);
+      const selfReference = sourceTable === targetTable;
+      const sourceForeignKey = addForeignKey(associationTable, sourceTable, relationship, path, lifecycle, false, false, diagnostics, selfReference ? `source_${sourceTable.name}_${sourceTable.primaryKey}` : undefined);
+      const targetForeignKey = addForeignKey(associationTable, targetTable, relationship, path, lifecycle, false, false, diagnostics, selfReference ? `target_${targetTable.name}_${targetTable.primaryKey}` : undefined);
       if (sourceForeignKey && targetForeignKey) {
         const columns = [sourceForeignKey.column, targetForeignKey.column].sort(binary);
         associationTable.uniqueConstraints.push({ name: `uq_${associationTable.name}_${columns.join("_")}`, columns });
@@ -137,12 +138,13 @@ function mapRelationship(relationship: UmlRelationship, index: number, tables: M
   }
   let owner = sourceTable;
   let target = targetTable;
+  let ownerIsSource = true;
   let cardinality: RelationalCardinality = "ONE_TO_ONE";
   if (sourceMany) cardinality = "MANY_TO_ONE";
-  else if (targetMany) { owner = targetTable; target = sourceTable; cardinality = "ONE_TO_MANY"; }
-  else if (relationship.foreignKeyOwner === "TARGET") { owner = targetTable; target = sourceTable; }
+  else if (targetMany) { owner = targetTable; target = sourceTable; ownerIsSource = false; cardinality = "ONE_TO_MANY"; }
+  else if (relationship.foreignKeyOwner === "TARGET") { owner = targetTable; target = sourceTable; ownerIsSource = false; }
   else if (relationship.foreignKeyOwner !== "SOURCE") addDiagnostic(diagnostics, "warning", "REL_ONE_TO_ONE_OWNER_FALLBACK", "La relación 1:1 no define propietario; se usa SOURCE de forma determinista.", path, relationship.id);
-  const nullable = owner === sourceTable ? relationship.targetMultiplicity.lower === 0 : relationship.sourceMultiplicity.lower === 0;
+  const nullable = ownerIsSource ? relationship.targetMultiplicity.lower === 0 : relationship.sourceMultiplicity.lower === 0;
   const foreignKey = addForeignKey(owner, target, relationship, path, lifecycle, cardinality === "ONE_TO_ONE", nullable, diagnostics);
   relations.push({ source: source(relationship.id, path), cardinality, sourceTable: sourceTable.name, targetTable: targetTable.name, foreignKey: foreignKey?.name, lifecycle });
 }
@@ -162,8 +164,9 @@ function addJoinTable(name: string, relationship: UmlRelationship, path: string,
   }
   const join: MutableTable = { source: source(relationship.id, path), name, columns: [], uniqueConstraints: [], indexes: [], foreignKeys: [], crud: { create: false, read: false, update: false, delete: false }, readOnly: true, resourceName: name };
   tables.set(`join:${relationship.id}`, join);
-  const sourceForeignKey = addForeignKey(join, sourceTable, relationship, path, lifecycle, false, false, diagnostics, `${sourceTable.name}_${sourceKey.name}`);
-  const targetForeignKey = addForeignKey(join, targetTable, relationship, path, lifecycle, false, false, diagnostics, `${targetTable.name}_${targetKey.name}`);
+  const selfReference = sourceTable === targetTable;
+  const sourceForeignKey = addForeignKey(join, sourceTable, relationship, path, lifecycle, false, false, diagnostics, selfReference ? `source_${sourceTable.name}_${sourceKey.name}` : `${sourceTable.name}_${sourceKey.name}`);
+  const targetForeignKey = addForeignKey(join, targetTable, relationship, path, lifecycle, false, false, diagnostics, selfReference ? `target_${targetTable.name}_${targetKey.name}` : `${targetTable.name}_${targetKey.name}`);
   if (sourceForeignKey && targetForeignKey) {
     const columns = [sourceForeignKey.column, targetForeignKey.column].sort(binary);
     join.uniqueConstraints.push({ name: `uq_${name}_${columns.join("_")}`, columns });

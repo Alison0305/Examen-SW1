@@ -13,7 +13,7 @@ import {{basePackage}}.entities.{{entityName}};
 import {{basePackage}}.enums.*;
 {{/if}}
 import {{basePackage}}.repositories.{{entityName}}Repository;
-{{#each relationFields}}import {{../basePackage}}.repositories.{{repositoryType}};
+{{#each repositoryDependencies}}import {{../basePackage}}.repositories.{{repositoryType}};
 {{/each}}import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -32,18 +32,18 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class {{entityName}}Service {
     private final {{entityName}}Repository repository;
-{{#each relationFields}}    private final {{repositoryType}} {{name}}Repository;
+{{#each repositoryDependencies}}    private final {{repositoryType}} {{repositoryVariable}};
 {{/each}}
-    public {{entityName}}Service({{entityName}}Repository repository{{#each relationFields}}, {{repositoryType}} {{name}}Repository{{/each}}) {
+    public {{entityName}}Service({{entityName}}Repository repository{{#each repositoryDependencies}}, {{repositoryType}} {{repositoryVariable}}{{/each}}) {
         this.repository = repository;
-{{#each relationFields}}        this.{{name}}Repository = {{name}}Repository;
+{{#each repositoryDependencies}}        this.{{repositoryVariable}} = {{repositoryVariable}};
 {{/each}}    }
 
     @Transactional
     public {{entityName}}Response create(Create{{entityName}}Request request) {
         {{entityName}} entity = new {{entityName}}();
-{{#each createFields}}        {{#if relation}}{{#if required}}entity.set{{accessor}}({{name}}Repository.findById(request.{{name}}()).orElseThrow(() -> new ApiException(400, "INVALID_RELATION", "La relación {{name}} no existe.")));
-{{else}}entity.set{{accessor}}(request.{{name}}() == null ? null : {{name}}Repository.findById(request.{{name}}()).orElseThrow(() -> new ApiException(400, "INVALID_RELATION", "La relación {{name}} no existe.")));
+{{#each createFields}}        {{#if relation}}{{#if required}}entity.set{{accessor}}({{repositoryVariable}}.findById(request.{{name}}()).orElseThrow(() -> new ApiException(400, "INVALID_RELATION", "La relación {{name}} no existe.")));
+{{else}}entity.set{{accessor}}(request.{{name}}() == null ? null : {{repositoryVariable}}.findById(request.{{name}}()).orElseThrow(() -> new ApiException(400, "INVALID_RELATION", "La relación {{name}} no existe.")));
 {{/if}}
 {{else}}        entity.set{{accessor}}(request.{{name}}());
 {{/if}}{{/each}}        return response(repository.save(entity));
@@ -56,7 +56,7 @@ public class {{entityName}}Service {
         {{entityName}} entity = entity(id);
 {{#each fields}}        if (request.get{{accessor}}().isPresent()) {
             {{#if required}}if (request.get{{accessor}}().value() == null) throw new ApiException(400, "BAD_REQUEST", "{{name}} no puede ser null.");
-            {{/if}}{{#if relation}}entity.set{{accessor}}(request.get{{accessor}}().value() == null ? null : {{name}}Repository.findById(request.get{{accessor}}().value()).orElseThrow(() -> new ApiException(400, "INVALID_RELATION", "La relación {{name}} no existe.")));
+            {{/if}}{{#if relation}}entity.set{{accessor}}(request.get{{accessor}}().value() == null ? null : {{repositoryVariable}}.findById(request.get{{accessor}}().value()).orElseThrow(() -> new ApiException(400, "INVALID_RELATION", "La relación {{name}} no existe.")));
             {{else}}entity.set{{accessor}}(request.get{{accessor}}().value());
             {{/if}}
         }

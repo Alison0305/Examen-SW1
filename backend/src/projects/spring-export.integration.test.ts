@@ -78,6 +78,18 @@ function associationClassDocument(): ProjectDocument {
   return document;
 }
 
+function recursiveAssociationClassDocument(): ProjectDocument {
+  const document = createProjectDocument({ id: projectId, now: new Date("2026-09-27T00:00:00.000Z") });
+  const empleadoId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const associationClassId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  document.uml.classes.push(
+    { id: empleadoId, name: "Empleado", visibility: "public", generationMetadata: { entity: true }, operations: [], attributes: [{ id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", name: "id", visibility: "private", type: { kind: "primitive", name: "integer" }, generationMetadata: { identifier: true } }] },
+    { id: associationClassId, name: "EmpleadoRelacion", visibility: "public", generationMetadata: { entity: true }, operations: [], attributes: [] },
+  );
+  document.uml.relationships.push({ id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", type: "Association", sourceId: empleadoId, targetId: empleadoId, sourceMultiplicity: { lower: 0, upper: "unbounded" }, targetMultiplicity: { lower: 0, upper: "unbounded" }, associationClassId });
+  return document;
+}
+
 async function writeZipContents(files: Record<string, Uint8Array>): Promise<void> {
   await rm(outputRoot, { recursive: true, force: true });
   for (const [path, content] of Object.entries(files)) {
@@ -224,5 +236,17 @@ describe("Spring export persisted ProjectDocument integration", () => {
     expect(entity).toContain("@Entity"); expect(entity).toContain("@Table"); expect(entity).toContain("@UniqueConstraint"); expect(entity).toContain("@Id"); expect(entity).toContain("@GeneratedValue(strategy = GenerationType.IDENTITY)"); expect(entity).toContain("Long id"); expect(entity).toContain("@ManyToOne"); expect(entity).toContain('@JoinColumn(name = "cliente_id"'); expect(entity).toContain('@JoinColumn(name = "producto_id"'); expect(entity).not.toContain("@ManyToMany"); expect(entity).not.toContain("@JoinTable");
     expect(strFromU8(files["src/main/java/com/example/association/entities/Cliente.java"]!)).not.toContain("@ManyToMany"); expect(strFromU8(files["src/main/java/com/example/association/entities/Producto.java"]!)).not.toContain("@ManyToMany"); expect(strFromU8(files["src/main/java/com/example/association/repositories/ClienteProductoRepository.java"]!)).toContain("JpaRepository<ClienteProducto, Long>");
     expect(create).toContain("Long clienteId"); expect(create).toContain("Long productoId"); expect(create).not.toContain("Long id"); expect(update).not.toContain(" id;"); expect(service).not.toContain("entity.setId(request.id())"); expect(dto).toContain("Long id"); expect(repository).toContain("JpaRepository<ClienteProducto, Long>");
+  });
+
+  it("exporta una Association Class recursiva mediante el endpoint", async () => {
+    let stored: Record<string, unknown> | null = null;
+    const prisma = { project: { create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => (stored = { ...data, id: projectId, revision: 1, createdAt: new Date(), updatedAt: new Date() })), findUnique: vi.fn(async () => stored) } };
+    const persistence = new ProjectsPersistenceService(prisma as never); const access = { requireView: vi.fn().mockResolvedValue("OWNER") };
+    await persistence.createProject(userId, "Recursive Association", recursiveAssociationClassDocument());
+    const module = await Test.createTestingModule({ controllers: [SpringExportController], providers: [SpringExportService, { provide: ProjectsPersistenceService, useValue: persistence }, { provide: ProjectAccessService, useValue: access }] }).overrideGuard(JwtAuthGuard).useValue({ canActivate(context: { switchToHttp(): { getRequest(): { authenticatedUser?: { id: string } } } }) { context.switchToHttp().getRequest().authenticatedUser = { id: userId }; return true; } }).compile(); app = module.createNestApplication<NestFastifyApplication>(new FastifyAdapter()); await app.init(); await app.getHttpAdapter().getInstance().ready();
+    const response = await request(app.getHttpServer()).post(`/projects/${projectId}/exports/spring`).send({ basePackage: "com.example.recursive" }).buffer(true).parse((source, callback) => { const chunks: Buffer[] = []; source.on("data", (chunk: Buffer) => chunks.push(chunk)); source.on("end", () => callback(null, Buffer.concat(chunks))); }).expect("Content-Type", /application\/zip/).expect(200);
+    const files = filesFrom(response.body); await writeZipContents(files);
+    const entity = strFromU8(files["src/main/java/com/example/recursive/entities/EmpleadoRelacion.java"]!); const create = strFromU8(files["src/main/java/com/example/recursive/dto/CreateEmpleadoRelacionRequest.java"]!); const update = strFromU8(files["src/main/java/com/example/recursive/dto/UpdateEmpleadoRelacionRequest.java"]!); const service = strFromU8(files["src/main/java/com/example/recursive/services/EmpleadoRelacionService.java"]!); const dto = strFromU8(files["src/main/java/com/example/recursive/dto/EmpleadoRelacionResponse.java"]!); const repository = strFromU8(files["src/main/java/com/example/recursive/repositories/EmpleadoRelacionRepository.java"]!);
+    expect(entity).toContain('@JoinColumn(name = "source_empleado_id"'); expect(entity).toContain('@JoinColumn(name = "target_empleado_id"'); expect(entity).toContain("@GeneratedValue(strategy = GenerationType.IDENTITY)"); expect(create).toContain("Long sourceEmpleadoId"); expect(create).toContain("Long targetEmpleadoId"); expect(create).not.toContain("Long id"); expect(update).not.toContain(" id;"); expect(dto).toContain("Long id"); expect(service).toContain("EmpleadoRepository empleadoRepository"); expect(service).toContain("empleadoRepository.findById(request.sourceEmpleadoId())"); expect(service).toContain("empleadoRepository.findById(request.targetEmpleadoId())"); expect(service).not.toContain("sourceEmpleadoIdRepository"); expect(repository).toContain("JpaRepository<EmpleadoRelacion, Long>");
   });
 });

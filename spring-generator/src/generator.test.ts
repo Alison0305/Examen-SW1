@@ -17,6 +17,13 @@ const model: RelationalModel = {
 };
 
 describe("SpringBackendGenerator", () => {
+  it("deduplica el repository de una Association Class recursiva", () => {
+    const recursive: RelationalModel = { tables: [{ source, name: "empleado", primaryKey: "id", columns: [{ source, name: "id", type: "BIGINT", nullable: false, identifier: true, unique: false }], uniqueConstraints: [], indexes: [], foreignKeys: [] }, { source, name: "empleado_relacion", primaryKey: "id", columns: [{ source, name: "id", type: "BIGINT", nullable: false, identifier: true, generated: true, unique: false }, { source, name: "source_empleado_id", type: "BIGINT", nullable: false, identifier: false, unique: false }, { source, name: "target_empleado_id", type: "BIGINT", nullable: false, identifier: false, unique: false }], uniqueConstraints: [{ name: "uq_empleado_relacion_source_target", columns: ["source_empleado_id", "target_empleado_id"] }], indexes: [], foreignKeys: [{ source, name: "fk_empleado_relacion_source", column: "source_empleado_id", targetTable: "empleado", targetColumn: "id", lifecycle: "NONE" }, { source, name: "fk_empleado_relacion_target", column: "target_empleado_id", targetTable: "empleado", targetColumn: "id", lifecycle: "NONE" }] }], enums: [], relations: [{ source, cardinality: "MANY_TO_ONE", sourceTable: "empleado_relacion", targetTable: "empleado", foreignKey: "fk_empleado_relacion_source", lifecycle: "NONE" }, { source, cardinality: "MANY_TO_ONE", sourceTable: "empleado_relacion", targetTable: "empleado", foreignKey: "fk_empleado_relacion_target", lifecycle: "NONE" }], diagnostics: [], hasErrors: false, success: true };
+    const files = generateSpringBackend(recursive); const content = (path: string) => files.find((file) => file.path.endsWith(path))!.content;
+    expect(content("entities/EmpleadoRelacion.java")).toContain('@JoinColumn(name = "source_empleado_id"'); expect(content("entities/EmpleadoRelacion.java")).toContain('@JoinColumn(name = "target_empleado_id"'); expect(content("entities/EmpleadoRelacion.java")).toContain("@GeneratedValue(strategy = GenerationType.IDENTITY)");
+    expect(content("dto/CreateEmpleadoRelacionRequest.java")).toContain("Long sourceEmpleadoId"); expect(content("dto/CreateEmpleadoRelacionRequest.java")).toContain("Long targetEmpleadoId"); expect(content("dto/CreateEmpleadoRelacionRequest.java")).not.toContain("Long id"); expect(content("dto/UpdateEmpleadoRelacionRequest.java")).not.toContain(" id;"); expect(content("dto/EmpleadoRelacionResponse.java")).toContain("Long id");
+    const service = content("services/EmpleadoRelacionService.java"); expect((service.match(/EmpleadoRepository empleadoRepository/g) ?? [])).toHaveLength(2); expect(service).toContain("empleadoRepository.findById(request.sourceEmpleadoId())"); expect(service).toContain("empleadoRepository.findById(request.targetEmpleadoId())"); expect(service).not.toContain("sourceEmpleadoIdRepository"); expect(service).not.toContain("entity.setId(request.id())"); expect(content("repositories/EmpleadoRelacionRepository.java")).toContain("JpaRepository<EmpleadoRelacion, Long>");
+  });
   it("genera una Association Class explícita con identidad surrogate, unique y dos ManyToOne", () => {
     const association: RelationalModel = { tables: [
       { source, name: "cliente", primaryKey: "id", columns: [{ source, name: "id", type: "BIGINT", nullable: false, identifier: true, unique: false }], uniqueConstraints: [], indexes: [], foreignKeys: [] },
@@ -105,8 +112,8 @@ describe("SpringBackendGenerator", () => {
     expect(content("dto/UpdatePedidoRequest.java")).toContain("PatchField<Long> usuarioId");
     expect(content("dto/PedidoResponse.java")).toContain("Long usuarioId");
     expect(content("dto/PatchField.java")).toContain("boolean present");
-    expect(content("services/PedidoService.java")).toContain("UsuarioRepository usuarioIdRepository");
-    expect(content("services/PedidoService.java")).toContain("usuarioIdRepository.findById");
+    expect(content("services/PedidoService.java")).toContain("UsuarioRepository usuarioRepository");
+    expect(content("services/PedidoService.java")).toContain("usuarioRepository.findById");
     expect(content("services/PedidoService.java")).toContain("repository.count(specification(filter, q))");
     expect(content("services/PedidoService.java")).toContain("import org.springframework.transaction.annotation.Transactional;");
     expect(content("services/PedidoService.java")).toContain("@Transactional(readOnly = true)");
@@ -195,8 +202,8 @@ describe("SpringBackendGenerator", () => {
     const service = files.find((file) => file.path.endsWith("services/PedidoService.java"))!.content;
     const create = files.find((file) => file.path.endsWith("dto/CreatePedidoRequest.java"))!.content;
     expect(create).not.toContain("@NotNull Long usuarioId");
-    expect(service).toContain("request.usuarioId() == null ? null : usuarioIdRepository.findById(request.usuarioId())");
-    expect(service).toContain("request.getUsuarioId().value() == null ? null : usuarioIdRepository.findById(request.getUsuarioId().value())");
+    expect(service).toContain("request.usuarioId() == null ? null : usuarioRepository.findById(request.usuarioId())");
+    expect(service).toContain("request.getUsuarioId().value() == null ? null : usuarioRepository.findById(request.getUsuarioId().value())");
     expect(service).not.toContain("usuarioId no puede ser null.");
   });
 
