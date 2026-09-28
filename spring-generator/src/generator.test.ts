@@ -55,7 +55,7 @@ describe("SpringBackendGenerator", () => {
     expect(Object.isFrozen(first)).toBe(true);
     expect(Object.isFrozen(first[0])).toBe(true);
     expect(first.map((file) => file.path)).toEqual([...first.map((file) => file.path)].sort());
-    expect(first).toHaveLength(31);
+    expect(first).toHaveLength(32);
   });
 
   it("genera Gradle, configuración y estructura Spring Boot 4.1.1 con Java 21", () => {
@@ -66,12 +66,21 @@ describe("SpringBackendGenerator", () => {
     expect(content("build.gradle")).toContain("spring-boot-starter-webmvc");
     expect(content("build.gradle")).toContain("spring-boot-starter-data-jpa");
     expect(content("build.gradle")).toContain("spring-boot-starter-validation");
-    expect(content("build.gradle")).toContain("springdoc-openapi-starter-webmvc-api:3.1.1");
+    expect(content("build.gradle")).toContain("springdoc-openapi-starter-webmvc-ui:3.1.1");
+    expect(content("build.gradle")).not.toContain("springdoc-openapi-starter-webmvc-api:3.1.1");
     expect(content("build.gradle")).toContain("org.postgresql:postgresql");
+    expect(content("build.gradle")).toContain("com.h2database:h2");
     expect(content("build.gradle")).toContain("org.testcontainers:testcontainers-junit-jupiter:2.0.5");
     expect(content("build.gradle")).toContain("org.testcontainers:testcontainers-postgresql:2.0.5");
     expect(content("settings.gradle")).toBe('rootProject.name = "generated-backend"\n');
     expect(content("src/main/resources/application.properties")).toContain("app.cors.allowed-origin=${APP_CORS_ALLOWED_ORIGIN:http://localhost:3000}");
+    expect(content("src/main/resources/application.properties")).toContain("springdoc.swagger-ui.path=/swagger-ui.html");
+    expect(content("src/main/resources/application.properties")).not.toContain("jdbc:h2:");
+    expect(content("src/main/resources/application-demo.properties")).toContain("jdbc:h2:mem:generated;MODE=PostgreSQL");
+    expect(content("src/main/resources/application-demo.properties")).toContain("spring.datasource.username=sa");
+    expect(content("src/main/resources/application-demo.properties")).toContain("spring.datasource.password=\n");
+    expect(content("src/main/resources/application-demo.properties")).toContain("spring.jpa.hibernate.ddl-auto=create-drop");
+    expect(content("src/main/resources/application-demo.properties")).toContain("org.hibernate.dialect.H2Dialect");
     const cors = content("src/main/java/com/examen/sw1/generated/config/CorsConfig.java")!;
     expect(cors).toContain('addMapping("/api/v1/**")'); expect(cors).toContain('allowedOrigins(allowedOrigin)'); expect(cors).toContain('"GET", "POST", "PATCH", "DELETE", "OPTIONS"'); expect(cors).not.toContain('allowedOrigins("*")');
     expect(content("src/test/resources/application-test.properties")).toBe("spring.jpa.hibernate.ddl-auto=create-drop\n");

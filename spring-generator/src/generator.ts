@@ -31,6 +31,7 @@ export function generateSpringBackend(model: RelationalModel, config: SpringGene
     file("settings.gradle", render(templates.settings, config)),
     file("build.gradle", render(templates.build, config)),
     file("src/main/resources/application.properties", render(templates.properties, config)),
+    file("src/main/resources/application-demo.properties", render(templates.demoProperties, config)),
     file("src/test/resources/application-test.properties", render(templates.testProperties, config)),
     file(`${base}/${config.applicationClass}.java`, render(templates.application, config)),
     file(`${base}/config/CorsConfig.java`, render(templates.corsConfig, { basePackage: config.basePackage })),

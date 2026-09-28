@@ -154,6 +154,11 @@ describe("Spring export persisted ProjectDocument integration", () => {
     expect(strFromU8(original[rolePath]!)).toContain('@OneToMany(mappedBy = "rolId")');
     expect(strFromU8(original[userPath]!)).toContain("@ManyToOne");
     expect(strFromU8(original[userPath]!)).toContain('@JoinColumn(name = "rol_id", referencedColumnName = "id", nullable = false)');
+    expect(strFromU8(original["build.gradle"]!)).toContain("springdoc-openapi-starter-webmvc-ui:3.1.1");
+    expect(strFromU8(original["build.gradle"]!)).toContain("com.h2database:h2");
+    expect(strFromU8(original["build.gradle"]!)).not.toContain("springdoc-openapi-starter-webmvc-api:3.1.1");
+    expect(strFromU8(original["src/main/resources/application.properties"]!)).toContain("springdoc.swagger-ui.path=/swagger-ui.html");
+    expect(strFromU8(original["src/main/resources/application-demo.properties"]!)).toContain("jdbc:h2:mem:generated;MODE=PostgreSQL");
     expect(access.requireView).toHaveBeenCalledWith(projectId, userId);
 
     const layoutChanged = structuredClone(document);
