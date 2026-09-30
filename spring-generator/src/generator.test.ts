@@ -55,7 +55,7 @@ describe("SpringBackendGenerator", () => {
     expect(Object.isFrozen(first)).toBe(true);
     expect(Object.isFrozen(first[0])).toBe(true);
     expect(first.map((file) => file.path)).toEqual([...first.map((file) => file.path)].sort());
-    expect(first).toHaveLength(32);
+    expect(first).toHaveLength(35);
   });
 
   it("genera Gradle, configuración y estructura Spring Boot 4.1.1 con Java 21", () => {
@@ -81,6 +81,13 @@ describe("SpringBackendGenerator", () => {
     expect(content("src/main/resources/application-demo.properties")).toContain("spring.datasource.password=\n");
     expect(content("src/main/resources/application-demo.properties")).toContain("spring.jpa.hibernate.ddl-auto=create-drop");
     expect(content("src/main/resources/application-demo.properties")).toContain("org.hibernate.dialect.H2Dialect");
+    expect(content("compose.yaml")).toContain("POSTGRES_DB: generated");
+    expect(content("compose.yaml")).toContain('"5433:5432"');
+    expect(content("compose.yaml")).toContain("pg_isready");
+    expect(content("src/main/resources/application-docker.properties")).toContain("jdbc:postgresql://localhost:5433/generated");
+    expect(content("src/main/resources/application-docker.properties")).toContain("spring.jpa.hibernate.ddl-auto=create");
+    expect(content("README.md")).toContain("docker compose up -d");
+    expect(content("README.md")).toContain("--spring.profiles.active=docker");
     const cors = content("src/main/java/com/examen/sw1/generated/config/CorsConfig.java")!;
     expect(cors).toContain('addMapping("/api/v1/**")'); expect(cors).toContain('allowedOrigins(allowedOrigin)'); expect(cors).toContain('"GET", "POST", "PATCH", "DELETE", "OPTIONS"'); expect(cors).not.toContain('allowedOrigins("*")');
     expect(content("src/test/resources/application-test.properties")).toBe("spring.jpa.hibernate.ddl-auto=create-drop\n");

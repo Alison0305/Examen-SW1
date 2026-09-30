@@ -159,6 +159,10 @@ describe("Spring export persisted ProjectDocument integration", () => {
     expect(strFromU8(original["build.gradle"]!)).not.toContain("springdoc-openapi-starter-webmvc-api:3.1.1");
     expect(strFromU8(original["src/main/resources/application.properties"]!)).toContain("springdoc.swagger-ui.path=/swagger-ui.html");
     expect(strFromU8(original["src/main/resources/application-demo.properties"]!)).toContain("jdbc:h2:mem:generated;MODE=PostgreSQL");
+    expect(strFromU8(original["compose.yaml"]!)).toContain("POSTGRES_DB: generated");
+    expect(strFromU8(original["compose.yaml"]!)).toContain('"5433:5432"');
+    expect(strFromU8(original["src/main/resources/application-docker.properties"]!)).toContain("jdbc:postgresql://localhost:5433/generated");
+    expect(strFromU8(original["README.md"]!)).toContain("docker compose up -d");
     expect(access.requireView).toHaveBeenCalledWith(projectId, userId);
 
     const layoutChanged = structuredClone(document);

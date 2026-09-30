@@ -1,0 +1,45 @@
+# Backend Spring generado
+
+## Requisitos
+
+Desde PowerShell, confirme que Docker Desktop está iniciado:
+
+```powershell
+docker info
+```
+
+## PostgreSQL con Docker
+
+En esta carpeta ejecute:
+
+```powershell
+docker compose up -d
+```
+
+Espere hasta que el servicio `postgres` indique `healthy`. Docker crea automáticamente la base `generated` y guarda sus datos en un volumen. No se necesita pgAdmin ni una instalación local de PostgreSQL. El perfil Docker usa `spring.jpa.hibernate.ddl-auto=create`, por lo que Hibernate puede recrear las tablas al reiniciar Spring; no use este perfil para conservar datos de prueba entre reinicios.
+
+## Arrancar Spring
+
+```powershell
+gradle bootRun --args="--spring.profiles.active=docker"
+```
+
+Abra Swagger UI en http://localhost:8080/swagger-ui.html y el documento OpenAPI en http://localhost:8080/v3/api-docs. Use Postman contra los endpoints `/api/v1/**` descritos por Swagger.
+
+## Detener o reiniciar
+
+Detenga Spring con `Ctrl+C` y luego ejecute:
+
+```powershell
+docker compose down
+```
+
+Para reiniciar el entorno ejecute de nuevo `docker compose up -d`. Para borrar también el volumen de PostgreSQL use `docker compose down -v`.
+
+## Modo demo sin Docker
+
+Para H2 temporal en memoria:
+
+```powershell
+gradle bootRun --args="--spring.profiles.active=demo"
+```
