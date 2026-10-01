@@ -20,7 +20,7 @@ const realtime = vi.hoisted(() => ({
 }));
 const client = {
   login: vi.fn(), register: vi.fn(), me: vi.fn(), listProjects: vi.fn(), createProject: vi.fn(), renameProject: vi.fn(), deleteProject: vi.fn(), getProject: vi.fn(), saveProject: vi.fn(),
-  exportSpring: vi.fn(),
+  exportSpring: vi.fn(), exportFrontend: vi.fn(),
 };
 
 vi.mock("next/navigation", () => ({
@@ -305,6 +305,35 @@ describe("ruta de workspace persistido", () => {
     expect(screen.queryByText("detalle interno")).not.toBeInTheDocument();
     expect(createObjectURL).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Generar backend" })).toBeEnabled();
+  });
+
+  it("prepara y descarga frontend.zip sin abrir el diálogo de backend", async () => {
+    const detail = createProjectDetailFixture({ id: "project-1" });
+    const blob = new Blob(["zip"], { type: "application/zip" });
+    const createObjectURL = vi.fn(() => "blob:frontend"); const revokeObjectURL = vi.fn(); const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    vi.stubGlobal("URL", { createObjectURL, revokeObjectURL });
+    client.exportFrontend.mockResolvedValue({ blob, filename: "frontend.zip" });
+    sessionStorage.setItem("examen-sw1.access-token", "test-token"); client.me.mockResolvedValue({ id: "user-1", email: "user@example.test" }); client.getProject.mockResolvedValue(detail);
+    render(<SessionProvider client={{ login: client.login, register: client.register, me: client.me }}><PersistedWorkspacePage /></SessionProvider>);
+    fireEvent.click(await screen.findByRole("button", { name: "Preparar interfaz" }));
+    await waitFor(() => expect(client.exportFrontend).toHaveBeenCalledWith("project-1"));
+    expect(createObjectURL).toHaveBeenCalledWith(blob); expect(click).toHaveBeenCalledOnce(); expect(revokeObjectURL).toHaveBeenCalledWith("blob:frontend"); expect(screen.queryByRole("dialog", { name: "Generar backend" })).not.toBeInTheDocument();
+    click.mockRestore();
+  });
+
+  it("evita doble preparación mientras la exportación frontend está pendiente", async () => {
+    const detail = createProjectDetailFixture({ id: "project-1" }); let resolve!: (value: { blob: Blob; filename: string }) => void;
+    client.exportFrontend.mockReturnValue(new Promise((done) => { resolve = done; })); sessionStorage.setItem("examen-sw1.access-token", "test-token"); client.me.mockResolvedValue({ id: "user-1", email: "user@example.test" }); client.getProject.mockResolvedValue(detail);
+    render(<SessionProvider client={{ login: client.login, register: client.register, me: client.me }}><PersistedWorkspacePage /></SessionProvider>);
+    const button = await screen.findByRole("button", { name: "Preparar interfaz" }); fireEvent.click(button); expect(button).toBeDisabled(); fireEvent.click(button); expect(client.exportFrontend).toHaveBeenCalledOnce();
+    await act(async () => { resolve({ blob: new Blob(["zip"]), filename: "frontend.zip" }); });
+  });
+
+  it.each([[401, "Tu sesión expiró. Inicia sesión nuevamente."], [403, "No tienes permiso para preparar la interfaz de este proyecto."], [404, "Proyecto no encontrado o no disponible."], [500, "No fue posible preparar la interfaz."]] as const)("muestra error seguro para export frontend HTTP %s", async (status, message) => {
+    const detail = createProjectDetailFixture({ id: "project-1" }); const createObjectURL = vi.fn(); vi.stubGlobal("URL", { createObjectURL, revokeObjectURL: vi.fn() }); client.exportFrontend.mockRejectedValue(new ApiError(status, "detalle interno")); sessionStorage.setItem("examen-sw1.access-token", "test-token"); client.me.mockResolvedValue({ id: "user-1", email: "user@example.test" }); client.getProject.mockResolvedValue(detail);
+    render(<SessionProvider client={{ login: client.login, register: client.register, me: client.me }}><PersistedWorkspacePage /></SessionProvider>);
+    fireEvent.click(await screen.findByRole("button", { name: "Preparar interfaz" }));
+    expect(await screen.findByText(message)).toBeInTheDocument(); expect(screen.queryByText("detalle interno")).not.toBeInTheDocument(); expect(createObjectURL).not.toHaveBeenCalled();
   });
 
   it.each(["OWNER", "EDITOR"] as const)("permite mover y guardar un nodo para %s", async (accessRole) => {

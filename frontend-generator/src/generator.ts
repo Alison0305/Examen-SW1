@@ -1,7 +1,9 @@
 import Handlebars from "handlebars";
 import type { FrontendGeneratorInput, GeneratedFile } from "./model.js";
+import type { StandaloneCrudGeneratorInput } from "./model.js";
 import { deriveMutableFields } from "./mutable-fields.js";
 import { templates } from "./templates.js";
+import { deriveStandaloneMutableFields } from "./standalone-mutable-fields.js";
 
 const binary = (left: string, right: string): number => left === right ? 0 : left < right ? -1 : 1;
 const render = (template: string, view: object): string => Handlebars.compile(template, { noEscape: true })(view).replace(/\r\n/g, "\n");
@@ -27,6 +29,16 @@ export function generateFrontend(input: FrontendGeneratorInput): readonly Genera
     { path: "app/domain.ts", content: render(templates.domain, { manifestJson }) },
   ].map((file) => Object.freeze(file)).sort((left, right) => binary(left.path, right.path));
   return Object.freeze(files);
+}
+
+export function generateStandaloneCrudFrontend(input: StandaloneCrudGeneratorInput): readonly GeneratedFile[] {
+  if (input.domainManifest.schemaVersion !== 1) throw new Error("Solo se admite Domain Manifest v1.");
+  const tables = new Set(input.relationalModel.tables.map((table) => table.name));
+  if (input.domainManifest.entities.some((entity) => !tables.has(entity.name))) throw new Error("El Manifest contiene entidades fuera del modelo relacional.");
+  const manifestJson = JSON.stringify({ schemaVersion: 1, entities: [...input.domainManifest.entities].sort((left, right) => binary(left.name, right.name)).map((entity) => ({ ...entity, ...deriveStandaloneMutableFields(input.relationalModel.tables.find((table) => table.name === entity.name)!) })) }, null, 2);
+  return Object.freeze([
+    { path: ".gitignore", content: render(templates.gitignore, {}) }, { path: ".env.example", content: render(templates.envExample, {}) }, { path: "package.json", content: render(templates.standalonePackage, {}) }, { path: "tsconfig.json", content: render(templates.tsconfig, {}) }, { path: "next.config.ts", content: render(templates.config, {}) }, { path: "capacitor.config.ts", content: render(templates.capacitorConfig, {}) }, { path: "scripts/configure-android.mjs", content: render(templates.androidSetup, {}) }, { path: "app/layout.tsx", content: render(templates.layout, {}) }, { path: "app/page.tsx", content: render(templates.standalonePage, {}) }, { path: "app/api.ts", content: render(templates.api, {}) }, { path: "app/domain.ts", content: render(templates.domain, { manifestJson }) },
+  ].map((file) => Object.freeze(file)).sort((left, right) => binary(left.path, right.path)));
 }
 
 function validateInput(input: FrontendGeneratorInput): void {

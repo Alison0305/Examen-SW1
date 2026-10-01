@@ -10,7 +10,8 @@
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:generated-frontend": "npm run build && node ./dist/generated-frontend-smoke.js"
+    "test:generated-frontend": "npm run build && node ./dist/generated-frontend-smoke.js",
+    "test:standalone-smoke": "npm run build && node ./dist/standalone-frontend-smoke.js"
   },
   "dependencies": {
     "@examen-sw1/relational-core": "*",

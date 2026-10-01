@@ -10,6 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@examen-sw1/frontend-generator": "^0.0.0",
     "@examen-sw1/relational-core": "^0.0.0",
     "@examen-sw1/spring-generator": "^0.0.0",
     "@examen-sw1/uml-core": "file:../uml-core",

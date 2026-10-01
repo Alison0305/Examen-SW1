@@ -9,4 +9,5 @@ export type OpenApiSchema = Readonly<{ $ref?: string; type?: string; properties?
 export type OpenApiOperation = Readonly<{ operationId?: string; requestBody?: Readonly<{ content?: Readonly<{ "application/json"?: Readonly<{ schema?: OpenApiSchema }> }> }> }>;
 export type OpenApiDocument = Readonly<{ paths: Record<string, Record<string, OpenApiOperation>>; components?: Readonly<{ schemas?: Readonly<Record<string, OpenApiSchema>> }> }>;
 export type FrontendGeneratorInput = Readonly<{ relationalModel: RelationalModel; domainManifest: DomainManifestV1; openApi: OpenApiDocument; assistantCoreDependency: string }>;
+export type StandaloneCrudGeneratorInput = Readonly<{ relationalModel: RelationalModel; domainManifest: DomainManifestV1 }>;
 export type GeneratedFile = Readonly<{ path: string; content: string }>;

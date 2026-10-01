@@ -1,5 +1,5 @@
-import type { FrontendGeneratorInput } from "./model.js";
-import { generateFrontend } from "./generator.js";
+import type { FrontendGeneratorInput, StandaloneCrudGeneratorInput } from "./model.js";
+import { generateFrontend, generateStandaloneCrudFrontend } from "./generator.js";
 import { assistantCoreDependencyFor, validateGeneratedFiles, writeGeneratedFiles } from "./writer.js";
 
 /** Generates and atomically writes a frontend with its output-relative assistant dependency. */
@@ -9,6 +9,12 @@ export async function generateFrontendToOutput(
   assistantCoreRoot: string,
 ): Promise<void> {
   const files = generateFrontend({ ...input, assistantCoreDependency: assistantCoreDependencyFor(outputRoot, assistantCoreRoot) });
+  validateGeneratedFiles(files);
+  await writeGeneratedFiles(outputRoot, files);
+}
+
+export async function generateStandaloneCrudFrontendToOutput(input: StandaloneCrudGeneratorInput, outputRoot: string): Promise<void> {
+  const files = generateStandaloneCrudFrontend(input);
   validateGeneratedFiles(files);
   await writeGeneratedFiles(outputRoot, files);
 }

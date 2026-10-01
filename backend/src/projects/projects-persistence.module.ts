@@ -9,6 +9,8 @@ import { ProjectsPersistenceService } from "./projects-persistence.service";
 import { ProjectsController } from "./projects.controller";
 import { SpringExportController } from "./spring-export.controller";
 import { SpringExportService } from "./spring-export.service";
+import { FrontendExportController } from "./frontend-export.controller";
+import { FrontendExportService } from "./frontend-export.service";
 
-@Module({ imports: [AuthModule], controllers: [ProjectsController, ProjectInvitationsController, InvitationsController, SpringExportController], providers: [ProjectAccessService, ProjectAccessInvalidationService, ProjectInvitationsService, ProjectsPersistenceService, SpringExportService], exports: [ProjectAccessService, ProjectAccessInvalidationService, ProjectInvitationsService, ProjectsPersistenceService] })
+@Module({ imports: [AuthModule], controllers: [ProjectsController, ProjectInvitationsController, InvitationsController, SpringExportController, FrontendExportController], providers: [ProjectAccessService, ProjectAccessInvalidationService, ProjectInvitationsService, ProjectsPersistenceService, SpringExportService, FrontendExportService], exports: [ProjectAccessService, ProjectAccessInvalidationService, ProjectInvitationsService, ProjectsPersistenceService] })
 export class ProjectsPersistenceModule {}

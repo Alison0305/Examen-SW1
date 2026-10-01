@@ -1,12 +1,12 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { classReferenceType, createProjectDocument, enumerationReferenceType, type ProjectDocument } from "@examen-sw1/uml-core";
 import { AppProviders } from "../providers";
 import WorkspacePage from "./page";
 import { applyVisualNodeChanges, relationshipLabel, toReactFlowEdges, toReactFlowNodes } from "./react-flow-adapters";
 import { getMultiplicityLabelPositions, getUmlRelationshipMarkers, UmlRelationshipMultiplicityLabels } from "./uml-edge";
 import { resetWorkspaceStore, setWorkspaceCollaborativeCommandListener, useWorkspaceStore } from "./workspace-store";
-import { toCanvasCursorPosition, workspaceCanvasInteractionProps } from "./workspace-client";
+import { toCanvasCursorPosition, WorkspaceClient, workspaceCanvasInteractionProps } from "./workspace-client";
 
 function renderWorkspace() {
   return render(
@@ -78,6 +78,34 @@ function documentWithTypeReference(referenceType: "class" | "enumeration"): Proj
 describe("Workspace UML manual", () => {
   beforeEach(() => {
     resetWorkspaceStore();
+  });
+
+  it("ubica Preparar interfaz fuera del asistente, antes de Breadcrumbs, y permite exportar", async () => {
+    const onPrepareInterface = vi.fn().mockResolvedValue(undefined);
+    render(<AppProviders><WorkspaceClient onPrepareInterface={onPrepareInterface} /></AppProviders>);
+    const button = screen.getByRole("button", { name: "Preparar interfaz" });
+    const assistant = screen.getByLabelText("Asistente textual UML");
+    const breadcrumbs = screen.getByText("Breadcrumbs");
+    expect(assistant).not.toContainElement(button);
+    expect(assistant.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(button.compareDocumentPosition(breadcrumbs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(button).not.toHaveTextContent(/Preparar interfaz|Frontend|Generar frontend|Descargar frontend/);
+    fireEvent.click(button);
+    await waitFor(() => expect(onPrepareInterface).toHaveBeenCalledOnce());
+  });
+
+  it("evita doble click durante la exportación y permite exportar en solo lectura", async () => {
+    let resolve!: () => void;
+    const onPrepareInterface = vi.fn().mockReturnValue(new Promise<void>((done) => { resolve = done; }));
+    render(<AppProviders><WorkspaceClient readOnly onPrepareInterface={onPrepareInterface} /></AppProviders>);
+    const button = screen.getByRole("button", { name: "Preparar interfaz" });
+    expect(button).toBeEnabled();
+    fireEvent.click(button);
+    expect(button).toBeDisabled();
+    fireEvent.click(button);
+    expect(onPrepareInterface).toHaveBeenCalledOnce();
+    await act(async () => { resolve(); });
+    await waitFor(() => expect(button).toBeEnabled());
   });
 
   it("proyecta una posición flow remota al canvas local con pan, zoom y offset de contenedor", () => {

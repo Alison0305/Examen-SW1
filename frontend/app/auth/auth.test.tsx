@@ -125,6 +125,28 @@ describe("cliente API y sesión", () => {
     await expect(client.exportSpring("project-1", "bo.edu.examen")).rejects.toThrow("NetworkError");
   });
 
+  it("exporta frontend como ZIP autenticado sin configuración y conserva los fallbacks seguros", async () => {
+    const onUnauthorized = vi.fn();
+    const blob = new Blob(["zip"], { type: "application/zip" });
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce({ status: 200, ok: true, blob: vi.fn().mockResolvedValue(blob), headers: new Headers({ "Content-Disposition": 'attachment; filename="frontend.zip"' }) })
+      .mockResolvedValueOnce({ status: 200, ok: true, blob: vi.fn().mockResolvedValue(blob), headers: new Headers({ "Content-Disposition": 'attachment; filename="../unsafe.zip"' }) })
+      .mockResolvedValueOnce({ status: 401, ok: false, json: vi.fn().mockResolvedValue({ message: "No autorizado" }) })
+      .mockResolvedValueOnce({ status: 403, ok: false, json: vi.fn().mockResolvedValue({ message: "Prohibido" }) })
+      .mockResolvedValueOnce({ status: 200, ok: true, blob: vi.fn().mockResolvedValue(blob), headers: new Headers() });
+    const client = createApiClient({ getToken: () => "test-token", onUnauthorized, fetcher, apiBaseUrl: "http://api.test" });
+
+    await expect(client.exportFrontend("project-1")).resolves.toEqual({ blob, filename: "frontend.zip" });
+    expect(fetcher).toHaveBeenCalledWith("http://api.test/projects/project-1/exports/frontend", expect.objectContaining({ method: "POST" }));
+    expect((fetcher.mock.calls[0][1] as RequestInit).body).toBeUndefined();
+    expect((fetcher.mock.calls[0][1].headers as Headers).get("Authorization")).toBe("Bearer test-token");
+    await expect(client.exportFrontend("project-1")).resolves.toEqual({ blob, filename: "frontend.zip" });
+    await expect(client.exportFrontend("project-1")).rejects.toMatchObject({ status: 401 });
+    expect(onUnauthorized).toHaveBeenCalledOnce();
+    await expect(client.exportFrontend("project-1")).rejects.toMatchObject({ status: 403 });
+    await expect(client.exportSpring("project-1", "bo.edu.examen")).resolves.toEqual({ blob, filename: "spring-backend-project-1.zip" });
+  });
+
   it("usa los endpoints de membresías e invitaciones sin exponer secretos en tipos públicos", async () => {
     const fetcher = vi.fn().mockResolvedValue({ status: 204, ok: true });
     const client = createApiClient({ getToken: () => "secret-token", onUnauthorized: vi.fn(), fetcher, apiBaseUrl: "http://api.test" });

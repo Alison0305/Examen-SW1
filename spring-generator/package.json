@@ -10,10 +10,13 @@
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:generated-backend": "npm run build && node ./dist/generated-backend-smoke.js"
+    "test:generated-backend": "npm run build && node ./dist/generated-backend-smoke.js",
+    "test:frontend-integration": "npm run build && npm run build --workspace @examen-sw1/frontend-generator && node ./dist/frontend-integration-smoke.js"
   },
   "dependencies": {
+    "@examen-sw1/frontend-generator": "*",
     "@examen-sw1/relational-core": "*",
+    "@examen-sw1/uml-core": "*",
     "handlebars": "^4.7.8",
     "openapi-to-postmanv2": "6.3.3"
   },

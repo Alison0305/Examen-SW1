@@ -1,0 +1,18 @@
+import { ForbiddenException, NotFoundException, UnauthorizedException, UnprocessableEntityException } from "@nestjs/common";
+import { Test } from "@nestjs/testing";
+import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fastify";
+import { strToU8, unzipSync, zipSync } from "fflate";
+import request from "supertest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import { FrontendExportController } from "./frontend-export.controller";
+import { FrontendExportService } from "./frontend-export.service";
+
+const projectId = "11111111-1111-4111-8111-111111111111"; const userId = "22222222-2222-4222-8222-222222222222";
+describe("FrontendExportController", () => {
+  let app: NestFastifyApplication; let exportProject: ReturnType<typeof vi.fn>;
+  beforeEach(async () => { exportProject = vi.fn().mockResolvedValue({ zip: Buffer.from(zipSync({ "package.json": strToU8("{}"), "app/page.tsx": strToU8("export default null") })) }); const module = await Test.createTestingModule({ controllers: [FrontendExportController], providers: [{ provide: FrontendExportService, useValue: { exportProject } }] }).overrideGuard(JwtAuthGuard).useValue({ canActivate(context: { switchToHttp(): { getRequest(): { headers: { authorization?: string }; authenticatedUser?: { id: string } } } }) { const value = context.switchToHttp().getRequest(); if (value.headers.authorization !== "Bearer valid") throw new UnauthorizedException(); value.authenticatedUser = { id: userId }; return true; } }).compile(); app = module.createNestApplication<NestFastifyApplication>(new FastifyAdapter()); await app.init(); await app.getHttpAdapter().getInstance().ready(); });
+  afterEach(async () => { await app.close(); });
+  it("requiere auth y entrega frontend.zip", async () => { await request(app.getHttpServer()).post(`/projects/${projectId}/exports/frontend`).expect(401); const response = await request(app.getHttpServer()).post(`/projects/${projectId}/exports/frontend`).set("Authorization", "Bearer valid").buffer(true).parse((source, callback) => { const chunks: Buffer[] = []; source.on("data", (chunk: Buffer) => chunks.push(chunk)); source.on("end", () => callback(null, Buffer.concat(chunks))); }).expect(200); expect(exportProject).toHaveBeenCalledWith(projectId, userId); expect(response.headers["content-type"]).toBe("application/zip"); expect(response.headers["content-disposition"]).toBe('attachment; filename="frontend.zip"'); expect(response.body.subarray(0, 2).toString("ascii")).toBe("PK"); expect(Object.keys(unzipSync(response.body))).toEqual(expect.arrayContaining(["package.json", "app/page.tsx"])); });
+  it("preserva errores HTTP sin filtrar internos", async () => { exportProject.mockRejectedValueOnce(new ForbiddenException()); await request(app.getHttpServer()).post(`/projects/${projectId}/exports/frontend`).set("Authorization", "Bearer valid").expect(403); exportProject.mockRejectedValueOnce(new NotFoundException()); await request(app.getHttpServer()).post(`/projects/${projectId}/exports/frontend`).set("Authorization", "Bearer valid").expect(404); exportProject.mockRejectedValueOnce(new UnprocessableEntityException()); await request(app.getHttpServer()).post(`/projects/${projectId}/exports/frontend`).set("Authorization", "Bearer valid").expect(422); exportProject.mockRejectedValueOnce(new Error("detalle secreto")); const response = await request(app.getHttpServer()).post(`/projects/${projectId}/exports/frontend`).set("Authorization", "Bearer valid").expect(500); expect(response.text).not.toContain("detalle secreto"); });
+});
