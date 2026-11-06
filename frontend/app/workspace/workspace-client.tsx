@@ -43,6 +43,7 @@ import {
 import { useEffect, useId, useRef, useState } from "react";
 import {
   type Diagnostic,
+  type Multiplicity,
   type ProjectDocument,
   type UmlAttribute,
   type UmlClass,
@@ -63,6 +64,7 @@ import { UmlClassNode, UmlEnumerationNode } from "./uml-nodes";
 import {
   formatMultiplicity,
   formatType,
+  MULTIPLICITY_PRESETS,
   primitiveTypeNames,
 } from "./workspace-utils";
 import {
@@ -1479,6 +1481,78 @@ function EnumerationInspector({
   );
 }
 
+const CUSTOM_MULTIPLICITY = "__custom__";
+
+// Native select so the read-only fieldset of the inspector disables it like the other controls.
+function MultiplicityField({
+  label,
+  multiplicity,
+  onApply,
+}: Readonly<{
+  label: string;
+  multiplicity: Multiplicity | undefined;
+  onApply: (value: string) => void;
+}>) {
+  const current = formatMultiplicity(multiplicity);
+  const isPreset =
+    current === "" ||
+    MULTIPLICITY_PRESETS.some((preset) => preset.value === current);
+  const [custom, setCustom] = useState(!isPreset);
+  const [customDraft, setCustomDraft] = useState(isPreset ? "" : current);
+
+  useEffect(() => {
+    // Follow the applied value (including Undo and remote edits) after each command.
+    setCustom(!isPreset);
+    setCustomDraft(isPreset ? "" : current);
+  }, [current, isPreset]);
+
+  return (
+    <Stack spacing={1}>
+      <TextField
+        select
+        label={label}
+        value={custom ? CUSTOM_MULTIPLICITY : current}
+        onChange={(event) => {
+          if (event.target.value === CUSTOM_MULTIPLICITY) {
+            setCustom(true);
+            return;
+          }
+          setCustom(false);
+          onApply(event.target.value);
+        }}
+        size="small"
+        slotProps={{ select: { native: true }, inputLabel: { shrink: true } }}
+      >
+        <option value="">Sin especificar</option>
+        {MULTIPLICITY_PRESETS.map((preset) => (
+          <option key={preset.value} value={preset.value}>
+            {`${preset.value} (${preset.label})`}
+          </option>
+        ))}
+        <option value={CUSTOM_MULTIPLICITY}>Otra…</option>
+      </TextField>
+      {custom && (
+        <Stack direction="row" spacing={1}>
+          <TextField
+            label={`${label} personalizada`}
+            value={customDraft}
+            onChange={(event) => setCustomDraft(event.target.value)}
+            size="small"
+            placeholder="2..5"
+          />
+          <Button
+            variant="outlined"
+            disabled={!customDraft.trim()}
+            onClick={() => onApply(customDraft)}
+          >
+            Aplicar
+          </Button>
+        </Stack>
+      )}
+    </Stack>
+  );
+}
+
 function RelationshipInspector({
   relationshipId,
 }: Readonly<{ relationshipId: string }>) {
@@ -1492,18 +1566,6 @@ function RelationshipInspector({
     (candidate) => candidate.id === relationshipId,
   );
   const [nameDraft, setNameDraft] = useState(relationship?.name ?? "");
-  const [sourceMultiplicityDraft, setSourceMultiplicityDraft] = useState("");
-  const [targetMultiplicityDraft, setTargetMultiplicityDraft] = useState("");
-
-  useEffect(() => {
-    // A relationship switch loads both drafts; command snapshots must not erase the opposite unsaved draft.
-    setSourceMultiplicityDraft(
-      formatMultiplicity(relationship?.sourceMultiplicity),
-    );
-    setTargetMultiplicityDraft(
-      formatMultiplicity(relationship?.targetMultiplicity),
-    );
-  }, [relationshipId]);
 
   useEffect(() => {
     setNameDraft(relationship?.name ?? "");
@@ -1549,42 +1611,22 @@ function RelationshipInspector({
       )}
       {relationship.type !== "Generalization" && (
         <>
-          <TextField
+          <MultiplicityField
+            key={`${relationshipId}-source`}
             label="Multiplicidad origen"
-            value={sourceMultiplicityDraft}
-            onChange={(event) => setSourceMultiplicityDraft(event.target.value)}
-            size="small"
+            multiplicity={relationship.sourceMultiplicity}
+            onApply={(value) =>
+              updateRelationshipMultiplicity(relationshipId, "source", value)
+            }
           />
-          <TextField
+          <MultiplicityField
+            key={`${relationshipId}-target`}
             label="Multiplicidad destino"
-            value={targetMultiplicityDraft}
-            onChange={(event) => setTargetMultiplicityDraft(event.target.value)}
-            size="small"
+            multiplicity={relationship.targetMultiplicity}
+            onApply={(value) =>
+              updateRelationshipMultiplicity(relationshipId, "target", value)
+            }
           />
-          <Button
-            variant="outlined"
-            onClick={() =>
-              updateRelationshipMultiplicity(
-                relationshipId,
-                "source",
-                sourceMultiplicityDraft,
-              )
-            }
-          >
-            Guardar multiplicidad origen
-          </Button>
-          <Button
-            variant="outlined"
-            onClick={() =>
-              updateRelationshipMultiplicity(
-                relationshipId,
-                "target",
-                targetMultiplicityDraft,
-              )
-            }
-          >
-            Guardar multiplicidad destino
-          </Button>
         </>
       )}
       <Button

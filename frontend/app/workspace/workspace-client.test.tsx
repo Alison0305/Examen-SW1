@@ -336,9 +336,7 @@ describe("Workspace UML manual", () => {
     await createTwoClassesAndRelationship("Association");
     fireEvent.click(screen.getByRole("button", { name: /Relación Association/ }));
     fireEvent.change(screen.getByLabelText("Multiplicidad origen"), { target: { value: "1" } });
-    fireEvent.click(screen.getByRole("button", { name: "Guardar multiplicidad origen" }));
     fireEvent.change(screen.getByLabelText("Multiplicidad destino"), { target: { value: "0..*" } });
-    fireEvent.click(screen.getByRole("button", { name: "Guardar multiplicidad destino" }));
     fireEvent.change(screen.getByLabelText("Nombre de relación"), { target: { value: "contiene" } });
     fireEvent.click(screen.getByRole("button", { name: "Guardar nombre" }));
     fireEvent.change(screen.getByLabelText("Nombre de relación"), { target: { value: "   " } });
@@ -372,8 +370,6 @@ describe("Workspace UML manual", () => {
     expect(screen.queryByRole("button", { name: "Guardar nombre" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Multiplicidad origen")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Multiplicidad destino")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Guardar multiplicidad origen" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Guardar multiplicidad destino" })).not.toBeInTheDocument();
     expect(useWorkspaceStore.getState().document.uml.relationships[2]).toMatchObject({ type: "Generalization" });
     expect(useWorkspaceStore.getState().document.uml.relationships[2]?.sourceMultiplicity).toBeUndefined();
     expect(toReactFlowEdges(useWorkspaceStore.getState().document)[2]?.data?.label).toBe("");
@@ -660,9 +656,7 @@ describe("Workspace UML manual", () => {
     fireEvent.click(screen.getByRole("button", { name: /Relación Association/ }));
 
     fireEvent.change(screen.getByLabelText("Multiplicidad origen"), { target: { value: "1" } });
-    fireEvent.click(screen.getByRole("button", { name: "Guardar multiplicidad origen" }));
     fireEvent.change(screen.getByLabelText("Multiplicidad destino"), { target: { value: "0..*" } });
-    fireEvent.click(screen.getByRole("button", { name: "Guardar multiplicidad destino" }));
 
     expect(useWorkspaceStore.getState().document.uml.relationships[0].sourceMultiplicity).toEqual({ lower: 1, upper: 1 });
     expect(useWorkspaceStore.getState().document.uml.relationships[0].targetMultiplicity).toEqual({ lower: 0, upper: "unbounded" });
@@ -716,46 +710,51 @@ describe("Workspace UML manual", () => {
     expect(toReactFlowNodes(useWorkspaceStore.getState().document).find((node) => node.id === intermediate?.id)?.position).toEqual({ x: intermediateLayout?.x, y: intermediateLayout?.y });
   });
 
-  it("conserva el draft de destino al guardar primero la multiplicidad de origen", async () => {
+  it("ofrece las multiplicidades típicas y aplica al instante con Undo", async () => {
     renderWorkspace();
     await createTwoClassesAndRelationship("Association");
     fireEvent.click(screen.getByRole("button", { name: /Relación Association/ }));
 
-    fireEvent.change(screen.getByLabelText("Multiplicidad origen"), { target: { value: "1" } });
-    fireEvent.change(screen.getByLabelText("Multiplicidad destino"), { target: { value: "0..*" } });
-    fireEvent.click(screen.getByRole("button", { name: "Guardar multiplicidad origen" }));
+    const source = screen.getByLabelText("Multiplicidad origen");
+    expect(Array.from((source as HTMLSelectElement).options).map((option) => option.textContent)).toEqual([
+      "Sin especificar", "1 (Solo uno)", "0..1 (Cero o uno)", "0..* (Cero o muchos)", "1..* (Uno o muchos)", "Otra…",
+    ]);
+    expect(screen.queryByRole("button", { name: /Guardar multiplicidad/ })).not.toBeInTheDocument();
 
-    expect(screen.getByLabelText("Multiplicidad origen")).toHaveValue("1");
-    expect(screen.getByLabelText("Multiplicidad destino")).toHaveValue("0..*");
+    fireEvent.change(source, { target: { value: "1" } });
     expect(useWorkspaceStore.getState().document.uml.relationships[0].sourceMultiplicity).toEqual({ lower: 1, upper: 1 });
-    expect(useWorkspaceStore.getState().document.uml.relationships[0].targetMultiplicity).toBeUndefined();
+    fireEvent.change(screen.getByLabelText("Multiplicidad destino"), { target: { value: "1..*" } });
+    expect(useWorkspaceStore.getState().document.uml.relationships[0].targetMultiplicity).toEqual({ lower: 1, upper: "unbounded" });
+    expect(screen.getByLabelText("Multiplicidad destino")).toHaveValue("1..*");
 
-    fireEvent.click(screen.getByRole("button", { name: "Guardar multiplicidad destino" }));
-    expect(useWorkspaceStore.getState().document.uml.relationships[0]).toMatchObject({
-      sourceMultiplicity: { lower: 1, upper: 1 },
-      targetMultiplicity: { lower: 0, upper: "unbounded" },
-    });
+    fireEvent.click(screen.getByRole("button", { name: "Deshacer" }));
+    expect(useWorkspaceStore.getState().document.uml.relationships[0].targetMultiplicity).toBeUndefined();
+    fireEvent.click(screen.getByRole("button", { name: /Relación Association/ }));
+    expect(screen.getByLabelText("Multiplicidad destino")).toHaveValue("");
+    expect(screen.getByLabelText("Multiplicidad origen")).toHaveValue("1");
   });
 
-  it("conserva el draft de origen al guardar primero la multiplicidad de destino", async () => {
+  it("aplica valores personalizados con Otra… y trata * como 0..*", async () => {
     renderWorkspace();
     await createTwoClassesAndRelationship("Association");
     fireEvent.click(screen.getByRole("button", { name: /Relación Association/ }));
 
-    fireEvent.change(screen.getByLabelText("Multiplicidad origen"), { target: { value: "1" } });
-    fireEvent.change(screen.getByLabelText("Multiplicidad destino"), { target: { value: "0..*" } });
-    fireEvent.click(screen.getByRole("button", { name: "Guardar multiplicidad destino" }));
-
-    expect(screen.getByLabelText("Multiplicidad origen")).toHaveValue("1");
-    expect(screen.getByLabelText("Multiplicidad destino")).toHaveValue("0..*");
+    fireEvent.change(screen.getByLabelText("Multiplicidad origen"), { target: { value: "__custom__" } });
     expect(useWorkspaceStore.getState().document.uml.relationships[0].sourceMultiplicity).toBeUndefined();
-    expect(useWorkspaceStore.getState().document.uml.relationships[0].targetMultiplicity).toEqual({ lower: 0, upper: "unbounded" });
+    fireEvent.change(screen.getByLabelText("Multiplicidad origen personalizada"), { target: { value: "2..5" } });
+    fireEvent.click(screen.getByRole("button", { name: "Aplicar" }));
+    expect(useWorkspaceStore.getState().document.uml.relationships[0].sourceMultiplicity).toEqual({ lower: 2, upper: 5 });
+    expect(screen.getByLabelText("Multiplicidad origen")).toHaveValue("__custom__");
+    expect(screen.getByLabelText("Multiplicidad origen personalizada")).toHaveValue("2..5");
 
-    fireEvent.click(screen.getByRole("button", { name: "Guardar multiplicidad origen" }));
-    expect(useWorkspaceStore.getState().document.uml.relationships[0]).toMatchObject({
-      sourceMultiplicity: { lower: 1, upper: 1 },
-      targetMultiplicity: { lower: 0, upper: "unbounded" },
-    });
+    fireEvent.change(screen.getByLabelText("Multiplicidad origen personalizada"), { target: { value: "*" } });
+    fireEvent.click(screen.getByRole("button", { name: "Aplicar" }));
+    expect(useWorkspaceStore.getState().document.uml.relationships[0].sourceMultiplicity).toEqual({ lower: 0, upper: "unbounded" });
+    expect(screen.getByLabelText("Multiplicidad origen")).toHaveValue("0..*");
+    expect(screen.queryByLabelText("Multiplicidad origen personalizada")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Multiplicidad origen"), { target: { value: "" } });
+    expect(useWorkspaceStore.getState().document.uml.relationships[0].sourceMultiplicity).toBeUndefined();
   });
 
   it("renderiza multiplicidades independientes de Association y las conserva tras MoveElement, ApplyLayout y Undo/Redo", async () => {
@@ -776,9 +775,7 @@ describe("Workspace UML manual", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Relación Association/ }));
 
     fireEvent.change(screen.getByLabelText("Multiplicidad origen"), { target: { value: "1" } });
-    fireEvent.click(screen.getByRole("button", { name: "Guardar multiplicidad origen" }));
     fireEvent.change(screen.getByLabelText("Multiplicidad destino"), { target: { value: "0..*" } });
-    fireEvent.click(screen.getByRole("button", { name: "Guardar multiplicidad destino" }));
 
     const relationship = useWorkspaceStore.getState().document.uml.relationships[0];
     const cliente = useWorkspaceStore.getState().document.uml.classes.find((umlClass) => umlClass.name === "Cliente");

@@ -37,10 +37,22 @@ export function formatMultiplicity(value: Multiplicity | undefined): string {
   return `${value.lower}..${value.upper === "unbounded" ? "*" : value.upper}`;
 }
 
+// Common relationship multiplicities offered by the inspector menu. `*` is the same value as `0..*`.
+export const MULTIPLICITY_PRESETS = [
+  { value: "1", label: "Solo uno" },
+  { value: "0..1", label: "Cero o uno" },
+  { value: "0..*", label: "Cero o muchos" },
+  { value: "1..*", label: "Uno o muchos" },
+] as const;
+
 export function parseMultiplicity(value: string): Multiplicity | undefined {
   const normalized = value.trim();
   if (!normalized) {
     return undefined;
+  }
+
+  if (normalized === "*") {
+    return { lower: 0, upper: "unbounded" };
   }
 
   if (!normalized.includes("..")) {

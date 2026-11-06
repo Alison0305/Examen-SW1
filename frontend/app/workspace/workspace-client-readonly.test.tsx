@@ -82,4 +82,20 @@ describe("WorkspaceContent readonly React Flow callbacks", () => {
     expect(useWorkspaceStore.getState().document.layout.elements[0]).toMatchObject({ x: 420, y: 260 });
     expect(onPersistentChange).toHaveBeenCalledOnce();
   });
+
+  it("deshabilita el menú de multiplicidades para VIEWER", () => {
+    act(() => {
+      const store = useWorkspaceStore.getState();
+      store.createClass();
+      store.createClass();
+      const [source, target] = useWorkspaceStore.getState().document.uml.classes;
+      store.setTool("Association");
+      store.selectElement(source.id);
+      store.selectElement(target.id);
+    });
+    render(<AppProviders><WorkspaceClient readOnly onPersistentChange={vi.fn()} /></AppProviders>);
+
+    expect(screen.getByLabelText("Multiplicidad origen")).toBeDisabled();
+    expect(screen.getByLabelText("Multiplicidad destino")).toBeDisabled();
+  });
 });

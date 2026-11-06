@@ -149,3 +149,14 @@ CU-02 tiene implementados sus tres bloques automatizables principales y los gate
 ## Commit De Cierre
 
 Pendiente. No hay commit de cierre de CU-02 todavia.
+
+## Cambio Posterior - Menú De Multiplicidades De Relación
+
+OpenSpec: `openspec/changes/feat-relationship-multiplicity-menu/`. Implementado el 2026-11-06 a pedido del usuario, antes de iniciar CU-10.
+
+- El inspector de relaciones reemplaza los campos de texto y los botones "Guardar multiplicidad" por un menú nativo por extremo: Sin especificar, `1` (Solo uno), `0..1` (Cero o uno), `0..*` (Cero o muchos), `1..*` (Uno o muchos) y Otra…. La opción elegida se aplica al instante con `UpdateMultiplicity` mediante el Command Bus, con Undo.
+- Otra… muestra un campo y un botón Aplicar para valores como `2..5`.
+- `*` y `0..*` son el mismo valor en el modelo, así que el menú muestra una sola opción. `parseMultiplicity` acepta ahora `*` como `0..*`; antes producía un límite inválido (NaN) y el cambio se rechazaba.
+- Se conserva la creación de la clase intermedia N:M cuando ambos extremos quedan en muchos.
+- El menú es un select nativo para que el fieldset de solo lectura lo deshabilite para VIEWER.
+- Pruebas: frontend 161/161, con tests de opciones, aplicación inmediata, Undo, Otra…, `*`, Sin especificar, VIEWER y unitarios de `parseMultiplicity`. Lint, typecheck y build correctos.
