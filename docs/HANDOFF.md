@@ -3,7 +3,7 @@
 ## Estado Operativo
 
 - Correctivo `fix-cu-08-qwen-local-runtime` cerrado, aceptado y archivado en `openspec/changes/archive/2026-11-06-fix-cu-08-qwen-local-runtime/`.
-- No hay CU ni cambio OpenSpec activo. El siguiente CU del roadmap es CU-10 (XMI e imagen → UML); no se ha iniciado.
+- CU activo: CU-10 (XMI e imagen → UML). OpenSpec `openspec/changes/cu-10-xmi-imagen-uml/` validado en modo strict; 0 de 25 tareas.
 
 ## Entorno
 
@@ -14,4 +14,4 @@
 
 ## Siguiente Acción
 
-Planificar CU-10 según `docs/puds/use-cases/README.md`, con plan y aprobación antes de crear su OpenSpec.
+Implementar el Incremento 1 de CU-10 (tareas 1.1 a 1.10). Pendientes del usuario: Enterprise Architect para la tarea 1.9 y fotos reales para la 3.4.

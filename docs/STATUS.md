@@ -2,17 +2,22 @@
 
 ## Estado Actual
 
-**Ciclo actual:** Ciclo 3 — Construcción y generación.
+**Ciclo actual:** Ciclo 4 — Transición, multimodalidad y cierre.
 
 **Último CU completado:** CU-09 — Voz Vosk y Android Capacitor.
 
-**CU activo:** Ninguno.
+**CU activo:** CU-10 — XMI e imagen → UML (OpenSpec `cu-10-xmi-imagen-uml` creado; implementación pendiente).
 
 **Último correctivo cerrado:** `fix-cu-08-qwen-local-runtime` — intérprete local Qwen3 1.7B para texto y voz.
 
 **OpenSpec archivado:** `openspec/changes/archive/2026-11-06-fix-cu-08-qwen-local-runtime/`.
 
 El correctivo CU-06 está completo en 9/9. Con el proyecto `Prueba CU06 Backend`, la prueba manual creó Rol y Usuario con asociación 1:N, guardó el `ProjectDocument`, descargó el ZIP mediante `Generar backend` y compiló el contenido extraído con `gradle compileJava --no-daemon`: `BUILD SUCCESSFUL in 16s`. El flujo usa exclusivamente `document.uml` como `CanonicalUmlModel`; `DiagramLayout` sigue siendo visual. El endpoint autenticado entrega el ZIP binario con `FastifyReply.send(zip)`. Las clases manuales sin metadata se proyectan salvo `entity: false` y el atributo `id` es identifier salvo `identifier: false`.
+
+## Cambio Menú De Multiplicidades (CU-02)
+
+- Estado: cerrado, aprobado por el usuario el 2026-11-06 y archivado en `openspec/changes/archive/2026-11-06-feat-relationship-multiplicity-menu/`; commit `9e8a5f7`.
+- Resultado: menú de multiplicidades por extremo en el inspector de relaciones, aplicado al instante con Undo; `*` se interpreta como `0..*`.
 
 ## Cierre De Correctivo Qwen Local (CU-08)
 
