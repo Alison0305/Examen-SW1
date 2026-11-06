@@ -949,15 +949,99 @@ describe("Workspace UML manual", () => {
     expect(useWorkspaceStore.getState().document.uml.classes).toMatchObject([{ id: classId, name: "ClasePropuesta" }]);
   });
 
-  it("rechaza una propuesta textual inválida sin mutar documento ni layout", () => {
+  it("rechaza una propuesta textual inválida sin mutar documento ni layout", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("Failed to fetch"));
     renderWorkspace();
     const before = structuredClone(useWorkspaceStore.getState().document);
 
     fireEvent.change(screen.getByLabelText("Instrucción UML"), { target: { value: "DROP TABLE classes;" } });
     fireEvent.click(screen.getByRole("button", { name: "Interpretar" }));
 
-    expect(screen.getByText(/Propuesta inválida/)).toBeInTheDocument();
+    expect(await screen.findByText(/Propuesta inválida/)).toBeInTheDocument();
     expect(useWorkspaceStore.getState().document).toEqual(before);
+    fetchMock.mockRestore();
+  });
+
+  describe("intérprete local de español natural", () => {
+    const interpreterResponse = (body: unknown) => vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } }));
+
+    it("envía el texto natural con las clases y aplica la propuesta solo al aprobar, con Undo", async () => {
+      const fetchMock = interpreterResponse({ ok: true, mode: "uml", source: "model", proposal: { type: "CREATE_CLASS", name: "Paciente" } });
+      renderWorkspace();
+      await createClass("Clase1");
+      const existing = useWorkspaceStore.getState().document.uml.classes[0];
+
+      fireEvent.change(screen.getByLabelText("Instrucción UML"), { target: { value: "crear clase paciente" } });
+      fireEvent.click(screen.getByRole("button", { name: "Interpretar" }));
+
+      expect(await screen.findByText("Propuesta: Crear clase Paciente")).toBeInTheDocument();
+      expect(screen.getByText(/Interpretada por el modelo local/)).toBeInTheDocument();
+      const [url, init] = fetchMock.mock.calls[0]!;
+      expect(String(url)).toMatch(/\/assistant\/interpret$/);
+      expect(JSON.parse(String(init?.body))).toEqual({ mode: "uml", text: "crear clase paciente", classes: [{ id: existing.id, name: existing.name }] });
+      expect(useWorkspaceStore.getState().document.uml.classes).toHaveLength(1);
+
+      fireEvent.click(screen.getByRole("button", { name: "Aprobar" }));
+      expect(useWorkspaceStore.getState().document.uml.classes.map((umlClass) => umlClass.name)).toEqual(["Clase1", "Paciente"]);
+      fireEvent.click(screen.getByRole("button", { name: "Deshacer" }));
+      expect(useWorkspaceStore.getState().document.uml.classes.map((umlClass) => umlClass.name)).toEqual(["Clase1"]);
+      fetchMock.mockRestore();
+    });
+
+    it("muestra el nombre de la clase y exige confirmación para eliminar", async () => {
+      renderWorkspace();
+      await createClass("Clase1");
+      const classId = useWorkspaceStore.getState().document.uml.classes[0].id;
+      const fetchMock = interpreterResponse({ ok: true, mode: "uml", source: "model", proposal: { type: "DELETE_CLASS", targetId: classId } });
+
+      fireEvent.change(screen.getByLabelText("Instrucción UML"), { target: { value: "elimina la clase uno" } });
+      fireEvent.click(screen.getByRole("button", { name: "Interpretar" }));
+      expect(await screen.findByText("Propuesta: Eliminar clase Clase1")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Aprobar" }));
+      expect(screen.getByRole("heading", { name: "Confirmar eliminación de clase" })).toBeInTheDocument();
+      expect(useWorkspaceStore.getState().document.uml.classes).toHaveLength(1);
+      fireEvent.click(screen.getByRole("button", { name: "Confirmar eliminación" }));
+      expect(useWorkspaceStore.getState().document.uml.classes).toEqual([]);
+      fetchMock.mockRestore();
+    });
+
+    it("muestra OUT_OF_DOMAIN sin propuesta ni mutación", async () => {
+      const fetchMock = interpreterResponse({ ok: false, mode: "uml", diagnostic: { code: "OUT_OF_DOMAIN", message: "La instrucción no corresponde a una operación UML soportada: saludo" } });
+      renderWorkspace();
+      const before = structuredClone(useWorkspaceStore.getState().document);
+
+      fireEvent.change(screen.getByLabelText("Instrucción UML"), { target: { value: "hola cómo estás" } });
+      fireEvent.click(screen.getByRole("button", { name: "Interpretar" }));
+
+      expect(await screen.findByText(/no corresponde a una operación UML soportada/)).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Aprobar" })).not.toBeInTheDocument();
+      expect(useWorkspaceStore.getState().document).toEqual(before);
+      fetchMock.mockRestore();
+    });
+
+    it("sin modelo disponible informa el diagnóstico y sugiere la sintaxis estricta", async () => {
+      const fetchMock = interpreterResponse({ ok: false, mode: "uml", diagnostic: { code: "NOT_CONFIGURED", message: "No hay un modelo local configurado." } });
+      renderWorkspace();
+
+      fireEvent.change(screen.getByLabelText("Instrucción UML"), { target: { value: "crear clase paciente" } });
+      fireEvent.click(screen.getByRole("button", { name: "Interpretar" }));
+
+      expect(await screen.findByText(/No hay un modelo local configurado\. Propuesta inválida\. Usa CREATE_CLASS/)).toBeInTheDocument();
+      expect(useWorkspaceStore.getState().document.uml.classes).toEqual([]);
+      fetchMock.mockRestore();
+    });
+
+    it("la sintaxis estricta no invoca al intérprete local", () => {
+      const fetchMock = vi.spyOn(globalThis, "fetch");
+      renderWorkspace();
+
+      fireEvent.change(screen.getByLabelText("Instrucción UML"), { target: { value: 'CREATE_CLASS name="Cita"' } });
+      fireEvent.click(screen.getByRole("button", { name: "Interpretar" }));
+
+      expect(screen.getByText("Propuesta: Crear clase Cita")).toBeInTheDocument();
+      expect(fetchMock).not.toHaveBeenCalled();
+      fetchMock.mockRestore();
+    });
   });
 
   it("requiere una segunda confirmación antes de eliminar una clase propuesta", async () => {

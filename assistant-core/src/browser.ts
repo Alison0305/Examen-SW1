@@ -8,3 +8,5 @@ export type {
   AssistantResult,
 } from "./contract.js";
 export type { AssistantHttpAdapter, AssistantHttpRequest } from "./executor.js";
+export { INTERPRETATION_TEXT_MAX_LENGTH, isStrictAssistantCommandText } from "./interpretation.js";
+export type { DataInterpretationResponse, InterpretationDiagnostic } from "./interpretation.js";

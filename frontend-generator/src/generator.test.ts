@@ -16,6 +16,14 @@ describe("FrontendGenerator", () => {
     const files = generateFrontend(generatorInput); const lan = files.find((file) => file.path === "app/lan-config.ts")!.content; const voice = files.find((file) => file.path === "app/voice-transcript-input.tsx")!.content; const manifest = files.find((file) => file.path === "scripts/configure-android.mjs")!.content;
     expect(lan).toContain("/speech/recognize"); expect(lan).toContain("localhost representa el teléfono"); expect(lan).toContain("65535"); expect(voice).toContain("HOST_UNAVAILABLE"); expect(voice).toContain("TIMEOUT"); expect(voice).toContain("getUserMedia"); expect(manifest).toContain("android.permission.RECORD_AUDIO"); expect(manifest).toContain("android.permission.MODIFY_AUDIO_SETTINGS"); expect(manifest).not.toContain("CAMERA"); expect(manifest).not.toContain("LOCATION");
   });
+  it("envía español natural al intérprete local por LAN y conserva el JSON estricto", () => {
+    const files = generateFrontend(generatorInput); const content = (path: string) => files.find((file) => file.path === path)!.content;
+    const lan = content("app/lan-config.ts"); const panel = content("app/assistant-panel.tsx"); const page = content("app/page.tsx"); const voice = content("app/voice-transcript-input.tsx");
+    expect(lan).toContain('buildLanEndpoint(config, "/speech/recognize")'); expect(lan).toContain('buildLanEndpoint(config, "/assistant/interpret")');
+    expect(panel).toContain("isStrictAssistantCommandText(text)"); expect(panel).toContain("buildInterpreterEndpoint({ host: interpreterHost, port: interpreterPort })"); expect(panel).toContain('mode: "data", text: text.trim(), manifest: domainManifest');
+    expect(panel).toContain("propose(body.command)"); expect(panel).toContain("${body.diagnostic.code}: ${body.diagnostic.message}"); expect(panel).toContain("validateAssistantCommand(parsed.command, domainManifest)"); expect(panel).toContain("AbortSignal.timeout(INTERPRETER_TIMEOUT_MS)");
+    expect(page).toContain("host={lanHost} port={lanPort}"); expect(page).toContain("interpreterHost={lanHost} interpreterPort={lanPort}"); expect(voice).toContain("onHostChange(event.target.value)"); expect(voice).not.toContain("useState(\"\"); const [port");
+  });
   it("limita formularios a campos mutables contractuales", () => {
     const page = generateFrontend(generatorInput).find((file) => file.path === "app/page.tsx")!.content;
     expect(page).toContain("entity.createFields"); expect(page).toContain("entity.updateFields"); expect(page).toContain("field.wireName"); expect(page).toContain("field.schemaType"); expect(page).toContain("field.required"); expect(page).not.toContain("entity.attributes.filter((field) => creating || !field.identifier)"); expect(page).not.toContain("entity.relations.map((relation) => <TextField");

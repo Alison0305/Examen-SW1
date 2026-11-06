@@ -387,7 +387,7 @@ function createLayoutEntry(elementId: Uuid, layout: DiagramElementLayoutInput | 
 function intermediateLayout(document: ProjectDocument, sourceId: Uuid, targetId: Uuid, intermediateId: Uuid): DiagramElementLayout {
   const source = document.layout.elements.find((entry) => entry.elementId === sourceId);
   const target = document.layout.elements.find((entry) => entry.elementId === targetId);
-  let x = source && target ? (source.x + target.x) / 2 : source ? source.x + 220 : target ? target.x - 220 : 100 + document.uml.classes.length * 40;
+  const x = source && target ? (source.x + target.x) / 2 : source ? source.x + 220 : target ? target.x - 220 : 100 + document.uml.classes.length * 40;
   let y = source && target ? (source.y + target.y) / 2 : source?.y ?? target?.y ?? 100 + document.uml.classes.length * 30;
 
   while (document.layout.elements.some((entry) => Math.abs(entry.x - x) < 180 && Math.abs(entry.y - y) < 120)) {

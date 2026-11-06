@@ -8,11 +8,21 @@
 
 **CU activo:** Ninguno.
 
-**Último correctivo cerrado:** asociación recursiva de clases.
+**Último correctivo cerrado:** `fix-cu-08-qwen-local-runtime` — intérprete local Qwen3 1.7B para texto y voz.
 
-**OpenSpec archivado:** `openspec/changes/archive/2026-09-22-fix-cu-06-export-spring-desde-workspace/`.
+**OpenSpec archivado:** `openspec/changes/archive/2026-11-06-fix-cu-08-qwen-local-runtime/`.
 
 El correctivo CU-06 está completo en 9/9. Con el proyecto `Prueba CU06 Backend`, la prueba manual creó Rol y Usuario con asociación 1:N, guardó el `ProjectDocument`, descargó el ZIP mediante `Generar backend` y compiló el contenido extraído con `gradle compileJava --no-daemon`: `BUILD SUCCESSFUL in 16s`. El flujo usa exclusivamente `document.uml` como `CanonicalUmlModel`; `DiagramLayout` sigue siendo visual. El endpoint autenticado entrega el ZIP binario con `FastifyReply.send(zip)`. Las clases manuales sin metadata se proyectan salvo `entity: false` y el atributo `id` es identifier salvo `identifier: false`.
+
+## Cierre De Correctivo Qwen Local (CU-08)
+
+- Estado: cerrado, aceptado por el usuario el 2026-11-06 y archivado.
+- OpenSpec: `openspec/changes/archive/2026-11-06-fix-cu-08-qwen-local-runtime/`; 33/33 tareas.
+- Resultado: `POST /assistant/interpret` interpreta español natural con Qwen3 1.7B GGUF y `node-llama-cpp` 3.22.2, local y sin Internet, en modo UML y en modo datos. Usa schema dinámico con `UNSUPPORTED` y resolución determinista de nombres a ids. El workspace CASE y el frontend generado lo usan con aprobación previa y respaldo de sintaxis estricta; la voz Vosk entra por el mismo camino.
+- Benchmark: 36 frases; la configuración elegida, Q4_K_M + Vulkan + prompt v3, obtuvo 97,22 % de accuracy, 1 falso positivo de solo lectura y p50/p95 de 664/773 ms. Detalle en `docs/puds/use-cases/CU-08-frontend-generado-asistentes-texto.md`.
+- Correcciones de entorno: el script `dev` de `backend` usa `node --watch --import tsx` porque `tsx watch`, con stdin como tubería de `concurrently`, congelaba el backend en Windows. `uml-core` cambió un `let` por `const` exigido por ESLint 9.39.5.
+- Gates: lint, typecheck, build y 467 tests de raíz correctos; Qwen real 5/5 y Vosk real 3/3.
+- Implementación realizada con Claude Code siguiendo el OpenSpec creado con OpenCode.
 
 ## Cierre De Frontend Standalone Export
 
@@ -73,6 +83,9 @@ El correctivo CU-06 está completo en 9/9. Con el proyecto `Prueba CU06 Backend`
 - CU-02 — Command Bus, Undo/Redo y workspace UML manual.
 - CU-03 — Persistencia, autenticación y ownership.
 - CU-04 — Landing, gestión de proyectos, membresías e invitaciones.
+- CU-05 — Colaboración realtime y presencia.
+- CU-06 — UML → RelationalModel y generador backend Spring Boot.
+- CU-07 — CRUD avanzado, verificación, OpenAPI, Postman y Domain Manifest.
 - CU-08 — Frontend generado y asistentes de texto.
 - CU-09 — Voz Vosk y Android Capacitor.
 

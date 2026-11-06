@@ -42,10 +42,10 @@ import {
 } from "@xyflow/react";
 import { useEffect, useId, useRef, useState } from "react";
 import {
-  parseUmlTextProposal,
   type Diagnostic,
   type ProjectDocument,
   type UmlAttribute,
+  type UmlClass,
   type UmlRelationshipType,
   type UmlTextProposal,
   type UmlVisibility,
@@ -58,6 +58,7 @@ import {
 } from "./react-flow-adapters";
 import { UmlRelationshipEdge } from "./uml-edge";
 import { VoiceTranscriptInput } from "../voice-transcript-input";
+import { interpretNaturalUmlText, interpretStrictUmlText, isStrictUmlText, type UmlInterpretation } from "./uml-interpreter-client";
 import { UmlClassNode, UmlEnumerationNode } from "./uml-nodes";
 import {
   formatMultiplicity,
@@ -753,20 +754,43 @@ function WorkspaceTextAssistant({ readOnly }: Readonly<{ readOnly: boolean }>) {
   const applyTextProposal = useWorkspaceStore(
     (state) => state.applyTextProposal,
   );
+  const classes = useWorkspaceStore((state) => state.document.uml.classes);
   const [input, setInput] = useState("");
   const [proposal, setProposal] = useState<UmlTextProposal | null>(null);
+  const [proposalSource, setProposalSource] = useState<"strict" | "model">("strict");
   const [rejection, setRejection] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [interpreting, setInterpreting] = useState(false);
+  const latestRequest = useRef(0);
 
-  function interpret() {
-    if (!input.trim()) return;
-    const result = parseUmlTextProposal(input);
-    if (result.success) {
+  function show(result: UmlInterpretation) {
+    if (result.ok) {
       setProposal(result.proposal);
+      setProposalSource(result.source);
       setRejection(null);
     } else {
       setProposal(null);
-      setRejection(result.message);
+      setRejection(result.fallback ? `${result.diagnostic.message} ${result.fallback}` : result.diagnostic.message);
+    }
+  }
+
+  async function interpret() {
+    const text = input.trim();
+    if (!text || interpreting) return;
+    setProposal(null);
+    setRejection(null);
+    // Strict syntax stays synchronous and never reaches the local model.
+    if (isStrictUmlText(text)) {
+      show(interpretStrictUmlText(text));
+      return;
+    }
+    const request = ++latestRequest.current;
+    setInterpreting(true);
+    try {
+      const result = await interpretNaturalUmlText(text, classes);
+      if (request === latestRequest.current) show(result);
+    } finally {
+      if (request === latestRequest.current) setInterpreting(false);
     }
   }
 
@@ -803,21 +827,26 @@ function WorkspaceTextAssistant({ readOnly }: Readonly<{ readOnly: boolean }>) {
             onChange={(event) => setInput(event.target.value)}
             size="small"
             disabled={readOnly}
-            helperText={'CREATE_CLASS name="..."'}
+            helperText={'Español natural ("crear clase paciente") o CREATE_CLASS name="..."'}
           />
           <Button
             variant="outlined"
-            onClick={interpret}
-            disabled={readOnly || !input.trim()}
+            onClick={() => void interpret()}
+            disabled={readOnly || interpreting || !input.trim()}
           >
-            Interpretar
+            {interpreting ? "Interpretando…" : "Interpretar"}
           </Button>
           {rejection && <Alert severity="error">{rejection}</Alert>}
           {proposal && (
             <Alert severity="info">
               <Typography variant="body2">
-                Propuesta: {formatTextProposal(proposal)}
+                Propuesta: {formatTextProposal(proposal, classes)}
               </Typography>
+              {proposalSource === "model" && (
+                <Typography variant="caption" color="text.secondary">
+                  Interpretada por el modelo local. Revísala antes de aprobar.
+                </Typography>
+              )}
               <Stack direction="row" spacing={1} sx={{ pt: 1 }}>
                 <Button size="small" variant="contained" onClick={approve}>
                   Aprobar
@@ -848,14 +877,15 @@ function WorkspaceTextAssistant({ readOnly }: Readonly<{ readOnly: boolean }>) {
   );
 }
 
-function formatTextProposal(proposal: UmlTextProposal): string {
+function formatTextProposal(proposal: UmlTextProposal, classes: readonly UmlClass[]): string {
+  const classLabel = (id: string) => classes.find((umlClass) => umlClass.id === id)?.name ?? id;
   switch (proposal.type) {
     case "CREATE_CLASS":
       return `Crear clase ${proposal.name}`;
     case "RENAME_CLASS":
-      return `Renombrar ${proposal.targetId} a ${proposal.name}`;
+      return `Renombrar ${classLabel(proposal.targetId)} a ${proposal.name}`;
     case "DELETE_CLASS":
-      return `Eliminar clase ${proposal.targetId}`;
+      return `Eliminar clase ${classLabel(proposal.targetId)}`;
   }
 }
 

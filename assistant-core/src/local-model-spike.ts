@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import type { InterpretationJsonSchema } from "./interpretation.js";
 import { ASSISTANT_OPERATIONS, type AssistantCommand, type AssistantCriteria, type AssistantFields, type AssistantIdentifier, type AssistantRelationScope, type AssistantValue } from "./contract.js";
 
 export const LOCAL_QWEN3_1_7B_SPIKE_CONFIG = {
@@ -17,15 +18,17 @@ export type LocalTextModelConfig = typeof LOCAL_QWEN3_1_7B_SPIKE_CONFIG & {
   contextTokens?: number;
 };
 
-export type LocalTextModelStatus = "AVAILABLE" | "NOT_CONFIGURED" | "MODEL_NOT_FOUND" | "RUNTIME_NOT_AVAILABLE" | "INVALID_OUTPUT" | "INFERENCE_ERROR";
+export type LocalTextModelStatus = "AVAILABLE" | "NOT_CONFIGURED" | "MODEL_NOT_FOUND" | "RUNTIME_NOT_AVAILABLE" | "INVALID_OUTPUT" | "INFERENCE_ERROR" | "TIMEOUT" | "BUSY";
 export type LocalTextModelInspection = {
-  status: Exclude<LocalTextModelStatus, "INVALID_OUTPUT" | "INFERENCE_ERROR">;
+  status: Exclude<LocalTextModelStatus, "INVALID_OUTPUT" | "INFERENCE_ERROR" | "TIMEOUT" | "BUSY">;
   message: string;
 };
 
-// This boundary is intentionally runtime-neutral. It does not load a model or execute requests.
+export type LocalTextModelRequest = Readonly<{ systemPrompt: string; userPrompt: string; schema: InterpretationJsonSchema }>;
+
+// Runtime-neutral boundary: the backend implements it with node-llama-cpp; assistant-core never loads a model.
 export interface LocalTextModel {
-  generateStructured(input: { prompt: string; schema: "AssistantCommand" | "UmlTextProposal" }): Promise<unknown>;
+  generateStructured(input: LocalTextModelRequest): Promise<unknown>;
 }
 
 export function inspectLocalTextModel(config: LocalTextModelConfig, modelExists: (path: string) => boolean = existsSync): LocalTextModelInspection {

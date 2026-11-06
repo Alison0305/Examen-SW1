@@ -31,6 +31,7 @@ frontend-generator/.generated-task-3-4-assistant-fix/
 frontend-generator/.generated-task-3-4-fetch-fix/
 spring-generator/.generated-task-3-4-api-smoke/
 assistant-core/.benchmark-output/
+backend/.benchmark-output/
 
 # Caché
 .turbo/
