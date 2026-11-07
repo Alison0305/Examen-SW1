@@ -6,7 +6,7 @@
 
 **Último CU completado:** CU-09 — Voz Vosk y Android Capacitor.
 
-**CU activo:** CU-10 — XMI e imagen → UML (OpenSpec `cu-10-xmi-imagen-uml` creado; implementación pendiente).
+**CU activo:** CU-10 — XMI e imagen → UML (Incremento 1 de XMI completo, 10/25 tareas; imagen pendiente).
 
 **Último correctivo cerrado:** `fix-cu-08-qwen-local-runtime` — intérprete local Qwen3 1.7B para texto y voz.
 

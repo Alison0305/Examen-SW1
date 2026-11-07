@@ -41,7 +41,8 @@ export type DiagnosticCode =
   | "UML_DEFAULT_SORT_NOT_SORTABLE"
   | "UML_INVALID_VISIBILITY"
   | "UML_INVALID_TYPE"
-  | "UML_INVALID_FOREIGN_KEY_OWNER";
+  | "UML_INVALID_FOREIGN_KEY_OWNER"
+  | "UML_INVALID_FRAGMENT";
 
 export interface Diagnostic {
   severity: DiagnosticSeverity;

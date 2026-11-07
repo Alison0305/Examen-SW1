@@ -187,6 +187,28 @@ export interface RestoreDeletionSnapshotCommand {
   snapshot: DeletionSnapshot;
 }
 
+// Elements added together by an import (XMI or image). Ids are assigned before the command is sent.
+export interface UmlFragment {
+  classes: UmlClass[];
+  enumerations: UmlEnumeration[];
+  relationships: UmlRelationship[];
+  layout: DiagramElementLayout[];
+}
+
+export const UML_FRAGMENT_MAX_ELEMENTS = 500;
+
+export interface ImportUmlFragmentCommand {
+  type: "ImportUmlFragment";
+  fragment: UmlFragment;
+}
+
+export interface RemoveUmlFragmentCommand {
+  type: "RemoveUmlFragment";
+  classIds: Uuid[];
+  enumerationIds: Uuid[];
+  relationshipIds: Uuid[];
+}
+
 export type UmlCommand =
   | CreateClassCommand
   | RenameClassCommand
@@ -208,7 +230,9 @@ export type UmlCommand =
   | UpdateRelationshipNameCommand
   | MoveElementCommand
   | ApplyLayoutCommand
-  | RestoreDeletionSnapshotCommand;
+  | RestoreDeletionSnapshotCommand
+  | ImportUmlFragmentCommand
+  | RemoveUmlFragmentCommand;
 
 export interface CommandSuccessResult {
   success: true;

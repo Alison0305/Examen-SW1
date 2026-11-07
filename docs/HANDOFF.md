@@ -3,7 +3,7 @@
 ## Estado Operativo
 
 - Correctivo `fix-cu-08-qwen-local-runtime` cerrado, aceptado y archivado en `openspec/changes/archive/2026-11-06-fix-cu-08-qwen-local-runtime/`.
-- CU activo: CU-10 (XMI e imagen → UML). OpenSpec `openspec/changes/cu-10-xmi-imagen-uml/` validado en modo strict; 0 de 25 tareas.
+- CU activo: CU-10 (XMI e imagen → UML). OpenSpec `openspec/changes/cu-10-xmi-imagen-uml/`: Incremento 1 completo (10/25 tareas); Incrementos 2 y 3 pendientes.
 
 ## Entorno
 
@@ -14,4 +14,4 @@
 
 ## Siguiente Acción
 
-Implementar el Incremento 1 de CU-10 (tareas 1.1 a 1.10). Pendientes del usuario: Enterprise Architect para la tarea 1.9 y fotos reales para la 3.4.
+Implementar el Incremento 2 de CU-10 (imagen → propuesta: Sharp, Florence-2 local y analizador determinista). Pendiente del usuario: fotos reales para la tarea 3.4.

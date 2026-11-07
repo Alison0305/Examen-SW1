@@ -6,6 +6,7 @@
     "frontend",
     "backend",
     "uml-core",
+    "xmi-core",
     "relational-core",
     "spring-generator",
     "frontend-generator",

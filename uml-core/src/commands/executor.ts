@@ -12,7 +12,7 @@ import {
   type Uuid,
 } from "../model.js";
 import { validateProjectDocument, type Diagnostic } from "../validation.js";
-import type { CommandResult, DeletionSnapshot, DiagramElementLayoutInput, IndexedDeletionEntry, UmlCommand } from "./command.js";
+import { UML_FRAGMENT_MAX_ELEMENTS, type CommandResult, type DeletionSnapshot, type DiagramElementLayoutInput, type IndexedDeletionEntry, type UmlCommand, type UmlFragment } from "./command.js";
 
 export interface UmlCommandExecutorOptions {
   uuidFactory?: () => Uuid;
@@ -323,6 +323,42 @@ export class UmlCommandExecutor {
         const diagnostics = restoreDeletionSnapshot(candidate, command.snapshot);
         return diagnostics.length > 0 ? rejected(document, diagnostics) : this.validateCandidate(document, candidate);
       }
+      case "ImportUmlFragment": {
+        // All or nothing: full-document validation rejects colliding ids, duplicate names and dangling references.
+        const diagnostics = fragmentShapeDiagnostics(command.fragment);
+        if (diagnostics.length > 0) {
+          return rejected(document, diagnostics);
+        }
+        const candidate = cloneDocument(document);
+        const fragment = JSON.parse(JSON.stringify(command.fragment)) as typeof command.fragment;
+        candidate.uml.classes.push(...fragment.classes);
+        candidate.uml.enumerations.push(...fragment.enumerations);
+        candidate.uml.relationships.push(...fragment.relationships);
+        candidate.layout.elements.push(...fragment.layout);
+        return this.validateCandidate(document, candidate);
+      }
+      case "RemoveUmlFragment": {
+        const missing = [
+          ...command.classIds.filter((id) => !findClass(document.uml, id)),
+          ...command.enumerationIds.filter((id) => !findEnumeration(document.uml, id)),
+          ...command.relationshipIds.filter((id) => !findRelationship(document.uml, id)),
+        ];
+        if (missing.length > 0) {
+          return rejected(document, missing.map((id) => unknownReference(id, "fragment", "El elemento a retirar no existe.")));
+        }
+        const removed = new Set<Uuid>([...command.classIds, ...command.enumerationIds, ...command.relationshipIds]);
+        const candidate = cloneDocument(document);
+        candidate.uml.classes = candidate.uml.classes.filter((entry) => !removed.has(entry.id));
+        candidate.uml.enumerations = candidate.uml.enumerations.filter((entry) => !removed.has(entry.id));
+        // Like DeleteClass, relationships attached to a removed class go with it.
+        candidate.uml.relationships = candidate.uml.relationships.filter((entry) => {
+          const keep = !removed.has(entry.id) && !removed.has(entry.sourceId) && !removed.has(entry.targetId);
+          if (!keep) removed.add(entry.id);
+          return keep;
+        });
+        candidate.layout.elements = candidate.layout.elements.filter((entry) => !removed.has(entry.elementId));
+        return this.validateCandidate(document, candidate);
+      }
     }
   }
 
@@ -394,6 +430,33 @@ function intermediateLayout(document: ProjectDocument, sourceId: Uuid, targetId:
     y += 140;
   }
   return { elementId: intermediateId, x, y, width: 180, height: 120 };
+}
+
+function invalidFragment(path: string, message: string): Diagnostic {
+  return { severity: "error", code: "UML_INVALID_FRAGMENT", message, path };
+}
+
+// Structural checks the document validator cannot express: size limit and layouts owned by the fragment.
+function fragmentShapeDiagnostics(fragment: UmlFragment): Diagnostic[] {
+  if (!fragment || !Array.isArray(fragment.classes) || !Array.isArray(fragment.enumerations) || !Array.isArray(fragment.relationships) || !Array.isArray(fragment.layout)) {
+    return [invalidFragment("fragment", "El fragmento debe incluir clases, enumeraciones, relaciones y layout.")];
+  }
+  const size = fragment.classes.length + fragment.enumerations.length + fragment.relationships.length;
+  if (size === 0) {
+    return [invalidFragment("fragment", "El fragmento no contiene elementos.")];
+  }
+  if (size > UML_FRAGMENT_MAX_ELEMENTS) {
+    return [invalidFragment("fragment", `El fragmento supera el máximo de ${UML_FRAGMENT_MAX_ELEMENTS} elementos.`)];
+  }
+  const owned = new Set<Uuid>([...fragment.classes, ...fragment.enumerations, ...fragment.relationships].map((entry) => entry.id));
+  const seen = new Set<Uuid>();
+  const diagnostics: Diagnostic[] = [];
+  fragment.layout.forEach((entry, index) => {
+    if (!owned.has(entry.elementId)) diagnostics.push(invalidFragment(`fragment.layout[${index}]`, "El layout pertenece a un elemento ajeno al fragmento."));
+    else if (seen.has(entry.elementId)) diagnostics.push(invalidFragment(`fragment.layout[${index}]`, "El elemento tiene más de un layout en el fragmento."));
+    seen.add(entry.elementId);
+  });
+  return diagnostics;
 }
 
 function cloneDocument(document: ProjectDocument): ProjectDocument {

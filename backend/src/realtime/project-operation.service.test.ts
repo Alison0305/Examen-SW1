@@ -44,6 +44,22 @@ function setup(existing: unknown = null, revision = 1) {
 }
 
 describe("ProjectOperationService", () => {
+  it("acepta una importación atómica y su inverso RemoveUmlFragment", async () => {
+    const importedId = "e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1";
+    const importCommand: UmlCommand = { type: "ImportUmlFragment", fragment: { classes: [{ id: importedId, name: "Importada", visibility: "public", attributes: [], operations: [] }], enumerations: [], relationships: [], layout: [{ elementId: importedId, x: 80, y: 80, width: 180, height: 120 }] } };
+    const first = setup();
+    await expect(first.service.apply(actorId, dto({ command: importCommand }))).resolves.toMatchObject({ command: importCommand, revision: 2 });
+    const imported = first.tx.project.updateMany.mock.calls[0][0].data.document as ReturnType<typeof createProjectDocument>;
+    expect(imported.uml.classes.map((entry) => entry.id)).toEqual([importedId]);
+
+    const second = setup();
+    second.tx.project.findUnique.mockResolvedValue({ id: projectId, revision: 1, document: imported });
+    const removeCommand: UmlCommand = { type: "RemoveUmlFragment", classIds: [importedId], enumerationIds: [], relationshipIds: [] };
+    await expect(second.service.apply(actorId, dto({ command: removeCommand }))).resolves.toMatchObject({ command: removeCommand });
+    const removed = second.tx.project.updateMany.mock.calls[0][0].data.document as ReturnType<typeof createProjectDocument>;
+    expect(removed.uml.classes).toEqual([]);
+    expect(removed.layout.elements).toEqual([]);
+  });
   it("acepta una Association recursiva sin duplicarla", async () => {
     const document = createProjectDocument({ id: projectId });
     document.uml.classes.push({ id: classId, name: "Empleado", visibility: "public", attributes: [], operations: [] });

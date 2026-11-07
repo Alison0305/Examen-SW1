@@ -13,6 +13,7 @@
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
     "@examen-sw1/uml-core": "^0.0.0",
+    "@examen-sw1/xmi-core": "^0.0.0",
     "@mui/material": "^7.3.2",
     "@xyflow/react": "^12.11.6",
     "elkjs": "^0.12.0",

@@ -10,6 +10,7 @@ import {
   type ProjectDocument,
   type UmlCommand,
   type UmlRelationshipType,
+  type UmlFragment,
   type UmlTextProposal,
   type UmlVisibility,
   type Uuid,
@@ -65,6 +66,7 @@ interface WorkspaceState {
   updateRelationshipName: (relationshipId: Uuid, name: string) => CommandResult;
   deleteSelectedRelationship: () => void;
   applyTextProposal: (proposal: UmlTextProposal) => CommandResult;
+  importFragment: (fragment: UmlFragment) => CommandResult;
   applyAutoLayout: () => Promise<CommandResult>;
   undo: () => void;
   redo: () => void;
@@ -268,6 +270,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       set({ selection: null });
     }
   },
+  importFragment: (fragment) => applyCommand(set, { type: "ImportUmlFragment", fragment }),
   applyTextProposal: (proposal) => {
     const result = applyCommand(set, adaptUmlTextProposal(proposal, createWorkspaceUuid));
     if (result.success && proposal.type === "DELETE_CLASS" && get().selection?.id === proposal.targetId) {
@@ -473,6 +476,13 @@ function inverseCommand(command: UmlCommand, document: ProjectDocument): UmlComm
     }
     case "AddEnumerationLiteral": return { type: "RemoveEnumerationLiteral", enumerationId: command.enumerationId, literal: command.literal };
     case "CreateRelationship": return command.relationshipId ? { type: "DeleteRelationship", relationshipId: command.relationshipId } : undefined;
+    // An import is undone as a single operation that removes exactly the imported elements.
+    case "ImportUmlFragment": return {
+      type: "RemoveUmlFragment",
+      classIds: command.fragment.classes.map((entry) => entry.id),
+      enumerationIds: command.fragment.enumerations.map((entry) => entry.id),
+      relationshipIds: command.fragment.relationships.map((entry) => entry.id),
+    };
     case "UpdateMultiplicity": {
       const relationship = document.uml.relationships.find((entry) => entry.id === command.relationshipId);
       return relationship ? { type: "UpdateMultiplicity", relationshipId: command.relationshipId, end: command.end, multiplicity: relationship[command.end === "source" ? "sourceMultiplicity" : "targetMultiplicity"] } : undefined;

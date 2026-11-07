@@ -60,6 +60,7 @@ import {
 import { UmlRelationshipEdge } from "./uml-edge";
 import { VoiceTranscriptInput } from "../voice-transcript-input";
 import { interpretNaturalUmlText, interpretStrictUmlText, isStrictUmlText, type UmlInterpretation } from "./uml-interpreter-client";
+import { WorkspaceXmiActions } from "./xmi-actions";
 import { UmlClassNode, UmlEnumerationNode } from "./uml-nodes";
 import {
   formatMultiplicity,
@@ -291,12 +292,14 @@ function WorkspaceContent({
             <WorkspaceSidebar
               drawer
               readOnly={readOnly}
+              projectName={projectName}
               onPrepareInterface={onPrepareInterface}
             />
           </Drawer>
         ) : (
           <WorkspaceSidebar
             readOnly={readOnly}
+            projectName={projectName}
             onPrepareInterface={onPrepareInterface}
           />
         )}
@@ -638,10 +641,12 @@ function WorkspaceAppBar({
 function WorkspaceSidebar({
   drawer = false,
   readOnly = false,
+  projectName,
   onPrepareInterface,
 }: Readonly<{
   drawer?: boolean;
   readOnly?: boolean;
+  projectName?: string;
   onPrepareInterface?: () => void | Promise<void>;
 }>) {
   const {
@@ -676,6 +681,7 @@ function WorkspaceSidebar({
     >
       <Stack spacing={2}>
         <WorkspaceToolbox readOnly={readOnly} />
+        <WorkspaceXmiActions readOnly={readOnly} projectName={projectName} />
         <WorkspaceTextAssistant readOnly={readOnly} />
         {onPrepareInterface && (
           <Tooltip title="Preparar interfaz">

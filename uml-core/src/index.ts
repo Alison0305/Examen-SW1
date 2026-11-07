@@ -14,10 +14,12 @@ export type {
   DeleteRelationshipCommand,
   DeletionSnapshot,
   DiagramElementLayoutInput,
+  ImportUmlFragmentCommand,
   IndexedDeletionEntry,
   MoveElementCommand,
   RemoveAttributeCommand,
   RemoveEnumerationLiteralCommand,
+  RemoveUmlFragmentCommand,
   RestoreDeletionSnapshotCommand,
   RenameClassCommand,
   RenameEnumerationCommand,
@@ -27,7 +29,9 @@ export type {
   UmlCommand,
   UpdateAttributeCommand,
   UpdateMultiplicityCommand,
+  UmlFragment,
 } from "./commands/command.js";
+export { UML_FRAGMENT_MAX_ELEMENTS } from "./commands/command.js";
 
 export type { UmlCommandBusHistoryState, UmlCommandBusOptions } from "./commands/command-bus.js";
 
@@ -91,3 +95,16 @@ export { validateCanonicalUmlModel, validateProjectDocument } from "./validation
 export { UmlCommandBus } from "./commands/command-bus.js";
 export { UmlCommandExecutor } from "./commands/executor.js";
 export { adaptUmlTextProposal, parseUmlTextProposal } from "./text-proposal.js";
+export { buildImportFragment, normalizePrimitiveTypeName, previewImportFragment } from "./import-proposal.js";
+export type {
+  ImportAttribute,
+  ImportClass,
+  ImportDiagnostic,
+  ImportDiagnosticSeverity,
+  ImportEnumeration,
+  ImportFragmentOptions,
+  ImportFragmentResult,
+  ImportPreview,
+  ImportRelationship,
+  UmlImportProposal,
+} from "./import-proposal.js";

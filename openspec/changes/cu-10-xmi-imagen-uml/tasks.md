@@ -1,15 +1,15 @@
 ## 1. Incremento 1 - Comandos atómicos, propuesta e interoperabilidad XMI
 
-- [ ] 1.1 Agregar `ImportUmlFragment` y `RemoveUmlFragment` a `uml-core` (tipos, executor y validación); verificar con tests: aplicación atómica, rechazo de ids repetidos y de fragmentos inválidos sin cambios, una sola entrada de historial y Undo que restaura el estado previo.
-- [ ] 1.2 Definir `UmlImportProposal` y el traductor determinista a fragmento en `uml-core` (normalización de tipos, referencias por nombre, tipo desconocido como `string` con diagnóstico, relaciones con extremo inexistente omitidas y posiciones iniciales); verificar con tests unitarios de cada regla y del determinismo.
-- [ ] 1.3 Agregar la validación previa sobre copia del documento; verificar con tests que reporta nombres duplicados y que no altera documento, revisión ni historial.
-- [ ] 1.4 Agregar el inverso colaborativo (`ImportUmlFragment` → `RemoveUmlFragment`) en `workspace-store`; verificar con tests de Undo/Redo colaborativos y con un test del backend realtime que acepta ambos comandos.
-- [ ] 1.5 Crear el workspace `@examen-sw1/xmi-core` con `fast-xml-parser` en versión exacta (al menos dos semanas de publicación) y scripts de lint, typecheck, test y build; verificar instalación y build.
-- [ ] 1.6 Implementar `exportXmi` (XMI 2.1, ids derivados y salida determinista); verificar con tests de estructura, tipos, multiplicidades, agregación, composición, generalización y doble exportación idéntica.
-- [ ] 1.7 Implementar `parseXmi` con diagnósticos (XML inválido, no XMI, operaciones, paquetes aplanados y elementos desconocidos); verificar con tests de cada caso y del round-trip exportar → importar.
-- [ ] 1.8 Agregar al workspace Exportar XMI (descarga) e Importar XMI (archivo con límite de tamaño, revisión básica con conteos y diagnósticos, y Aplicar con un comando); verificar con tests RTL y que VIEWER no ve las acciones.
-- [ ] 1.9 Prueba manual con Enterprise Architect: importar en EA un XMI exportado por el producto e importar en el producto un XMI exportado por EA; versionar ese XMI como fixture si no contiene datos sensibles y registrar la versión de EA y las diferencias en `docs/puds/use-cases/CU-10-xmi-imagen-uml.md`.
-- [ ] 1.10 Ejecutar los gates de `uml-core`, `xmi-core`, `frontend` y `backend` (lint, typecheck, test y build) y documentar el Incremento 1 en CU-10.
+- [x] 1.1 Agregar `ImportUmlFragment` y `RemoveUmlFragment` a `uml-core` (tipos, executor y validación); verificar con tests: aplicación atómica, rechazo de ids repetidos y de fragmentos inválidos sin cambios, una sola entrada de historial y Undo que restaura el estado previo.
+- [x] 1.2 Definir `UmlImportProposal` y el traductor determinista a fragmento en `uml-core` (normalización de tipos, referencias por nombre, tipo desconocido como `string` con diagnóstico, relaciones con extremo inexistente omitidas y posiciones iniciales); verificar con tests unitarios de cada regla y del determinismo.
+- [x] 1.3 Agregar la validación previa sobre copia del documento; verificar con tests que reporta nombres duplicados y que no altera documento, revisión ni historial.
+- [x] 1.4 Agregar el inverso colaborativo (`ImportUmlFragment` → `RemoveUmlFragment`) en `workspace-store`; verificar con tests de Undo/Redo colaborativos y con un test del backend realtime que acepta ambos comandos.
+- [x] 1.5 Crear el workspace `@examen-sw1/xmi-core` con `fast-xml-parser` en versión exacta (al menos dos semanas de publicación) y scripts de lint, typecheck, test y build; verificar instalación y build.
+- [x] 1.6 Implementar `exportXmi` (XMI 2.1, ids derivados y salida determinista); verificar con tests de estructura, tipos, multiplicidades, agregación, composición, generalización y doble exportación idéntica.
+- [x] 1.7 Implementar `parseXmi` con diagnósticos (XML inválido, no XMI, operaciones, paquetes aplanados y elementos desconocidos); verificar con tests de cada caso y del round-trip exportar → importar.
+- [x] 1.8 Agregar al workspace Exportar XMI (descarga) e Importar XMI (archivo con límite de tamaño, revisión básica con conteos y diagnósticos, y Aplicar con un comando); verificar con tests RTL y que VIEWER no ve las acciones.
+- [x] 1.9 Prueba manual con Enterprise Architect: importar en EA un XMI exportado por el producto e importar en el producto un XMI exportado por EA; versionar ese XMI como fixture si no contiene datos sensibles y registrar la versión de EA y las diferencias en `docs/puds/use-cases/CU-10-xmi-imagen-uml.md`. Aprobada por el usuario el 2026-11-06 en ambos sentidos; no se reportaron la versión de EA ni diferencias, y no se aportó un XMI de EA para versionar como fixture.
+- [x] 1.10 Ejecutar los gates de `uml-core`, `xmi-core`, `frontend` y `backend` (lint, typecheck, test y build) y documentar el Incremento 1 en CU-10.
 
 ## 2. Incremento 2 - Imagen a propuesta estructurada
 
