@@ -76,6 +76,8 @@ import {
   type WorkspaceTool,
 } from "./workspace-store";
 import type { ProjectPresence } from "./realtime-client";
+import type { MentorQueryResponse } from "../auth/api";
+import { MentorPanel } from "./mentor-panel";
 
 const nodeTypes = {
   umlClass: UmlClassNode,
@@ -133,6 +135,7 @@ export type WorkspaceClientProps = {
   onGenerateBackend?: () => void;
   onPrepareInterface?: () => void | Promise<void>;
   readOnly?: boolean;
+  onMentorQuery?: (question: string) => Promise<MentorQueryResponse>;
   collaboration?: {
     connection:
       | "connecting"
@@ -161,6 +164,7 @@ export function WorkspaceClient({
   onGenerateBackend,
   onPrepareInterface,
   readOnly = false,
+  onMentorQuery,
   collaboration,
 }: Readonly<WorkspaceClientProps>) {
   useEffect(() => {
@@ -183,6 +187,7 @@ export function WorkspaceClient({
         onGenerateBackend={onGenerateBackend}
         onPrepareInterface={onPrepareInterface}
         readOnly={readOnly}
+        onMentorQuery={onMentorQuery}
         collaboration={collaboration}
       />
     </ReactFlowProvider>
@@ -199,6 +204,7 @@ function WorkspaceContent({
   onGenerateBackend,
   onPrepareInterface,
   readOnly = false,
+  onMentorQuery,
   collaboration,
 }: Readonly<WorkspaceClientProps>) {
   const store = useWorkspaceStore();
@@ -415,6 +421,7 @@ function WorkspaceContent({
                   })}
               </Box>
             </Card>
+            {projectName && onMentorQuery && <MentorPanel projectName={projectName} onQuery={onMentorQuery} />}
           </Stack>
         </Box>
         {compact ? (

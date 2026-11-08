@@ -43,6 +43,12 @@ export type PendingProjectInvitation = Omit<
   "email" | "invitedById" | "resolvedAt"
 > & { project: { id: string; name: string }; invitedBy: { email: string } };
 export type SpringExport = { blob: Blob; filename: string };
+export type MentorQueryResponse = {
+  answer: string;
+  grounded: boolean;
+  projectRevision: number;
+  diagnostic?: "INSUFFICIENT_CONTEXT" | "ELEMENT_NOT_FOUND";
+};
 
 export type ApiClient = {
   login(email: string, password: string): Promise<string>;
@@ -83,6 +89,7 @@ export type ApiClient = {
   rejectInvitationById(id: string): Promise<ProjectInvitation>;
   exportSpring(id: string, basePackage: string): Promise<SpringExport>;
   exportFrontend(id: string): Promise<FrontendExport>;
+  queryMentor(id: string, question: string): Promise<MentorQueryResponse>;
 };
 
 export class ApiError extends Error {
@@ -335,5 +342,10 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     exportSpring: (id, basePackage) =>
       requestSpringExport(id, basePackage, options),
     exportFrontend: (id) => requestFrontendExport(id, options),
+    queryMentor: (id, question) =>
+      request<MentorQueryResponse>(`/projects/${encodeURIComponent(id)}/mentor/query`, options, {
+        method: "POST",
+        body: JSON.stringify({ question }),
+      }),
   };
 }

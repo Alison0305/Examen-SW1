@@ -441,6 +441,7 @@ function PersistedWorkspace() {
         onReloadServerVersion={reload}
         onGenerateBackend={openExport}
         onPrepareInterface={prepareInterface}
+        onMentorQuery={(question) => api.queryMentor(project.id, question)}
         readOnly={readOnly}
         collaboration={{
           connection,
