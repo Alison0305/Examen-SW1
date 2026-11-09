@@ -75,6 +75,17 @@ describe("cliente API y sesión", () => {
     expect((fetcher.mock.calls[0][1].headers as Headers).get("Authorization")).toBe("Bearer secret-token");
   });
 
+  it("consulta el Mentor IA solo mediante la ruta del proyecto activo", async () => {
+    const fetcher = vi.fn().mockResolvedValue({ status: 201, ok: true, json: vi.fn().mockResolvedValue({ answer: "ok", grounded: true, projectRevision: 2 }) });
+    const client = createApiClient({ getToken: () => "secret-token", onUnauthorized: vi.fn(), fetcher, apiBaseUrl: "http://api.test" });
+
+    await client.queryMentor("project id", "Describe Cliente");
+
+    expect(fetcher).toHaveBeenCalledWith("http://api.test/projects/project%20id/mentor/query", expect.objectContaining({ method: "POST" }));
+    expect((fetcher.mock.calls[0][1].headers as Headers).get("Authorization")).toBe("Bearer secret-token");
+    expect(fetcher.mock.calls[0][1].body).toBe(JSON.stringify({ question: "Describe Cliente" }));
+  });
+
   it("envía Content-Type solo en solicitudes con JSON y conserva DELETE sin body", async () => {
     const fetcher = vi.fn()
       .mockResolvedValueOnce({ status: 204, ok: true })

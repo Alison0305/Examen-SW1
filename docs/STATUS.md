@@ -2,6 +2,18 @@
 
 ## Estado Actual
 
+### Segundo Parcial
+
+**CU activo del segundo parcial:** CU-2P-01 - Consultar al Mentor IA con contexto del proyecto.
+
+**OpenSpec activo:** `openspec/changes/s2-cu01-mentor-contextual/`.
+
+Este track académico es independiente del roadmap histórico CU-00...CU-11. No renumera ni modifica el estado del primer parcial.
+
+Implementación: ruta autenticada contextual, constructor semántico sin layout, proveedor Qwen local desacoplado, registrador efímero y panel dentro del workspace persistido. OpenSpec 9/9 tareas; gates raíz correctos (516 tests y 8 reales omitidos), prueba focal Mentor 10/10 y Assistant 18/18 + 5 omitidas. Pendiente prueba manual Qwen, revisión del compañero, aceptación, archive y commit.
+
+### Primer Parcial
+
 **Ciclo actual:** Ciclo 4 — Transición, multimodalidad y cierre.
 
 **Último CU completado:** CU-10 — XMI e imagen → UML.
@@ -183,4 +195,4 @@ El correctivo CU-06 está completo en 9/9. Con el proyecto `Prueba CU06 Backend`
 
 ## Siguiente Acción
 
-Planificar CU-11 según `docs/puds/use-cases/README.md` (plan, aprobación del usuario y OpenSpec). Opcional, como correctivo separado `fix-cu-10-...`: mejorar el analizador de imágenes para capturas reales y medirlo con capturas nuevas.
+Completar la prueba manual y aceptación de CU-2P-01 con dos proyectos aislados y Qwen real. En el track histórico, planificar CU-11 según `docs/puds/use-cases/README.md` (plan, aprobación del usuario y OpenSpec). Opcionalmente, crear un correctivo separado `fix-cu-10-...` para mejorar y medir el analizador de imágenes con capturas nuevas.

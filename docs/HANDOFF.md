@@ -4,6 +4,7 @@
 
 - CU-10 (XMI e imagen → UML) cerrado, aceptado y archivado en `openspec/changes/archive/2026-11-08-cu-10-xmi-imagen-uml/`.
 - Ningún CU activo. El siguiente es CU-11, el último del roadmap; todavía no tiene plan ni OpenSpec.
+- Segundo parcial: CU-2P-01 Mentor IA contextual en `openspec/changes/s2-cu01-mentor-contextual/`, 9/9 tareas. Backend y UI implementados; pendiente prueba manual Qwen, revisión y aceptación antes de archive/commit.
 
 ## Entorno
 
@@ -20,4 +21,4 @@
 
 ## Siguiente Acción
 
-Planificar CU-11 según `docs/puds/use-cases/README.md` y pedir aprobación al usuario antes del OpenSpec.
+Completar la prueba manual y aceptación de CU-2P-01; en el track histórico, planificar CU-11 según `docs/puds/use-cases/README.md` y pedir aprobación antes del OpenSpec.
