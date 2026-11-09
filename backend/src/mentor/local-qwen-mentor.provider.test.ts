@@ -22,5 +22,7 @@ describe("LocalQwenMentorProvider", () => {
       userPrompt: expect.stringContaining("Por cada Cliente, existen 0..* instancias de Pedido relacionadas."),
     }));
     expect(generateText).toHaveBeenCalledWith(expect.objectContaining({ userPrompt: expect.stringContaining("Por cada Pedido, existen 1..1 instancias de Cliente relacionadas.") }));
+    const request = generateText.mock.calls[0]?.[0];
+    expect(`${request?.systemPrompt}\n${request?.userPrompt}`).not.toMatch(/user-a|alice@example\.test|OWNER/);
   });
 });
