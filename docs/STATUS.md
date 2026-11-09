@@ -12,6 +12,12 @@ Este track académico es independiente del roadmap histórico CU-00...CU-11. No 
 
 Implementación: ruta autenticada contextual, constructor semántico sin layout, proveedor Qwen local desacoplado, registrador efímero y panel dentro del workspace persistido. OpenSpec 9/9 tareas; gates raíz correctos (516 tests y 8 reales omitidos), prueba focal Mentor 10/10 y Assistant 18/18 + 5 omitidas. Pendiente prueba manual Qwen, revisión del compañero, aceptación, archive y commit.
 
+**CU-2P-04 - Analizar y explicar un modelo UML 2.5** (issue #4, rama `feat/s2-cu04-analisis-uml`, OpenSpec `openspec/changes/s2-cu04-analisis-uml/`).
+
+Estado: implementación funcional completa — pendiente validación Qwen real y smoke test visual antes de PR/cierre. No está cerrado.
+
+Implementación: `POST /projects/:id/mentor/analysis` con contexto determinista (fragmento UML, diagnósticos canónicos, hechos relacionales del mapper, conflictos y limitaciones), prompt compacto con recorte declarado y explicación con el mismo Qwen local compartido por CU-2P-01 (`ASSISTANT_LOCAL_MODEL`). Sección "Análisis UML" en el panel Mentor IA con "Explicar selección" y "Explicar modelo", de solo lectura. Integra CU-2P-01 desde `main` (PR #8). OpenSpec 14/18 tareas. Pruebas: `mentor-analysis` 181 correctas + 15 reales de Qwen omitidas; backend completo 328 correctas + 36 omitidas (5 archivos PostgreSQL sin `backend/.env`); frontend 208/208; ESLint y TypeScript correctos. Pendiente: ejecutar la suite real de Qwen, revisión manual en navegador, revisión del compañero, PR, aceptación y cierre del issue.
+
 ### Primer Parcial
 
 **Ciclo actual:** Ciclo 4 — Transición, multimodalidad y cierre.
@@ -188,6 +194,8 @@ El correctivo CU-06 está completo en 9/9. Con el proyecto `Prueba CU06 Backend`
 - Test intermitente en `frontend`: con la CPU cargada, `app/projects/page.tsx` puede actualizar el estado después del teardown de `auth.test.tsx` y Vitest lo reporta como error no controlado aunque todos los tests pasen. Visto el 2026-11-06; no se reprodujo en tres repeticiones.
 - No hay proveedor de cobertura Vitest instalado ni configurado.
 - El despliegue horizontal requiere afinidad de sesión o un adaptador Socket.IO compartido; el Incremento 1 se comprobó en una instancia.
+- `relational-core`: dos asociaciones entre las mismas clases pueden generar columnas y FK duplicadas sin diagnóstico del mapper. Detectado durante CU-2P-04, que lo informa como conflicto sin corregir el mapper.
+- `DtoValidationPipe`: un POST con cuerpo `null` o `undefined` responde 500 en lugar de 400. Detectado durante CU-2P-04, que usa una protección local.
 
 ## Trabajo Futuro Separado
 
@@ -195,4 +203,4 @@ El correctivo CU-06 está completo en 9/9. Con el proyecto `Prueba CU06 Backend`
 
 ## Siguiente Acción
 
-Completar la prueba manual y aceptación de CU-2P-01 con dos proyectos aislados y Qwen real. En el track histórico, planificar CU-11 según `docs/puds/use-cases/README.md` (plan, aprobación del usuario y OpenSpec). Opcionalmente, crear un correctivo separado `fix-cu-10-...` para mejorar y medir el analizador de imágenes con capturas nuevas.
+Completar la prueba manual y aceptación de CU-2P-01 con dos proyectos aislados y Qwen real. Para CU-2P-04, ejecutar la suite real de Qwen y la revisión manual en navegador antes del PR. En el track histórico, planificar CU-11 según `docs/puds/use-cases/README.md` (plan, aprobación del usuario y OpenSpec). Opcionalmente, crear un correctivo separado `fix-cu-10-...` para mejorar y medir el analizador de imágenes con capturas nuevas.
