@@ -3,7 +3,7 @@
 - `uml-core` muta el documento solo mediante `UmlCommand`. El Undo local guarda snapshots del documento en `UmlCommandBus`. El Undo colaborativo del frontend (`workspace-store`) calcula un comando inverso por comando (`inverseCommand`), y para eliminaciones usa `RestoreDeletionSnapshot`.
 - El backend realtime (`ProjectOperationService`) ejecuta cualquier `UmlCommand` con el mismo `UmlCommandBus`, así que un comando nuevo funciona en colaboración sin cambiar el gateway.
 - No existe un comando que agregue varios elementos a la vez (proposal.md, Why).
-- Florence-2 no está entrenado en diagramas UML, pero ofrece OCR con regiones (`<OCR_WITH_REGION>`) de buena calidad. El modelo `onnx-community/Florence-2-base-ft` tiene licencia MIT y pesa unos 175 MB en int8.
+- Florence-2 no está entrenado en diagramas UML, pero ofrece OCR con regiones (`<OCR_WITH_REGION>`) de buena calidad. El modelo `onnx-community/Florence-2-base-ft` tiene licencia MIT; su juego q8 (`*_quantized`) pesa unos 275 MB.
 - Equipo de referencia: Ryzen 5 3400G, 16 GB de RAM, GTX 1660 SUPER (Vulkan, sin CUDA runtime), Windows 10, Node v26.13.0.
 
 ## Goals / Non-Goals
@@ -58,7 +58,7 @@ Alternativa descartada: un endpoint backend para XMI. Agrega latencia y otra sup
 
 El módulo `vision` expone `POST /projects/:id/vision/uml-proposal` con JWT y exige permiso de edición sobre el proyecto. Las etapas son:
 
-1. **Sharp:** rotación por EXIF, escala de grises, normalización de contraste y redimensión a un máximo de 1024 px por lado.
+1. **Sharp:** rotación por EXIF, escala de grises, normalización de contraste, redimensión a un máximo de 1024 px por lado y enderezado de inclinaciones de 0,5° a 8°, estimadas por proyección de filas. El enderezado se agregó tras medir el benchmark.
 2. **Florence-2 `<OCR_WITH_REGION>`:** Transformers.js con modelo local (`allowRemoteModels = false` y `localModelPath`). Devuelve líneas de texto con su cuadrilátero.
 3. **Análisis determinista sobre píxeles:**
    - binarizar;

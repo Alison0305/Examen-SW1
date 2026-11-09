@@ -8,9 +8,10 @@ import { NodeLlamaCppEngine } from "./node-llama-cpp-engine";
 const config = getAssistantConfig();
 const describeQwenIntegration = config.modelPath ? describe : describe.skip;
 const MODEL_LOAD_TIMEOUT_MS = 180_000;
+const loadNodeLlamaCpp = () => import("node-llama-cpp");
 
 describeQwenIntegration("Qwen3 real local mediante node-llama-cpp", () => {
-  const engine = new NodeLlamaCppEngine({ modelPath: config.modelPath!, gpu: config.gpu, contextSize: config.contextSize, maxTokens: config.maxTokens });
+  const engine = new NodeLlamaCppEngine({ modelPath: config.modelPath!, gpu: config.gpu, contextSize: config.contextSize, maxTokens: config.maxTokens }, loadNodeLlamaCpp);
   // Production timeout: the first request also loads the model, which must not count against it.
   const model = new QueuedLocalTextModel(engine, { timeoutMs: config.timeoutMs, maxQueue: config.maxQueue });
   const interpreter = new AssistantInterpreterService(model);
@@ -37,7 +38,7 @@ describeQwenIntegration("Qwen3 real local mediante node-llama-cpp", () => {
   }, MODEL_LOAD_TIMEOUT_MS);
 
   it("reporta MODEL_NOT_FOUND para una ruta inexistente sin descargar nada", async () => {
-    const missing = new QueuedLocalTextModel(new NodeLlamaCppEngine({ ...config, modelPath: "missing-model.gguf" }), { timeoutMs: 10_000, maxQueue: 1 });
+    const missing = new QueuedLocalTextModel(new NodeLlamaCppEngine({ ...config, modelPath: "missing-model.gguf" }, loadNodeLlamaCpp), { timeoutMs: 10_000, maxQueue: 1 });
     await expect(new AssistantInterpreterService(missing).interpretUml("crear clase cita", classes)).resolves.toMatchObject({ ok: false, diagnostic: { code: "MODEL_NOT_FOUND" } });
   });
 });

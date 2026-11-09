@@ -1,0 +1,145 @@
+import sharp from "sharp";
+import { describe, expect, it } from "vitest";
+import { analyzeDiagram, parseMultiplicityText, type OcrLine } from "./diagram-analyzer";
+import { preprocessImage } from "./image-preprocessing";
+import { renderSyntheticDiagram, type SyntheticDiagram } from "./synthetic-diagram";
+
+const LIMITS = { maxSide: 1024, maxInputPixels: 40_000_000, minSide: 32 };
+
+async function analyze(diagram: SyntheticDiagram, transformLines: (lines: OcrLine[]) => OcrLine[] = (lines) => lines) {
+  const { svg, lines } = renderSyntheticDiagram(diagram);
+  const png = await sharp(Buffer.from(svg)).png().toBuffer();
+  const image = await preprocessImage(png, LIMITS);
+  return analyzeDiagram(image, transformLines(lines));
+}
+
+const codes = (proposal: { diagnostics: ReadonlyArray<{ code: string }> }) => proposal.diagnostics.map((entry) => entry.code);
+
+describe("analyzeDiagram", () => {
+  it("reconoce dos clases con atributos y una asociación con multiplicidades", async () => {
+    const proposal = await analyze({
+      width: 800, height: 320,
+      classes: [
+        { name: "Cliente", x: 40, y: 60, attributes: ["- nombre : String", "- edad : int"] },
+        { name: "Pedido", x: 520, y: 60, attributes: ["- fecha : Date", "+ total : double"] },
+      ],
+      connectors: [{ from: "Cliente", to: "Pedido", fromLabel: "1", toLabel: "0..*" }],
+    });
+
+    expect(proposal.classes).toEqual([
+      { key: "C1", name: "Cliente", attributes: [
+        { key: "C1.A1", name: "nombre", type: "String", visibility: "private" },
+        { key: "C1.A2", name: "edad", type: "int", visibility: "private" },
+      ] },
+      { key: "C2", name: "Pedido", attributes: [
+        { key: "C2.A1", name: "fecha", type: "Date", visibility: "private" },
+        { key: "C2.A2", name: "total", type: "double", visibility: "public" },
+      ] },
+    ]);
+    expect(proposal.relationships).toEqual([{ key: "R1", type: "Association", source: "C1", target: "C2", sourceMultiplicity: { lower: 1, upper: 1 }, targetMultiplicity: { lower: 0, upper: "unbounded" } }]);
+    expect(proposal.diagnostics).toEqual([]);
+  });
+
+  it("distingue generalización, composición y agregación por la marca del extremo", async () => {
+    const proposal = await analyze({
+      width: 1000, height: 420,
+      classes: [
+        { name: "Persona", x: 390, y: 30, attributes: ["- nombre : String"] },
+        { name: "Empleado", x: 390, y: 260, attributes: ["- sueldo : double"] },
+        { name: "Empresa", x: 40, y: 260, attributes: ["- ruc : String"] },
+        { name: "Equipo", x: 740, y: 260, attributes: ["- nombre : String"] },
+      ],
+      connectors: [
+        { from: "Empleado", to: "Persona", toMarker: "triangle" },
+        { from: "Empresa", to: "Empleado", fromMarker: "filledDiamond" },
+        { from: "Equipo", to: "Empleado", fromMarker: "hollowDiamond" },
+      ],
+    });
+
+    const byNames = proposal.relationships.map((entry) => {
+      const name = (key: string) => proposal.classes.find((candidate) => candidate.key === key)?.name;
+      return `${entry.type}:${name(entry.source)}->${name(entry.target)}`;
+    }).sort();
+    expect(byNames).toEqual(["Aggregation:Equipo->Empleado", "Composition:Empresa->Empleado", "Generalization:Empleado->Persona"]);
+  });
+
+  it("reconoce enumeraciones por su estereotipo y omite operaciones con diagnóstico", async () => {
+    const proposal = await analyze({
+      width: 700, height: 300,
+      classes: [
+        { name: "Estado", x: 40, y: 40, stereotype: "enumeration", attributes: ["NUEVO", "ENVIADO"] },
+        { name: "Factura", x: 400, y: 40, attributes: ["- total : double"], operations: ["+ calcular() : double"] },
+      ],
+    });
+
+    expect(proposal.enumerations).toEqual([{ key: "C1", name: "Estado", literals: ["NUEVO", "ENVIADO"] }]);
+    expect(proposal.classes.map((entry) => entry.name)).toEqual(["Factura"]);
+    expect(proposal.classes[0]!.attributes).toHaveLength(1);
+    expect(codes(proposal)).toEqual(["IMAGE_OPERATIONS_OMITTED"]);
+  });
+
+  it("devuelve una propuesta vacía con diagnóstico cuando la imagen no contiene un diagrama", async () => {
+    const proposal = await analyze({ width: 400, height: 300, classes: [], freeTexts: [{ text: "Lista de compras", x: 40, y: 60 }] });
+    expect(proposal.classes).toEqual([]);
+    expect(proposal.relationships).toEqual([]);
+    expect(codes(proposal)).toEqual(["IMAGE_NO_DIAGRAM", "IMAGE_UNASSIGNED_TEXT"]);
+  });
+
+  it("no propone relaciones de conectores con un extremo suelto", async () => {
+    const proposal = await analyze({
+      width: 800, height: 320,
+      classes: [{ name: "Cliente", x: 40, y: 60, attributes: ["- nombre : String"] }],
+      danglingLines: [[261, 110, 520, 110]],
+    });
+    expect(proposal.classes).toHaveLength(1);
+    expect(proposal.relationships).toEqual([]);
+    expect(codes(proposal)).toEqual(["IMAGE_CONNECTOR_WITHOUT_END"]);
+  });
+
+  it("informa multiplicidades ilegibles en lugar de adivinarlas", async () => {
+    const proposal = await analyze({
+      width: 800, height: 320,
+      classes: [{ name: "Cliente", x: 40, y: 60, attributes: ["- nombre : String"] }, { name: "Pedido", x: 520, y: 60, attributes: ["- fecha : Date"] }],
+      connectors: [{ from: "Cliente", to: "Pedido", fromLabel: "1", toLabel: "0..*" }],
+    }, (lines) => lines.map((line) => (line.text === "0..*" ? { ...line, text: "0.0." } : line)));
+
+    expect(proposal.relationships[0]).toEqual({ key: "R1", type: "Association", source: "C1", target: "C2", sourceMultiplicity: { lower: 1, upper: 1 } });
+    expect(proposal.diagnostics).toEqual([expect.objectContaining({ code: "IMAGE_ILLEGIBLE_MULTIPLICITY", key: "R1" })]);
+  });
+
+  it("propone un nombre para cajas sin texto legible y reporta atributos ilegibles", async () => {
+    const proposal = await analyze({
+      width: 700, height: 300,
+      classes: [{ name: "Cliente", x: 40, y: 40, attributes: ["- nombre : String", "- edad : int"] }],
+    }, (lines) => lines.filter((line) => line.text !== "Cliente").map((line) => (line.text === "- edad : int" ? { ...line, text: "%% ??" } : line)));
+
+    expect(proposal.classes).toEqual([{ key: "C1", name: "ClaseSinNombre1", attributes: [{ key: "C1.A1", name: "nombre", type: "String", visibility: "private" }] }]);
+    expect(codes(proposal)).toEqual(["IMAGE_CLASS_WITHOUT_NAME", "IMAGE_UNREADABLE_TEXT"]);
+  });
+
+  it("tolera guiones tipográficos y dos puntos repetidos del OCR", async () => {
+    const proposal = await analyze({ width: 600, height: 260, classes: [{ name: "Empresa", x: 40, y: 40, attributes: ["- ruc : String", "+ activa : boolean"] }] }, (lines) => lines.map((line) => (line.text === "- ruc : String" ? { ...line, text: "- ruc : : String" } : line.text === "+ activa : boolean" ? { ...line, text: "— activa：boolean" } : line)));
+    expect(proposal.classes[0]!.attributes).toEqual([{ key: "C1.A1", name: "ruc", type: "String", visibility: "private" }, { key: "C1.A2", name: "activa", type: "boolean", visibility: "private" }]);
+    expect(proposal.diagnostics).toEqual([]);
+  });
+
+  it("es determinista", async () => {
+    const diagram: SyntheticDiagram = { width: 800, height: 320, classes: [{ name: "A", x: 40, y: 60, attributes: ["- x : int"] }, { name: "B", x: 520, y: 60 }], connectors: [{ from: "A", to: "B", toLabel: "*" }] };
+    expect(await analyze(diagram)).toEqual(await analyze(diagram));
+  });
+});
+
+describe("parseMultiplicityText", () => {
+  it.each([
+    ["1", { lower: 1, upper: 1 }],
+    ["*", { lower: 0, upper: "unbounded" }],
+    ["0..*", { lower: 0, upper: "unbounded" }],
+    ["0.*", { lower: 0, upper: "unbounded" }],
+    ["1…*", { lower: 1, upper: "unbounded" }],
+    ["0..n", { lower: 0, upper: "unbounded" }],
+    ["0 .. 1", { lower: 0, upper: 1 }],
+    ["2..5", { lower: 2, upper: 5 }],
+  ])("lee %s", (text, expected) => expect(parseMultiplicityText(text)).toEqual(expected));
+
+  it.each(["0.0.", "5..2", "abc", "", "1..0"])("rechaza %s", (text) => expect(parseMultiplicityText(text)).toBeUndefined());
+});
