@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import type { LocalTextModelRequest } from "@examen-sw1/assistant-core";
 import type { GbnfJsonSchema, Llama, LlamaContext, LlamaContextSequence, LlamaJsonSchemaGrammar, LlamaModel } from "node-llama-cpp";
-import { LocalModelError, type StructuredGenerationEngine } from "./local-text-model";
+import { LocalModelError, type StructuredGenerationEngine, type TextGenerationRequest } from "./local-text-model";
 
 type NodeLlamaCpp = typeof import("node-llama-cpp");
 type JsonGrammar = LlamaJsonSchemaGrammar<GbnfJsonSchema>;
@@ -58,6 +58,26 @@ export class NodeLlamaCppEngine implements StructuredGenerationEngine {
       } catch {
         throw new LocalModelError("INVALID_OUTPUT");
       }
+    } finally {
+      session.dispose({ disposeSequence: false });
+      await runtime.sequence.clearHistory();
+    }
+  }
+
+  async generateText(request: TextGenerationRequest, signal: AbortSignal): Promise<string> {
+    if (signal.aborted) throw new LocalModelError("TIMEOUT");
+    const runtime = await this.load();
+    const session = new runtime.lib.LlamaChatSession({
+      contextSequence: runtime.sequence,
+      systemPrompt: request.systemPrompt,
+      chatWrapper: new runtime.lib.QwenChatWrapper({ thoughts: "discourage" }),
+      autoDisposeSequence: false,
+    });
+    try {
+      const answer = await session.prompt(request.userPrompt, { temperature: 0, maxTokens: this.config.maxTokens, budgets: { thoughtTokens: 0 }, signal });
+      const trimmed = answer.trim();
+      if (!trimmed) throw new LocalModelError("INVALID_OUTPUT", "El modelo local no produjo una respuesta.");
+      return trimmed;
     } finally {
       session.dispose({ disposeSequence: false });
       await runtime.sequence.clearHistory();

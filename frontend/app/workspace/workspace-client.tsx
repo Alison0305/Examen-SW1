@@ -76,6 +76,8 @@ import {
   type WorkspaceTool,
 } from "./workspace-store";
 import type { ProjectPresence } from "./realtime-client";
+import type { MentorQueryResponse } from "../auth/api";
+import { MentorPanel } from "./mentor-panel";
 
 const nodeTypes = {
   umlClass: UmlClassNode,
@@ -134,6 +136,7 @@ export type WorkspaceClientProps = {
   onPrepareInterface?: () => void | Promise<void>;
   onRecognizeImage?: RecognizeDiagramImage;
   readOnly?: boolean;
+  onMentorQuery?: (question: string) => Promise<MentorQueryResponse>;
   collaboration?: {
     connection:
       | "connecting"
@@ -163,6 +166,7 @@ export function WorkspaceClient({
   onPrepareInterface,
   onRecognizeImage,
   readOnly = false,
+  onMentorQuery,
   collaboration,
 }: Readonly<WorkspaceClientProps>) {
   useEffect(() => {
@@ -186,6 +190,7 @@ export function WorkspaceClient({
         onPrepareInterface={onPrepareInterface}
         onRecognizeImage={onRecognizeImage}
         readOnly={readOnly}
+        onMentorQuery={onMentorQuery}
         collaboration={collaboration}
       />
     </ReactFlowProvider>
@@ -203,6 +208,7 @@ function WorkspaceContent({
   onPrepareInterface,
   onRecognizeImage,
   readOnly = false,
+  onMentorQuery,
   collaboration,
 }: Readonly<WorkspaceClientProps>) {
   const store = useWorkspaceStore();
@@ -421,6 +427,7 @@ function WorkspaceContent({
                   })}
               </Box>
             </Card>
+            {projectName && onMentorQuery && <MentorPanel projectName={projectName} onQuery={onMentorQuery} />}
           </Stack>
         </Box>
         {compact ? (

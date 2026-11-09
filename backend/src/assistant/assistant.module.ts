@@ -20,6 +20,7 @@ function createLocalModel(): QueuedLocalTextModel | undefined {
     { provide: ASSISTANT_LOCAL_MODEL, useFactory: createLocalModel },
     { provide: AssistantInterpreterService, useFactory: (model: QueuedLocalTextModel | undefined) => new AssistantInterpreterService(model), inject: [ASSISTANT_LOCAL_MODEL] },
   ],
+  exports: [ASSISTANT_LOCAL_MODEL],
 })
 export class AssistantModule implements OnModuleInit, OnApplicationShutdown {
   constructor(@Inject(ASSISTANT_LOCAL_MODEL) private readonly model: QueuedLocalTextModel | undefined) {}
