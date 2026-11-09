@@ -70,7 +70,8 @@ export type SchemaLimitationCode =
   | "MAXIMUM_MULTIPLICITY_NOT_ENFORCED"
   | "MULTIVALUED_ATTRIBUTE_NOT_SUPPORTED"
   | "ATTRIBUTE_MULTIPLICITY_NOT_USED_FOR_NULLABILITY"
-  | "LIFECYCLE_IS_METADATA_ONLY";
+  | "LIFECYCLE_IS_METADATA_ONLY"
+  | "ASSOCIATION_CLASS_NOT_LINKED";
 
 // Semantic gap between the UML model and the generated schema, found by this module (never a mapper diagnostic).
 export type SchemaLimitation = Readonly<{ code: SchemaLimitationCode; message: string; elementId: string }>;
@@ -101,6 +102,7 @@ export type RelationshipFact = Readonly<{
   mapperCardinality?: RelationalCardinality;
   mapperRelationRecords: number;
   foreignKeyPlacement?: ForeignKeyPlacement;
+  // Only FKs the mapper really generated. A not-derivable association class table keeps the one FK it did get.
   foreignKeys: readonly ForeignKeyFact[];
   joinTable?: JoinTableFact;
   associationClassTable?: AssociationClassTableFact;
@@ -173,6 +175,7 @@ export function buildRelationalFacts(fragment: UmlAnalysisFragment, relational: 
   const limitations = [
     ...relationships.flatMap((entry) => entry.notEnforcedBySchema),
     ...relationships.flatMap((entry) => lifecycleLimitation(entry)),
+    ...fragment.relationships.flatMap((entry, position) => associationClassLimitation(entry, relationships[position]!)),
     ...attributeLimitations(fragment, index),
   ];
 
@@ -193,7 +196,8 @@ export function buildRelationalFacts(fragment: UmlAnalysisFragment, relational: 
 type OwnedForeignKey = Readonly<{ owner: RelationalTable; foreignKey: RelationalForeignKey }>;
 
 class RelationalIndex {
-  readonly tableByName = new Map<string, RelationalTable>();
+  // A list: the mapper may emit two tables with the same name (REL_DUPLICATE_NAME); then the name is ambiguous.
+  readonly tablesByName = new Map<string, RelationalTable[]>();
   readonly tablesBySourceId = new Map<string, RelationalTable[]>();
   readonly foreignKeysBySourceId = new Map<string, OwnedForeignKey[]>();
   // relationships[i] path → relationship id, learned from the sources the mapper attached to its output.
@@ -201,7 +205,7 @@ class RelationalIndex {
 
   constructor(readonly relational: RelationalModel) {
     for (const table of relational.tables) {
-      this.tableByName.set(table.name, table);
+      push(this.tablesByName, table.name, table);
       push(this.tablesBySourceId, table.source.elementId, table);
       for (const foreignKey of table.foreignKeys) {
         push(this.foreignKeysBySourceId, foreignKey.source.elementId, { owner: table, foreignKey });
@@ -213,17 +217,24 @@ class RelationalIndex {
 
   // A class table is the table whose source is the class (join tables are sourced by their relationship).
   classTable(classId: string): RelationalTable | undefined {
-    return this.tablesBySourceId.get(classId)?.[0];
+    return this.tablesBySourceId.get(classId)?.find(isClassTable);
   }
 
-  classIdOfTable(tableName: string, excludingSourceId?: string): string | undefined {
-    const table = this.tableByName.get(tableName);
-    return table && table.source.elementId !== excludingSourceId ? table.source.elementId : undefined;
+  // Table name → UML class: locate the table by its physical name and read its source. Undefined when the name is
+  // ambiguous or the table does not come from a class (a join table), so no class is ever attributed by guesswork.
+  classIdOfTable(tableName: string): string | undefined {
+    const tables = this.tablesByName.get(tableName) ?? [];
+    return tables.length === 1 && isClassTable(tables[0]!) ? tables[0]!.source.elementId : undefined;
   }
 
   private learnPath(path: string, elementId: string): void {
     if (/^relationships\[\d+\]$/.test(path)) this.relationshipIdByPath.set(path, elementId);
   }
+}
+
+// The mapper sources class tables with the class path (`classes[i]`) and join tables with `relationships[i]`.
+function isClassTable(table: RelationalTable): boolean {
+  return table.source.path.startsWith("classes[");
 }
 
 function push<K, V>(map: Map<K, V[]>, key: K, value: V): void {
@@ -251,6 +262,8 @@ function scopeOf(fragment: UmlAnalysisFragment): Scope {
     ...classIds,
     ...fragment.classes.flatMap((entry) => entry.attributes.map((attribute) => attribute.id)),
     ...fragment.relationships.map((entry) => entry.id),
+    // Enumerations used by the fragment: an invalid enum name makes its ENUM columns undeployable.
+    ...fragment.enumerations.map((entry) => entry.id),
   ]);
   return {
     classIds,
@@ -305,6 +318,11 @@ function relationshipFact(relationship: FragmentRelationship, index: RelationalI
   if (!strategy) {
     return { ...common, status: "not-derivable", reasons: notDerivableReasons(own), foreignKeys: [], notEnforcedBySchema: [] };
   }
+  // The mapper adds each FK of an association class table independently: with one end lacking a primary key the
+  // table keeps a single FK. That partial structure is reported as it is, never completed.
+  if (strategy === "association-class-table" && foreignKeys.length !== 2) {
+    return { ...common, ...extra, status: "not-derivable", reasons: notDerivableReasons(own), strategy, foreignKeys, notEnforcedBySchema: [] };
+  }
   const fact = { ...common, ...extra, status: "mapped" as const, reasons: [], strategy, foreignKeys };
   return { ...fact, notEnforcedBySchema: multiplicityLimitations(relationship, fact) };
 }
@@ -332,7 +350,8 @@ function foreignKeyFact({ owner, foreignKey }: OwnedForeignKey, relationshipId: 
   const column = owner.columns.find((entry) => entry.name === foreignKey.column && entry.source.elementId === foreignKey.source.elementId)
     ?? owner.columns.find((entry) => entry.name === foreignKey.column);
   const uniqueConstraint = owner.uniqueConstraints.find((constraint) => constraint.columns.length === 1 && constraint.columns[0] === foreignKey.column);
-  const ownerClassId = index.classIdOfTable(owner.name, relationshipId);
+  // The owner table object is known, so its class comes straight from its source (join tables have none).
+  const ownerClassId = isClassTable(owner) && owner.source.elementId !== relationshipId ? owner.source.elementId : undefined;
   const referencedClassId = index.classIdOfTable(foreignKey.targetTable);
   return {
     name: foreignKey.name,
@@ -350,6 +369,7 @@ function foreignKeyFact({ owner, foreignKey }: OwnedForeignKey, relationshipId: 
 // Composite uniqueness of the two FK columns of a join or association class table, as the mapper declared it.
 function pairUniqueness(table: RelationalTable, owned: readonly OwnedForeignKey[]): readonly string[] {
   const columns = new Set(owned.map((entry) => entry.foreignKey.column));
+  if (columns.size !== 2) return [];
   return table.uniqueConstraints.find((constraint) => constraint.columns.length === columns.size && constraint.columns.every((column) => columns.has(column)))?.columns ?? [];
 }
 
@@ -421,6 +441,14 @@ function lifecycleLimitation(fact: RelationshipFact): SchemaLimitation[] {
   return [{ code: "LIFECYCLE_IS_METADATA_ONLY", message: "El mapper marca la composición con lifecycle COMPOSITION, pero el modelo relacional no declara reglas de borrado; su efecto depende de los generadores que consumen ese metadato.", elementId: fact.relationshipId }];
 }
 
+// The mapper only links an association class to its ends when both ends are "many"; otherwise it maps the
+// relationship as a plain FK and the association class becomes an ordinary table without FKs to the ends.
+function associationClassLimitation(relationship: FragmentRelationship, fact: RelationshipFact): SchemaLimitation[] {
+  if (!relationship.associationClass || fact.strategy !== "foreign-key") return [];
+  const name = relationship.associationClass.name ?? relationship.associationClass.id;
+  return [{ code: "ASSOCIATION_CLASS_NOT_LINKED", message: `La relación declara la clase asociativa ${name}, pero el mapper solo la vincula cuando ambos extremos son "muchos"; aquí genera una FK directa y la tabla de ${name} no recibe FK hacia los extremos de la relación.`, elementId: relationship.id }];
+}
+
 function attributeLimitations(fragment: UmlAnalysisFragment, index: RelationalIndex): SchemaLimitation[] {
   const limitations: SchemaLimitation[] = [];
   for (const umlClass of fragment.classes) {
@@ -431,8 +459,9 @@ function attributeLimitations(fragment: UmlAnalysisFragment, index: RelationalIn
       const column = table?.columns.find((entry) => entry.source.elementId === attribute.id);
       if (multiplicity.upper === "unbounded" || multiplicity.upper > 1) {
         limitations.push({ code: "MULTIVALUED_ATTRIBUTE_NOT_SUPPORTED", message: `El atributo ${umlClass.name}.${attribute.name} tiene multiplicidad ${multiplicity.text}, pero el mapper genera a lo sumo una columna escalar; no hay estructura relacional de colección.`, elementId: attribute.id });
-      } else if (multiplicity.lower >= 1 && column?.nullable) {
-        limitations.push({ code: "ATTRIBUTE_MULTIPLICITY_NOT_USED_FOR_NULLABILITY", message: `El atributo ${umlClass.name}.${attribute.name} tiene multiplicidad ${multiplicity.text}, pero la columna ${column.name} admite NULL: el mapper deriva la nulabilidad de los metadatos de generación, no de la multiplicidad.`, elementId: attribute.id });
+      } else if (column && (multiplicity.lower >= 1) === column.nullable) {
+        const actual = column.nullable ? "admite NULL" : "es NOT NULL";
+        limitations.push({ code: "ATTRIBUTE_MULTIPLICITY_NOT_USED_FOR_NULLABILITY", message: `El atributo ${umlClass.name}.${attribute.name} tiene multiplicidad ${multiplicity.text}, pero la columna ${column.name} ${actual}: el mapper deriva la nulabilidad de los metadatos de generación (identifier, required), no de la multiplicidad.`, elementId: attribute.id });
       }
     }
   }

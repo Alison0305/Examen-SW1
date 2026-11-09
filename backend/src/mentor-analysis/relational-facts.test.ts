@@ -369,6 +369,57 @@ describe("buildRelationalFacts: recursividad, conflictos, alcance e invariantes"
     expect(relational).toEqual(relationalBefore);
   });
 
+  it("T-27: una tabla de clase asociativa con una sola FK es un resultado parcial no derivable", () => {
+    // Producto has no identifier: the mapper adds the FK to venta and skips the one to producto.
+    const input = model([venta(), klass(PRODUCTO, "Producto", [attribute(301, "nombre")]), klass(DETALLE, "DetalleVenta", [])], [association(41, VENTA, PRODUCTO, MANY, MANY, { associationClassId: id(DETALLE) })]);
+    const { facts, relational } = analyze(input, { kind: "relationship", id: id(41) });
+    const fact = relationship(facts, 41);
+
+    expect(relational.tables.find((table) => table.name === "detalle_venta")!.foreignKeys).toHaveLength(1);
+    expect(fact).toMatchObject({ status: "not-derivable", strategy: "association-class-table", notEnforcedBySchema: [] });
+    expect(fact.foreignKeys.map((foreignKey) => [foreignKey.ownerTable, foreignKey.column])).toEqual([["detalle_venta", "venta_id"]]);
+    expect(fact.associationClassTable!.uniqueOn).toEqual([]);
+    expect(codes(fact.reasons)).toEqual(["REL_RELATIONSHIP_REQUIRES_PRIMARY_KEY"]);
+  });
+
+  it("T-28: con nombres de tabla duplicados no atribuye una clase a la tabla referenciada", () => {
+    // Cliente and cliente both map to the table `cliente` (REL_DUPLICATE_NAME): the name alone is ambiguous.
+    const input = model([cliente(), entity(PROVEEDOR, "cliente"), venta()], [association(40, CLIENTE, VENTA, ONE, MANY)]);
+    const { facts, relational } = analyze(input, { kind: "relationship", id: id(40) });
+    const foreignKey = relationship(facts, 40).foreignKeys[0]!;
+
+    expect(codes(relational.diagnostics)).toContain("REL_DUPLICATE_NAME");
+    expect(foreignKey).toMatchObject({ ownerTable: "venta", ownerClassId: id(VENTA), references: { table: "cliente", column: "id" } });
+    expect(foreignKey.references.classId).toBeUndefined();
+  });
+
+  it("T-29: una clase asociativa en una relación 1:N se declara no vinculada por el mapper", () => {
+    const input = model([cliente(), venta(), klass(DETALLE, "DetalleVenta", [])], [association(40, CLIENTE, VENTA, ONE, MANY, { associationClassId: id(DETALLE) })]);
+    const { facts } = analyze(input, { kind: "relationship", id: id(40) });
+
+    expect(relationship(facts, 40)).toMatchObject({ status: "mapped", strategy: "foreign-key" });
+    expect(relationship(facts, 40).associationClassTable).toBeUndefined();
+    expect(facts.limitations.map((entry) => [entry.code, entry.elementId])).toEqual([["ASSOCIATION_CLASS_NOT_LINKED", id(40)]]);
+  });
+
+  it("T-30: un atributo 0..1 marcado required genera NOT NULL y se declara que la multiplicidad no decide la nulabilidad", () => {
+    const input = model([entity(CLIENTE, "Cliente", [attribute(103, "apodo", "string", { multiplicity: ZERO_ONE, generationMetadata: { required: true } })])], []);
+    const { facts } = analyze(input, { kind: "class", id: id(CLIENTE) });
+
+    expect(facts.classes[0]!.attributes!.find((entry) => entry.attributeId === id(103))).toMatchObject({ column: "apodo", nullable: false });
+    expect(facts.limitations).toEqual([expect.objectContaining({ code: "ATTRIBUTE_MULTIPLICITY_NOT_USED_FOR_NULLABILITY", elementId: id(103), message: expect.stringContaining("es NOT NULL") })]);
+  });
+
+  it("T-31: incluye el diagnóstico de una enumeración usada por la clase enfocada y excluye el de otra ajena", () => {
+    const enumeration = (n: number, name: string) => ({ id: id(n), name, visibility: "public" as const, literals: ["A", "B"] });
+    const estado: UmlAttribute = { id: id(105), name: "estado", visibility: "private", type: { kind: "reference", referenceType: "enumeration", elementId: id(90) } };
+    const input: CanonicalUmlModel = { ...model([entity(CLIENTE, "Cliente", [estado]), venta()], []), enumerations: [enumeration(90, "Order"), enumeration(91, "Select")] };
+    const { facts, relational } = analyze(input, { kind: "class", id: id(CLIENTE) });
+
+    expect(relational.diagnostics.filter((diagnostic) => diagnostic.code === "REL_INVALID_IDENTIFIER").map((diagnostic) => diagnostic.elementId).sort()).toEqual([id(90), id(91)]);
+    expect(facts.diagnostics.map((diagnostic) => [diagnostic.code, diagnostic.elementId])).toEqual([["REL_INVALID_IDENTIFIER", id(90)]]);
+  });
+
   it("T-24: es determinista y serializable a JSON", () => {
     const input = model([cliente(), venta(), producto(), klass(DETALLE, "DetalleVenta", [])], [association(40, CLIENTE, VENTA, ONE, M(1, "unbounded")), association(41, VENTA, PRODUCTO, MANY, MANY, { associationClassId: id(DETALLE) })]);
     const first = analyze(input, { kind: "model" }).facts;
