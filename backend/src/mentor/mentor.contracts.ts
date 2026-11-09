@@ -26,7 +26,7 @@ export interface MentorAiProvider {
 }
 
 export interface MentorInteractionRecorder {
-  record(interaction: Readonly<{ projectId: string; userId: string; projectRevision: number; question: string; answer: string; grounded: boolean }>): Promise<void>;
+  record(interaction: MentorInteractionIdentity & Readonly<{ projectRevision: number; question: string; answer: string; grounded: boolean }>): Promise<void>;
 }
 
 export type MentorQueryResponse = Readonly<{
@@ -35,3 +35,4 @@ export type MentorQueryResponse = Readonly<{
   projectRevision: number;
   diagnostic?: MentorDiagnostic;
 }>;
+import type { MentorInteractionIdentity } from "../mentor-identity/mentor-interaction-identity.contracts";
