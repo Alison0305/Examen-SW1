@@ -76,8 +76,9 @@ import {
   type WorkspaceTool,
 } from "./workspace-store";
 import type { ProjectPresence } from "./realtime-client";
-import type { MentorQueryResponse } from "../auth/api";
+import type { MentorQueryResponse, UmlAnalysisFocus, UmlAnalysisResponse } from "../auth/api";
 import { MentorPanel } from "./mentor-panel";
+import { describeSelection } from "./uml-analysis-section";
 
 const nodeTypes = {
   umlClass: UmlClassNode,
@@ -137,6 +138,8 @@ export type WorkspaceClientProps = {
   onRecognizeImage?: RecognizeDiagramImage;
   readOnly?: boolean;
   onMentorQuery?: (question: string) => Promise<MentorQueryResponse>;
+  // CU-2P-04: explain the selected class/relationship or the whole model (shown inside the Mentor panel).
+  onUmlAnalysis?: (focus: UmlAnalysisFocus) => Promise<UmlAnalysisResponse>;
   collaboration?: {
     connection:
       | "connecting"
@@ -167,6 +170,7 @@ export function WorkspaceClient({
   onRecognizeImage,
   readOnly = false,
   onMentorQuery,
+  onUmlAnalysis,
   collaboration,
 }: Readonly<WorkspaceClientProps>) {
   useEffect(() => {
@@ -191,6 +195,7 @@ export function WorkspaceClient({
         onRecognizeImage={onRecognizeImage}
         readOnly={readOnly}
         onMentorQuery={onMentorQuery}
+        onUmlAnalysis={onUmlAnalysis}
         collaboration={collaboration}
       />
     </ReactFlowProvider>
@@ -209,6 +214,7 @@ function WorkspaceContent({
   onRecognizeImage,
   readOnly = false,
   onMentorQuery,
+  onUmlAnalysis,
   collaboration,
 }: Readonly<WorkspaceClientProps>) {
   const store = useWorkspaceStore();
@@ -427,7 +433,7 @@ function WorkspaceContent({
                   })}
               </Box>
             </Card>
-            {projectName && onMentorQuery && <MentorPanel projectName={projectName} onQuery={onMentorQuery} />}
+            {projectName && onMentorQuery && <MentorPanel projectName={projectName} onQuery={onMentorQuery} analysis={onUmlAnalysis ? { selection: describeSelection(store.document, store.selection), onAnalyze: onUmlAnalysis } : undefined} />}
           </Stack>
         </Box>
         {compact ? (
