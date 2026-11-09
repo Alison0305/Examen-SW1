@@ -2,16 +2,22 @@
 
 ## Estado Operativo
 
-- Correctivo `fix-cu-08-qwen-local-runtime` cerrado, aceptado y archivado en `openspec/changes/archive/2026-11-06-fix-cu-08-qwen-local-runtime/`.
-- CU activo: CU-10 (XMI e imagen → UML). OpenSpec `openspec/changes/cu-10-xmi-imagen-uml/`: Incremento 1 completo (10/25 tareas); Incrementos 2 y 3 pendientes.
+- CU-10 (XMI e imagen → UML) cerrado, aceptado y archivado en `openspec/changes/archive/2026-11-08-cu-10-xmi-imagen-uml/`.
+- Ningún CU activo. El siguiente es CU-11, el último del roadmap; todavía no tiene plan ni OpenSpec.
 
 ## Entorno
 
-- `backend/.env` (no commitear): PostgreSQL 18 en el puerto 5433 y base `examen_sw1`; `ASSISTANT_*` y `SPEECH_*` configurados.
-- Qwen: `C:\Users\USER\llm-models\` (Q8_0 y Q4_K_M; se recomienda Q4_K_M). Vosk: `backend/.venv` y `C:\Users\USER\vosk-models\vosk-model-small-es-0.42`.
-- Node v26.13.0 y npm 12: tras `npm install`, ejecutar `npx prisma generate` en `backend`.
-- La primera interpretación de cada arranque carga el modelo (unos 20 s); `ASSISTANT_PRELOAD=true` lo carga al iniciar.
+- `backend/.env` (no commitear): PostgreSQL 18 en el puerto 5433 y base `examen_sw1`. Configurados: `ASSISTANT_*`, `SPEECH_*` y `VISION_MODEL_PATH`.
+- Qwen: `C:\Users\USER\llm-models\` (Q8_0 y Q4_K_M; se recomienda Q4_K_M).
+- Vosk: `backend/.venv` y `C:\Users\USER\vosk-models\vosk-model-small-es-0.42`.
+- Florence-2: `C:\Users\USER\vision-models\Florence-2-base-ft` (q8, unos 275 MB; la guía está en CU-10). Carga en unos 5 s; cada imagen tarda de 7 a 40 s en CPU.
+- Benchmark VLM: el dataset real del usuario está en `C:\Users\USER\vlm-fotos`, fuera del repositorio. Se ejecuta con `npm run benchmark:vlm` y escribe los reportes en `backend/.benchmark-output/`.
+- Node v26.13.0 y npm 12: después de `npm install`, ejecutar `npx prisma generate` en `backend`.
+
+## Decisiones Recientes
+
+- Imagen → UML se cerró con la limitación medida: en capturas reales, la cobertura es de 0,58 en clases y 0,16 en relaciones. Cualquier mejora del analizador irá en un correctivo `fix-cu-10-...` y debe medirse con capturas nuevas.
 
 ## Siguiente Acción
 
-Implementar el Incremento 2 de CU-10 (imagen → propuesta: Sharp, Florence-2 local y analizador determinista). Pendiente del usuario: fotos reales para la tarea 3.4.
+Planificar CU-11 según `docs/puds/use-cases/README.md` y pedir aprobación al usuario antes del OpenSpec.

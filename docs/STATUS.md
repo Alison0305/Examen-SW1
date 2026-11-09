@@ -4,15 +4,23 @@
 
 **Ciclo actual:** Ciclo 4 — Transición, multimodalidad y cierre.
 
-**Último CU completado:** CU-09 — Voz Vosk y Android Capacitor.
+**Último CU completado:** CU-10 — XMI e imagen → UML.
 
-**CU activo:** CU-10 — XMI e imagen → UML (Incremento 1 de XMI completo, 10/25 tareas; imagen pendiente).
+**CU activo:** ninguno. El siguiente es CU-11, el último del roadmap.
 
 **Último correctivo cerrado:** `fix-cu-08-qwen-local-runtime` — intérprete local Qwen3 1.7B para texto y voz.
 
-**OpenSpec archivado:** `openspec/changes/archive/2026-11-06-fix-cu-08-qwen-local-runtime/`.
+**OpenSpec archivado:** `openspec/changes/archive/2026-11-08-cu-10-xmi-imagen-uml/`.
 
 El correctivo CU-06 está completo en 9/9. Con el proyecto `Prueba CU06 Backend`, la prueba manual creó Rol y Usuario con asociación 1:N, guardó el `ProjectDocument`, descargó el ZIP mediante `Generar backend` y compiló el contenido extraído con `gradle compileJava --no-daemon`: `BUILD SUCCESSFUL in 16s`. El flujo usa exclusivamente `document.uml` como `CanonicalUmlModel`; `DiagramLayout` sigue siendo visual. El endpoint autenticado entrega el ZIP binario con `FastifyReply.send(zip)`. Las clases manuales sin metadata se proyectan salvo `entity: false` y el atributo `id` es identifier salvo `identifier: false`.
+
+## Cierre De CU-10
+
+- Estado: cerrado, aceptado por el usuario el 2026-11-08 y archivado en `openspec/changes/archive/2026-11-08-cu-10-xmi-imagen-uml/`. Progreso: 25/25 tareas.
+- **XMI 2.1:** exportación e importación aprobadas por el usuario con Enterprise Architect.
+- **Imagen → UML:** Florence-2 local en CPU, con analizador determinista, revisión común y aplicación atómica.
+- **Benchmark real** (19 capturas del usuario): cobertura de clases 0,58, atributos 0,13, relaciones 0,16 y multiplicidades 0,08, con tolerancia de OCR. Se acepta como limitación; el detalle y las mejoras propuestas están en `docs/puds/use-cases/CU-10-xmi-imagen-uml.md`.
+- Prueba manual 3.3: aprobada por el usuario ("funciona a medias"), sin detalle de los pasos ni confirmación de la prueba en colaboración.
 
 ## Cambio Menú De Multiplicidades (CU-02)
 
@@ -93,6 +101,7 @@ El correctivo CU-06 está completo en 9/9. Con el proyecto `Prueba CU06 Backend`
 - CU-07 — CRUD avanzado, verificación, OpenAPI, Postman y Domain Manifest.
 - CU-08 — Frontend generado y asistentes de texto.
 - CU-09 — Voz Vosk y Android Capacitor.
+- CU-10 — XMI e imagen → UML.
 
 ## OpenSpec Archivado
 
@@ -102,6 +111,7 @@ El correctivo CU-06 está completo en 9/9. Con el proyecto `Prueba CU06 Backend`
 - `openspec/changes/archive/2026-09-09-cu-03-persistencia-autenticacion-ownership/`
 - `openspec/changes/archive/2026-09-12-cu-04-landing-proyectos-membresias-invitaciones/`
 - `openspec/changes/archive/2026-09-18-cu-08-frontend-generado-asistentes-texto/`
+- `openspec/changes/archive/2026-11-08-cu-10-xmi-imagen-uml/`
 
 ## Specs Principales
 
@@ -113,6 +123,9 @@ El correctivo CU-06 está completo en 9/9. Con el proyecto `Prueba CU06 Backend`
 - `openspec/specs/assistant-core/spec.md`
 - `openspec/specs/case-text-assistant/spec.md`
 - `openspec/specs/generated-frontend/spec.md`
+- `openspec/specs/uml-fragment-import/spec.md`
+- `openspec/specs/xmi-interop/spec.md`
+- `openspec/specs/image-uml-recognition/spec.md`
 
 ## Cierre De CU-01
 
@@ -151,6 +164,7 @@ El correctivo CU-06 está completo en 9/9. Con el proyecto `Prueba CU06 Backend`
 
 ## Limitaciones Conocidas
 
+- Imagen → UML (CU-10) no es fiable con capturas reales de estilos variados: falla con cabeceras rellenas, fondos, atributos sin tipo y líneas discontinuas. Las multiplicidades leídas por OCR deben revisarse siempre.
 - `npm audit --omit=dev` reporta 4 vulnerabilidades transitivas que npm propone corregir con upgrades mayores a NestJS 12 y Next 16; no se aplicaron en CU-01 para respetar el stack aprobado.
 - `next build` muestra una advertencia no bloqueante sobre detección del plugin ESLint de Next con flat config; lint y build pasan correctamente.
 - `npm install` muestra una advertencia de `allowScripts` para `esbuild@0.28.2`; no bloquea instalación, tests ni build.
@@ -159,6 +173,7 @@ El correctivo CU-06 está completo en 9/9. Con el proyecto `Prueba CU06 Backend`
 
 ## Problemas Abiertos
 
+- Test intermitente en `frontend`: con la CPU cargada, `app/projects/page.tsx` puede actualizar el estado después del teardown de `auth.test.tsx` y Vitest lo reporta como error no controlado aunque todos los tests pasen. Visto el 2026-11-06; no se reprodujo en tres repeticiones.
 - No hay proveedor de cobertura Vitest instalado ni configurado.
 - El despliegue horizontal requiere afinidad de sesión o un adaptador Socket.IO compartido; el Incremento 1 se comprobó en una instancia.
 
@@ -168,4 +183,4 @@ El correctivo CU-06 está completo en 9/9. Con el proyecto `Prueba CU06 Backend`
 
 ## Siguiente Acción
 
-No iniciar CU-10 ni CU-11 en este cierre.
+Planificar CU-11 según `docs/puds/use-cases/README.md` (plan, aprobación del usuario y OpenSpec). Opcional, como correctivo separado `fix-cu-10-...`: mejorar el analizador de imágenes para capturas reales y medirlo con capturas nuevas.

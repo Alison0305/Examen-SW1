@@ -60,7 +60,7 @@ import {
 import { UmlRelationshipEdge } from "./uml-edge";
 import { VoiceTranscriptInput } from "../voice-transcript-input";
 import { interpretNaturalUmlText, interpretStrictUmlText, isStrictUmlText, type UmlInterpretation } from "./uml-interpreter-client";
-import { WorkspaceXmiActions } from "./xmi-actions";
+import { WorkspaceImportActions, type RecognizeDiagramImage } from "./import-actions";
 import { UmlClassNode, UmlEnumerationNode } from "./uml-nodes";
 import {
   formatMultiplicity,
@@ -132,6 +132,7 @@ export type WorkspaceClientProps = {
   onReloadServerVersion?: () => void | Promise<void>;
   onGenerateBackend?: () => void;
   onPrepareInterface?: () => void | Promise<void>;
+  onRecognizeImage?: RecognizeDiagramImage;
   readOnly?: boolean;
   collaboration?: {
     connection:
@@ -160,6 +161,7 @@ export function WorkspaceClient({
   onReloadServerVersion,
   onGenerateBackend,
   onPrepareInterface,
+  onRecognizeImage,
   readOnly = false,
   collaboration,
 }: Readonly<WorkspaceClientProps>) {
@@ -182,6 +184,7 @@ export function WorkspaceClient({
         onReloadServerVersion={onReloadServerVersion}
         onGenerateBackend={onGenerateBackend}
         onPrepareInterface={onPrepareInterface}
+        onRecognizeImage={onRecognizeImage}
         readOnly={readOnly}
         collaboration={collaboration}
       />
@@ -198,6 +201,7 @@ function WorkspaceContent({
   onReloadServerVersion,
   onGenerateBackend,
   onPrepareInterface,
+  onRecognizeImage,
   readOnly = false,
   collaboration,
 }: Readonly<WorkspaceClientProps>) {
@@ -294,6 +298,7 @@ function WorkspaceContent({
               readOnly={readOnly}
               projectName={projectName}
               onPrepareInterface={onPrepareInterface}
+              onRecognizeImage={onRecognizeImage}
             />
           </Drawer>
         ) : (
@@ -301,6 +306,7 @@ function WorkspaceContent({
             readOnly={readOnly}
             projectName={projectName}
             onPrepareInterface={onPrepareInterface}
+            onRecognizeImage={onRecognizeImage}
           />
         )}
         <Box sx={{ p: 2, minHeight: 620 }}>
@@ -643,11 +649,13 @@ function WorkspaceSidebar({
   readOnly = false,
   projectName,
   onPrepareInterface,
+  onRecognizeImage,
 }: Readonly<{
   drawer?: boolean;
   readOnly?: boolean;
   projectName?: string;
   onPrepareInterface?: () => void | Promise<void>;
+  onRecognizeImage?: RecognizeDiagramImage;
 }>) {
   const {
     document,
@@ -681,7 +689,7 @@ function WorkspaceSidebar({
     >
       <Stack spacing={2}>
         <WorkspaceToolbox readOnly={readOnly} />
-        <WorkspaceXmiActions readOnly={readOnly} projectName={projectName} />
+        <WorkspaceImportActions readOnly={readOnly} projectName={projectName} onRecognizeImage={onRecognizeImage} />
         <WorkspaceTextAssistant readOnly={readOnly} />
         {onPrepareInterface && (
           <Tooltip title="Preparar interfaz">

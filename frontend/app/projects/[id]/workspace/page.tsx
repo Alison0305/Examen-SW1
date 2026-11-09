@@ -441,6 +441,9 @@ function PersistedWorkspace() {
         onReloadServerVersion={reload}
         onGenerateBackend={openExport}
         onPrepareInterface={prepareInterface}
+        onRecognizeImage={
+          readOnly ? undefined : (image) => api.recognizeDiagram(project.id, image)
+        }
         readOnly={readOnly}
         collaboration={{
           connection,
