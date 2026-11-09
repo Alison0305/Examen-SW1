@@ -3,6 +3,8 @@ import { NestFactory } from "@nestjs/core";
 import { ValidationPipe } from "@nestjs/common";
 import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fastify";
 import { AppModule } from "./app.module";
+import { registerImageBodyParser } from "./vision/vision.controller";
+import { getVisionConfig } from "./vision/vision.config";
 
 export const DEFAULT_BACKEND_PORT = 3001;
 export const DEFAULT_FRONTEND_ORIGIN = "http://localhost:3000";
@@ -28,6 +30,7 @@ export async function createApp() {
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Authorization", "Content-Type"],
   });
+  registerImageBodyParser(app, getVisionConfig().maxBytes);
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
 
   return app;

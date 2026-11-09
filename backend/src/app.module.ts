@@ -8,9 +8,10 @@ import { ProjectsPersistenceModule } from "./projects/projects-persistence.modul
 import { RealtimeModule } from "./realtime/realtime.module";
 import { SpeechRecognitionController } from "./speech/speech-recognition.controller";
 import { MentorModule } from "./mentor/mentor.module";
+import { VisionModule } from "./vision/vision.module";
 
 @Module({
-  imports: [PrismaModule, ProjectsPersistenceModule, AuthModule, RealtimeModule, AssistantModule, MentorModule],
+  imports: [PrismaModule, ProjectsPersistenceModule, AuthModule, RealtimeModule, AssistantModule, VisionModule, MentorModule],
   controllers: [HealthController, SpeechRecognitionController],
 })
 export class AppModule {}

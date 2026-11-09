@@ -49,6 +49,12 @@ export type MentorQueryResponse = {
   projectRevision: number;
   diagnostic?: "INSUFFICIENT_CONTEXT" | "ELEMENT_NOT_FOUND";
 };
+export type VisionRecognition = {
+  proposal: import("@examen-sw1/uml-core").UmlImportProposal;
+  image: { width: number; height: number };
+  ocrLines: number;
+  elapsedMs: number;
+};
 
 export type ApiClient = {
   login(email: string, password: string): Promise<string>;
@@ -90,6 +96,7 @@ export type ApiClient = {
   exportSpring(id: string, basePackage: string): Promise<SpringExport>;
   exportFrontend(id: string): Promise<FrontendExport>;
   queryMentor(id: string, question: string): Promise<MentorQueryResponse>;
+  recognizeDiagram(id: string, image: Blob): Promise<VisionRecognition>;
 };
 
 export class ApiError extends Error {
@@ -244,6 +251,49 @@ async function requestFrontendExport(
   };
 }
 
+// The image goes as the raw body; errors carry a structured { diagnostic } instead of { message }.
+async function requestDiagramRecognition(
+  id: string,
+  image: Blob,
+  {
+    getToken,
+    onUnauthorized,
+    fetcher = fetch,
+    apiBaseUrl = API_BASE_URL,
+  }: ApiClientOptions,
+): Promise<VisionRecognition> {
+  const headers = new Headers({
+    "Content-Type": image.type === "image/jpeg" ? "image/jpeg" : image.type === "image/png" ? "image/png" : "application/octet-stream",
+  });
+  const token = getToken();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  const response = await fetcher(
+    `${apiBaseUrl}/projects/${encodeURIComponent(id)}/vision/uml-proposal`,
+    { method: "POST", headers, body: image, cache: "no-store" },
+  );
+  if (response.status === 401) onUnauthorized();
+  const body = (await response.json().catch(() => null)) as
+    | (VisionRecognition & { ok: true })
+    | { ok?: false; diagnostic?: { message?: string }; message?: string | string[] }
+    | null;
+  if (!response.ok || !body || body.ok !== true) {
+    const failure = body as { diagnostic?: { message?: string }; message?: string | string[] } | null;
+    const message =
+      failure?.diagnostic?.message ??
+      (Array.isArray(failure?.message) ? failure.message.join(" ") : failure?.message);
+    throw new ApiError(
+      response.status,
+      message ?? "No fue posible reconocer la imagen.",
+    );
+  }
+  return {
+    proposal: body.proposal,
+    image: body.image,
+    ocrLines: body.ocrLines,
+    elapsedMs: body.elapsedMs,
+  };
+}
+
 export function createApiClient(options: ApiClientOptions): ApiClient {
   return {
     async login(email, password) {
@@ -347,5 +397,7 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
         method: "POST",
         body: JSON.stringify({ question }),
       }),
+    recognizeDiagram: (id, image) =>
+      requestDiagramRecognition(id, image, options),
   };
 }

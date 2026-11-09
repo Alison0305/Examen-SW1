@@ -8,7 +8,8 @@
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "benchmark:llm": "tsx src/assistant/llm-benchmark.ts"
+    "benchmark:llm": "tsx src/assistant/llm-benchmark.ts",
+    "benchmark:vlm": "tsx src/vision/benchmark/vlm-benchmark.ts"
   },
   "dependencies": {
     "@examen-sw1/assistant-core": "^0.0.0",
@@ -16,6 +17,7 @@
     "@examen-sw1/relational-core": "^0.0.0",
     "@examen-sw1/spring-generator": "^0.0.0",
     "@examen-sw1/uml-core": "file:../uml-core",
+    "@huggingface/transformers": "4.3.1",
     "@nestjs/common": "^11.1.6",
     "@nestjs/core": "^11.1.6",
     "@nestjs/jwt": "^11.0.2",
@@ -31,6 +33,7 @@
     "prisma": "^6.19.3",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
+    "sharp": "0.35.5",
     "socket.io": "^4.8.3"
   },
   "devDependencies": {
