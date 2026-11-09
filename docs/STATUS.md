@@ -8,6 +8,8 @@
 
 **CU activo:** CU-10 — XMI e imagen → UML (Incremento 1 de XMI completo, 10/25 tareas; imagen pendiente).
 
+**Track paralelo no integrado:** CU-2P-02 — identidad de interacción Mentor en `feat/s2-cu02-identidad-mentor`. Solo aporta un contrato/resolvedor interno; la conexión con CU-2P-01 queda pendiente de que esa rama llegue a `main`.
+
 **Último correctivo cerrado:** `fix-cu-08-qwen-local-runtime` — intérprete local Qwen3 1.7B para texto y voz.
 
 **OpenSpec archivado:** `openspec/changes/archive/2026-11-06-fix-cu-08-qwen-local-runtime/`.
