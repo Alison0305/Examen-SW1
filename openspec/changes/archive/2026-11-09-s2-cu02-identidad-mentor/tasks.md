@@ -11,3 +11,9 @@
 ## 3. Validación
 
 - [x] 3.1 Ejecutar regresiones unitarias seguras de AuthService y ProjectAccessService, lint, typecheck, validación OpenSpec strict y comprobación de diff; no ejecutar la integración Auth que carga configuración local.
+
+## 4. Integración con Mentor de CU-01
+
+- [x] 4.1 Importar el módulo de identidad en `MentorModule`, resolver la identidad desde `AuthenticatedUser` antes de cargar el proyecto y entregar la identidad al recorder sin una segunda autorización.
+- [x] 4.2 Cubrir por HTTP la suplantación mediante campos extra, dos usuarios y rechazo de falta de acceso; verificar que identidad y email no se entregan al proveedor ni al prompt Qwen.
+- [x] 4.3 Ejecutar regresiones focalizadas, typecheck, lint, validación OpenSpec strict y comprobación de diff para la integración.

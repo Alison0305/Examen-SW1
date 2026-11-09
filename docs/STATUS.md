@@ -4,13 +4,13 @@
 
 ### Segundo Parcial
 
-**CU activo del segundo parcial:** CU-2P-01 - Consultar al Mentor IA con contexto del proyecto.
+**CU activo del segundo parcial:** ninguno.
 
-**OpenSpec activo:** `openspec/changes/s2-cu01-mentor-contextual/`.
+**Último CU cerrado del segundo parcial:** CU-2P-02 - Identificar al desarrollador y personalizar la mentoría.
 
 Este track académico es independiente del roadmap histórico CU-00...CU-11. No renumera ni modifica el estado del primer parcial.
 
-Implementación: ruta autenticada contextual, constructor semántico sin layout, proveedor Qwen local desacoplado, registrador efímero y panel dentro del workspace persistido. OpenSpec 9/9 tareas; gates raíz correctos (516 tests y 8 reales omitidos), prueba focal Mentor 10/10 y Assistant 18/18 + 5 omitidas. Pendiente prueba manual Qwen, revisión del compañero, aceptación, archive y commit.
+CU-2P-01 Mentor contextual con Qwen está integrado en `main`. CU-2P-02 está completado y aceptado: la identidad Mentor se deriva del JWT/autenticación, `ProjectAccessService.requireView` mantiene la autorización antes de cargar el proyecto y `MentorInteractionRecorder` recibe la identidad segura. Se verificó anti-suplantación; userId, email y rol no llegan al proveedor ni al prompt Qwen. No se implementaron memoria ni historial, que pertenecen a CU-03/CU-07. OpenSpec archivado en `openspec/changes/archive/2026-11-09-s2-cu02-identidad-mentor/`; no hay pendientes funcionales del CU.
 
 ### Primer Parcial
 
@@ -20,7 +20,7 @@ Implementación: ruta autenticada contextual, constructor semántico sin layout,
 
 **CU activo:** ninguno. El siguiente es CU-11, el último del roadmap.
 
-**Track paralelo no integrado:** CU-2P-02 — identidad de interacción Mentor en `feat/s2-cu02-identidad-mentor`. Solo aporta un contrato/resolvedor interno; la conexión con CU-2P-01 queda pendiente de que esa rama llegue a `main`.
+**Track paralelo cerrado:** CU-2P-02 — identidad de interacción Mentor en `feat/s2-cu02-identidad-mentor`, aceptado y archivado. La integración con CU-2P-01 está completada en la rama; su llegada a `main` depende del flujo de merge, sin pendientes funcionales del CU.
 
 **Último correctivo cerrado:** `fix-cu-08-qwen-local-runtime` — intérprete local Qwen3 1.7B para texto y voz.
 
@@ -197,4 +197,4 @@ El correctivo CU-06 está completo en 9/9. Con el proyecto `Prueba CU06 Backend`
 
 ## Siguiente Acción
 
-Completar la prueba manual y aceptación de CU-2P-01 con dos proyectos aislados y Qwen real. En el track histórico, planificar CU-11 según `docs/puds/use-cases/README.md` (plan, aprobación del usuario y OpenSpec). Opcionalmente, crear un correctivo separado `fix-cu-10-...` para mejorar y medir el analizador de imágenes con capturas nuevas.
+No hay CU activo en el segundo parcial. En el track histórico, planificar CU-11 según `docs/puds/use-cases/README.md` cuando se autorice (plan, aprobación del usuario y OpenSpec). Opcionalmente, crear un correctivo separado `fix-cu-10-...` para mejorar y medir el analizador de imágenes con capturas nuevas.

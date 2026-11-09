@@ -5,7 +5,7 @@
 - CU-10 (XMI e imagen → UML) cerrado, aceptado y archivado en `openspec/changes/archive/2026-11-08-cu-10-xmi-imagen-uml/`.
 - Ningún CU activo. El siguiente es CU-11, el último del roadmap; todavía no tiene plan ni OpenSpec.
 - CU-2P-01 Mentor IA contextual con Qwen está implementado, aprobado e integrado en `main`.
-- Track actual: `feat/s2-cu02-identidad-mentor` ya implementa `MentorInteractionIdentity`, su resolvedor y módulo independiente. Pendiente conectar la identidad al flujo Mentor, entregarla al recorder, probar anti-suplantación HTTP y comprobar que email/identidad no llegan al prompt Qwen.
+- CU-2P-02 de `feat/s2-cu02-identidad-mentor` está completado y aceptado; OpenSpec archivado en `openspec/changes/archive/2026-11-09-s2-cu02-identidad-mentor/`. La identidad Mentor proviene del JWT, `ProjectAccessService.requireView` mantiene la autorización y el recorder recibe identidad segura. Anti-suplantación verificada; userId, email y rol siguen fuera del prompt Qwen. No incluye memoria ni historial (CU-03/CU-07).
 
 ## Entorno
 
@@ -22,4 +22,4 @@
 
 ## Siguiente Acción
 
-Integrar CU-2P-02 con el Mentor ya existente en `main`: resolver identidad desde el usuario autenticado, pasarla al recorder y cubrir la prueba HTTP anti-suplantación sin exponerla al prompt Qwen.
+No hay CU activo en el segundo parcial. En el track histórico, el siguiente CU es CU-11 cuando se autorice su planificación.

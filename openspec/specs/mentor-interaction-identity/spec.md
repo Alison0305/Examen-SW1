@@ -1,8 +1,10 @@
+# mentor-interaction-identity Specification
+
 ## Purpose
 
 Provee una identidad mínima, autorizada y aislada por proyecto para las interacciones del Mentor sin exponer secretos ni depender del proveedor de IA.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: Identidad derivada del usuario autenticado
 El sistema SHALL construir la identidad de interacción únicamente desde el proyecto solicitado y el usuario ya autenticado por el servidor. La identidad SHALL contener `projectId`, `userId`, `author.email`, `accessRole` y `occurredAt`, sin hashes, JWT, tokens, datos UML ni datos del proveedor.
@@ -29,9 +31,13 @@ El sistema SHALL generar `occurredAt` después de autorizar el acceso y SHALL no
 - **WHEN** se autoriza la lectura del proyecto
 - **THEN** la identidad SHALL incluir la fecha y hora actuales generadas por el servidor
 
-### Requirement: Integración Mentor diferida
-El sistema SHALL mantener este contrato reutilizable sin crear una ruta alternativa de Mentor. La integración con la ruta de CU-01, el registrador y la prueba HTTP anti-suplantación SHALL permanecer pendientes hasta que CU-01 esté integrado.
+### Requirement: Integración autorizada con Mentor
+El sistema SHALL reutilizar la ruta Mentor existente sin crear una ruta alternativa. La ruta SHALL derivar la identidad desde el usuario autenticado, autorizar mediante la identidad antes de cargar el proyecto y entregar la identidad completa al registrador desacoplado.
 
-#### Scenario: Módulo de identidad disponible sin endpoint Mentor
-- **WHEN** el módulo de identidad se incorpora al backend antes de CU-01
-- **THEN** el sistema SHALL exponer el resolvedor para futuros consumidores sin publicar un endpoint Mentor nuevo
+#### Scenario: Cliente intenta suplantar identidad
+- **WHEN** un cliente envía campos de identidad adicionales junto con una pregunta Mentor
+- **THEN** el sistema SHALL rechazar los campos no permitidos y una consulta válida posterior SHALL usar exclusivamente la identidad autenticada
+
+#### Scenario: Proveedor Mentor recibe contexto privado
+- **WHEN** una interacción autorizada llega al proveedor local
+- **THEN** el proveedor SHALL recibir solamente el contexto UML y la pregunta, sin id, email, rol ni timestamp de identidad
