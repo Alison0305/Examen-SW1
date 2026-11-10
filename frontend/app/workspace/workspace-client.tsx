@@ -76,7 +76,7 @@ import {
   type WorkspaceTool,
 } from "./workspace-store";
 import type { ProjectPresence } from "./realtime-client";
-import type { MentorQueryResponse, UmlAnalysisFocus, UmlAnalysisResponse } from "../auth/api";
+import type { MentorQueryResponse, MentorRecommendationResponse, UmlAnalysisFocus, UmlAnalysisResponse } from "../auth/api";
 import { MentorPanel } from "./mentor-panel";
 import { describeSelection } from "./uml-analysis-section";
 
@@ -140,6 +140,7 @@ export type WorkspaceClientProps = {
   onMentorQuery?: (question: string) => Promise<MentorQueryResponse>;
   // CU-2P-04: explain the selected class/relationship or the whole model (shown inside the Mentor panel).
   onUmlAnalysis?: (focus: UmlAnalysisFocus) => Promise<UmlAnalysisResponse>;
+  onMentorRecommendation?: (question: string) => Promise<MentorRecommendationResponse>;
   collaboration?: {
     connection:
       | "connecting"
@@ -171,6 +172,7 @@ export function WorkspaceClient({
   readOnly = false,
   onMentorQuery,
   onUmlAnalysis,
+  onMentorRecommendation,
   collaboration,
 }: Readonly<WorkspaceClientProps>) {
   useEffect(() => {
@@ -196,6 +198,7 @@ export function WorkspaceClient({
         readOnly={readOnly}
         onMentorQuery={onMentorQuery}
         onUmlAnalysis={onUmlAnalysis}
+        onMentorRecommendation={onMentorRecommendation}
         collaboration={collaboration}
       />
     </ReactFlowProvider>
@@ -215,6 +218,7 @@ function WorkspaceContent({
   readOnly = false,
   onMentorQuery,
   onUmlAnalysis,
+  onMentorRecommendation,
   collaboration,
 }: Readonly<WorkspaceClientProps>) {
   const store = useWorkspaceStore();
@@ -433,7 +437,7 @@ function WorkspaceContent({
                   })}
               </Box>
             </Card>
-            {projectName && onMentorQuery && <MentorPanel projectName={projectName} onQuery={onMentorQuery} analysis={onUmlAnalysis ? { selection: describeSelection(store.document, store.selection), onAnalyze: onUmlAnalysis } : undefined} />}
+            {projectName && onMentorQuery && <MentorPanel projectName={projectName} onQuery={onMentorQuery} onRecommend={onMentorRecommendation} analysis={onUmlAnalysis ? { selection: describeSelection(store.document, store.selection), onAnalyze: onUmlAnalysis } : undefined} />}
           </Stack>
         </Box>
         {compact ? (

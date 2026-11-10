@@ -88,6 +88,17 @@ export type UmlAnalysisResponse = {
   explanation: { text: string; contextTruncation: UmlAnalysisContextTruncation } | null;
   diagnostic?: UmlAnalysisDiagnostic;
 };
+export type MentorRecommendationResponse = {
+  status: "READ_ONLY";
+  problem: string;
+  alternatives: string[];
+  rationale: string;
+  limitations: string;
+  confidence: number;
+  needsClarification: boolean;
+  requiresUmlChange: boolean;
+  projectRevision: number;
+};
 export type VisionRecognition = {
   proposal: import("@examen-sw1/uml-core").UmlImportProposal;
   image: { width: number; height: number };
@@ -136,6 +147,7 @@ export type ApiClient = {
   exportFrontend(id: string): Promise<FrontendExport>;
   queryMentor(id: string, question: string): Promise<MentorQueryResponse>;
   analyzeUml(id: string, focus: UmlAnalysisFocus): Promise<UmlAnalysisResponse>;
+  recommendMentor(id: string, question: string): Promise<MentorRecommendationResponse>;
   recognizeDiagram(id: string, image: Blob): Promise<VisionRecognition>;
 };
 
@@ -153,7 +165,13 @@ type ApiClientOptions = {
   onUnauthorized: () => void;
   fetcher?: typeof fetch;
   apiBaseUrl?: string;
+  waitForRetry?: (milliseconds: number) => Promise<void>;
 };
+
+const RECOMMENDATION_TRANSPORT_RETRY_DELAY_MS = 500;
+
+const waitForRetry = (milliseconds: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 async function request<T>(
   path: string,
@@ -174,11 +192,13 @@ async function request<T>(
     headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const response = await fetcher(`${apiBaseUrl}${path}`, {
-    ...init,
-    headers,
-    cache: "no-store",
-  });
+  let response: Response;
+  try {
+    response = await fetcher(`${apiBaseUrl}${path}`, { ...init, headers, cache: "no-store" });
+  } catch (error) {
+    if (error instanceof TypeError) throw new TransportError(error.message);
+    throw error;
+  }
   if (response.status === 401) {
     onUnauthorized();
   }
@@ -197,6 +217,24 @@ async function request<T>(
   return response.status === 204
     ? (undefined as T)
     : (response.json() as Promise<T>);
+}
+
+class TransportError extends Error {}
+
+async function requestMentorRecommendation(
+  id: string,
+  question: string,
+  options: ApiClientOptions,
+): Promise<MentorRecommendationResponse> {
+  const path = `/projects/${encodeURIComponent(id)}/mentor/recommendations`;
+  const init = { method: "POST", body: JSON.stringify({ question }) };
+  try {
+    return await request<MentorRecommendationResponse>(path, options, init);
+  } catch (error) {
+    if (!(error instanceof TransportError)) throw error;
+    await (options.waitForRetry ?? waitForRetry)(RECOMMENDATION_TRANSPORT_RETRY_DELAY_MS);
+    return request<MentorRecommendationResponse>(path, options, init);
+  }
 }
 
 export type FrontendExport = { blob: Blob; filename: string };
@@ -443,6 +481,7 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
         // Rebuilt field by field so nothing else (store state, names, layout) can travel with the focus.
         body: JSON.stringify({ focus: focus.kind === "model" ? { kind: "model" } : { kind: focus.kind, id: focus.id } }),
       }),
+    recommendMentor: (id, question) => requestMentorRecommendation(id, question, options),
     recognizeDiagram: (id, image) =>
       requestDiagramRecognition(id, image, options),
   };

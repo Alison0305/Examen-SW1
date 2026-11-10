@@ -4,7 +4,7 @@
 
 ### Segundo Parcial
 
-**CU activo del segundo parcial:** CU-2P-04 - Analizar y explicar un modelo UML 2.5 (en validación).
+**CU activo del segundo parcial:** CU-2P-05 - Solicitar recomendaciones y soluciones técnicas contextualizadas.
 
 **Último CU cerrado del segundo parcial:** CU-2P-03 - Persistir y recuperar memoria contextual del Mentor IA.
 
@@ -14,9 +14,11 @@ CU-2P-03 está cerrado y aceptado: PR #10 fusionado en `main`, issue #3 cerrado 
 
 **CU-2P-04 - Analizar y explicar un modelo UML 2.5** (issue #4, rama `feat/s2-cu04-analisis-uml`, OpenSpec `openspec/changes/s2-cu04-analisis-uml/`).
 
-Estado: implementación funcional completa — pendiente validación Qwen real y smoke test visual antes de PR/cierre. No está cerrado.
+Estado: integrado en `main`; conserva validación y cierre propios pendientes. No está cerrado.
 
 Implementación: `POST /projects/:id/mentor/analysis` con contexto determinista (fragmento UML, diagnósticos canónicos, hechos relacionales del mapper, conflictos y limitaciones), prompt compacto con recorte declarado y explicación con el mismo Qwen local compartido por CU-2P-01 (`ASSISTANT_LOCAL_MODEL`). Sección "Análisis UML" en el panel Mentor IA con "Explicar selección" y "Explicar modelo", de solo lectura. Integra `main` con CU-2P-01 (PR #8), CU-2P-02 (PR #9) y CU-2P-03 (PR #10/#11). OpenSpec 14/18 tareas. Pruebas: `mentor-analysis` 181 correctas + 15 reales de Qwen omitidas; backend completo 328 correctas + 36 omitidas (5 archivos PostgreSQL sin `backend/.env`); frontend 208/208; ESLint y TypeScript correctos. Pendiente: ejecutar la suite real de Qwen, revisión manual en navegador, revisión del compañero, PR, aceptación y cierre del issue.
+
+CU-2P-05 está validado manualmente y permanece activo en `feat/s2-cu05-recomendaciones-tecnicas`, con OpenSpec `s2-cu05-recomendaciones-tecnicas` en 19/19 tareas. Integra localmente `origin/main` con CU-2P-04 y conserva las rutas `query`, `analysis` y `recommendations` en un único panel Mentor. Implementa `POST /projects/:id/mentor/recommendations` como recomendación estructurada de solo lectura y mantiene `POST /projects/:id/mentor/query`. Relaciones, atributos ausentes y consultas acotadas de generación Spring Boot se resuelven determinísticamente antes de Qwen; nunca modifican UML, layout o revisión. La validación aprobó 5/5 consultas Spring al primer clic, deterministas, en español y sin `recommendation:provider-start`; también aprobó el atributo futuro sin mutación ni lenguaje de cambio aplicado. Lint, typecheck, build, Prisma, pruebas focalizadas y diff-check son correctos. La suite raíz queda bloqueada por una prueba real preexistente de CU-2P-04: Qwen inventa una FK cuando faltan identificadores. No está archivado ni cerrado.
 
 ### Primer Parcial
 
@@ -208,4 +210,4 @@ El correctivo CU-06 está completo en 9/9. Con el proyecto `Prueba CU06 Backend`
 
 ## Siguiente Acción
 
-Segundo parcial: CU-2P-04 (Análisis UML) es el CU activo. Antes de su PR hay que ejecutar la suite real de Qwen y hacer la revisión manual en navegador. En el track histórico, planificar CU-11 según `docs/puds/use-cases/README.md` cuando se autorice (plan, aprobación del usuario y OpenSpec). Opcionalmente, crear un correctivo separado `fix-cu-10-...` para mejorar y medir el analizador de imágenes con capturas nuevas.
+CU-2P-05: ejecutar los gates completos tras integrar CU-2P-04 y preparar la revisión antes de commit/PR. Mantener CU-2P-04 disponible para su validación y cierre propios. En el track histórico, planificar CU-11 solo cuando se autorice.

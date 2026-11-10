@@ -139,6 +139,7 @@ function InvitationsDialog({
 function ProjectsContent() {
   const { user, logout } = useSession();
   const apiRef = useRef<ApiClient | null>(null);
+  const mounted = useRef(true);
   const api =
     apiRef.current ??
     createApiClient({
@@ -159,22 +160,28 @@ function ProjectsContent() {
   const load = async () => {
     setError(null);
     try {
-      setProjects(await api.listProjects());
+      const items = await api.listProjects();
+      if (mounted.current) setProjects(items);
     } catch (cause) {
-      if (!(cause instanceof ApiError && cause.status === 401))
+      if (mounted.current && !(cause instanceof ApiError && cause.status === 401))
         setError("No fue posible cargar los proyectos.");
     }
   };
   const loadInvitations = async () => {
     try {
-      setInvitationCount((await api.listMyInvitations()).length);
+      const invitations = await api.listMyInvitations();
+      if (mounted.current) setInvitationCount(invitations.length);
     } catch {
-      setInvitationCount(0);
+      if (mounted.current) setInvitationCount(0);
     }
   };
   useEffect(() => {
+    mounted.current = true;
     void load();
     void loadInvitations();
+    return () => {
+      mounted.current = false;
+    };
   }, []);
   const valid = name.trim().length > 0 && name.trim().length <= 100;
   const create = async () => {
