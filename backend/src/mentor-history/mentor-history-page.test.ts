@@ -74,11 +74,18 @@ describe("página del historial", () => {
 });
 
 describe("independencia del módulo", () => {
-  it("los contratos del historial no importan Qwen, el asistente ni Prisma", () => {
-    const folder = __dirname;
-    for (const file of readdirSync(folder).filter((name) => name.endsWith(".ts") && !name.endsWith(".test.ts"))) {
-      const source = readFileSync(join(folder, file), "utf8");
-      expect(source, file).not.toMatch(/from "(\.\.\/assistant|\.\.\/mentor-analysis|node-llama-cpp|@prisma\/client)/);
+  const PURE_FILES = ["mentor-history.contracts.ts", "mentor-history-cursor.ts", "mentor-history-query.ts", "mentor-history-page.ts"];
+
+  it("los contratos del historial no importan Qwen, el asistente ni infraestructura (Prisma, NestJS)", () => {
+    for (const file of PURE_FILES) {
+      const source = readFileSync(join(__dirname, file), "utf8");
+      expect(source, file).not.toMatch(/from "(\.\.\/assistant|\.\.\/mentor-analysis|\.\.\/prisma|node-llama-cpp|@prisma\/client|@nestjs\/)/);
     }
+  });
+
+  it("ningún archivo del módulo, incluido el reader Prisma, importa Qwen ni el asistente", () => {
+    const files = readdirSync(__dirname).filter((name) => name.endsWith(".ts") && !name.endsWith(".test.ts"));
+    expect(files).toEqual(expect.arrayContaining([...PURE_FILES, "prisma-mentor-history.reader.ts"]));
+    for (const file of files) expect(readFileSync(join(__dirname, file), "utf8"), file).not.toMatch(/from "(\.\.\/assistant|\.\.\/mentor-analysis|\.\.\/mentor\/local-qwen|node-llama-cpp)/);
   });
 });

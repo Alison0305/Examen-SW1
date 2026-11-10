@@ -7,8 +7,8 @@
 
 ## 2. Persistencia paginada
 
-- [ ] 2.1 Implementar el lector Prisma de `MENTOR_HISTORY_READER` sobre `MentorInteraction`: filtro por `projectId`, keyset `occurredAt DESC, id DESC`, `take: limit + 1`, búsqueda sin distinguir mayúsculas en pregunta o respuesta, selección solo de `MentorHistoryRecord`.
-- [ ] 2.2 Pruebas de integración PostgreSQL: orden, empates de fecha, recorrido completo sin duplicados, búsqueda por pregunta y por respuesta, `%`/`_` literales y aislamiento entre dos proyectos.
+- [x] 2.1 Implementar el lector Prisma de `MENTOR_HISTORY_READER` sobre `MentorInteraction`: filtro por `projectId`, keyset `occurredAt DESC, id DESC`, `take: limit + 1`, búsqueda sin distinguir mayúsculas en pregunta o respuesta con `%`, `_` y `\` escapados, selección solo de `MentorHistoryRecord` (`PrismaMentorHistoryReader`, 6 pruebas unitarias de la consulta).
+- [x] 2.2 Pruebas de integración PostgreSQL: vacío, una fila, orden, empates de fecha, orden UUID, `limit + 1`, recorrido 7/2 sin duplicados, búsqueda por pregunta y por respuesta, mayúsculas y acentos, `%`/`_`/`\` literales, búsqueda paginada, aislamiento A/B, cursor de A en B, cursor con otra búsqueda y lectura sin modelo local (20 pruebas, fixtures propios con limpieza acotada).
 
 ## 3. Servicio y autorización
 

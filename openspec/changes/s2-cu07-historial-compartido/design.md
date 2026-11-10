@@ -71,7 +71,22 @@ El lector pide `limit + 1` filas: la fila extra solo indica que hay otra página
 
 ### Búsqueda
 
-`q` opcional; se recorta y debe tener entre 1 y 200 caracteres, sin caracteres de control (PostgreSQL rechaza NUL). Vacía o solo con espacios es `INVALID_SEARCH`: el cliente omite `q` para no buscar. El lector la aplica sin distinguir mayúsculas sobre `question` OR `answer`, combinada con `projectId` mediante AND. Se combina con el cursor: el cursor de una búsqueda solo se usa con la misma búsqueda.
+`q` opcional; se recorta y debe tener entre 1 y 200 caracteres, sin caracteres de control (PostgreSQL rechaza NUL). Vacía o solo con espacios es `INVALID_SEARCH`: el cliente omite `q` para no buscar. El lector la aplica sin distinguir mayúsculas sobre `question` OR `answer`, combinada con `projectId` mediante AND.
+
+Búsqueda literal (medido en la fase 2): Prisma 6.19 traduce `contains` a `ILIKE '%' || valor || '%'` sin escapar el valor. Contra PostgreSQL, `q = "100%"` también encontró «¿100 por ciento?» y `q = "cliente_id"` encontró «clienteXid». `PrismaMentorHistoryReader` escapa `\`, `%` y `_` con la barra invertida, el carácter de escape por defecto de `LIKE`/`ILIKE`; las pruebas de integración verifican `%`, `_` y `\` literales. Las letras acentuadas se comparan sin distinguir mayúsculas (`relación uml` encuentra `RELACIÓN UML`).
+
+### Lector PostgreSQL
+
+`PrismaMentorHistoryReader` implementa `MENTOR_HISTORY_READER` con `findMany`: `where` construido por `mentorHistoryWhere` (`projectId` en el nivel superior; keyset y búsqueda como `OR` dentro de `AND`), `orderBy` `[{ occurredAt: "desc" }, { id: "desc" }]`, `take: limit + 1` y `select` limitado a `MentorHistoryRecord`. No captura errores de Prisma: se propagan como errores de infraestructura y su traducción corresponde al servicio o al controlador.
+
+Orden de UUID (medido): Prisma genera `UuidFilter` con `lt` para `id @db.Uuid`, y en PostgreSQL `ORDER BY id DESC` coincide con el orden lexicográfico de la representación canónica en minúsculas, también con ids que solo difieren en el último grupo y cruzan la frontera dígito/letra. El keyset `(occurredAt, id)` se conserva sin cambios.
+
+### Cursor fuera de su contexto
+
+El cursor no lleva `projectId` ni el texto de búsqueda, y no se añaden:
+
+- Un cursor obtenido en el proyecto A y enviado al proyecto B solo define una posición `(occurredAt, id)`: devuelve las filas de B anteriores a esa posición y nunca filas de A (verificado).
+- Un cursor obtenido con `q=patrón` y reutilizado con `q=relación` devuelve las filas que coinciden con «relación» anteriores a esa posición dentro del mismo proyecto. Es una navegación semánticamente extraña pero no expone nada; el cliente debe reiniciar la paginación (sin cursor) al cambiar la búsqueda.
 
 ### DTO público y privacidad
 
@@ -101,7 +116,7 @@ CU-2P-06 todavía no existe y no hay modelo de propuestas. CU-2P-07 no añade ca
 ## Risks / Trade-offs
 
 - Búsqueda con `contains` sin índice de texto → recorre solo las filas del proyecto (filtradas por el índice existente); suficiente para la escala del proyecto.
-- Comodines `%` y `_` en `q` → la fase de persistencia debe verificar con PostgreSQL que se buscan de forma literal.
+- Comodines `%` y `_` en `q` → confirmado que Prisma no los escapa; resuelto escapándolos en el lector y cubierto con pruebas de integración.
 - El email del autor queda visible para VIEWER, que hoy no puede listar miembros → decisión aceptada; no se expone ningún otro dato del usuario.
 - Primer uso de parámetros `@Query` en el repositorio → el parser propio evita depender de que `DtoValidationPipe` maneje objetos de query.
 - Si el recorder falla, la consulta del Mentor falla aunque Qwen haya respondido → comportamiento existente de CU-2P-01/03, fuera de alcance.
