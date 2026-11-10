@@ -17,8 +17,10 @@
 
 ## 4. Persistencia `MentorProposal`
 
-- [ ] 4.1 Revisar las decisiones de columnas del diseño y añadir el modelo y su enum con una migración Prisma aditiva; verificar `prisma validate` y `migrate status`.
-- [ ] 4.2 Implementar el almacén con creación, búsqueda por `(id, projectId)` y transiciones condicionales desde `PENDING`; verificar invariantes de estado e integración PostgreSQL.
+- [x] 4.1 Revisar las decisiones de columnas del diseño y añadir el modelo `MentorProposal`, su enum y las relaciones inversas con la migración aditiva `20261110170000_add_mentor_proposals` (incluido el CHECK de la invariante de estado); verificar `prisma validate`, `prisma generate` y el SQL generado con `prisma migrate diff`.
+- [x] 4.2 Implementar los parsers estrictos de `command` y `summary` persistidos con `MentorProposalDataError`; verificar JSON válido, corrupto, operación distinta, UUID, tipo, multiplicidad, campos faltantes o extra y líneas de diff inválidas.
+- [x] 4.3 Implementar `MentorProposalStore` y `PrismaMentorProposalStore` (creación siempre `PENDING`, búsqueda por `(id, projectId)`, `reject` y `markApplied` condicionales desde `PENDING`, revalidación al leer) y `buildNewMentorProposal` desde la vista previa; verificar con pruebas unitarias y un doble en memoria la invariante de estado, las transiciones bloqueadas, la inmutabilidad de comando y summary, `baseRevision` 10 frente a candidato 11 y `summary` igual al diff.
+- [ ] 4.4 Aplicar la migración en PostgreSQL (`prisma migrate`, `migrate status`) y ejecutar `prisma-mentor-proposal.store.integration.test.ts` (DB-01 a DB-13, CHECK y `Restrict` de usuario). Pendiente: la PC de implementación no tiene `backend/.env` ni PostgreSQL; la suite falló con `ENOENT backend/.env` antes de ejecutar sus 12 pruebas.
 
 ## 5. Aplicación, concurrencia y tiempo real
 

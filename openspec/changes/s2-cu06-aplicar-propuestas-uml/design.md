@@ -107,27 +107,60 @@ Idempotencia y doble aplicación, por capas: guarda síncrona en el cliente; tra
 
 Una aplicación exitosa debe ser observable por los clientes conectados igual que una operación normal del editor. No se crea una segunda infraestructura: en la Fase 5 se decidirá la modificación aditiva mínima para exportar `ProjectOperationService` desde `RealtimeModule` y difundir el ACK `ACCEPTED` a la sala del proyecto.
 
-### Persistencia `MentorProposal` (diseño; se implementa en la Fase 4)
+### Persistencia `MentorProposal` (Fase 4)
 
-Entidad separada; no se extiende `MentorInteraction`. Campos previstos:
+Entidad separada; no se extiende `MentorInteraction`. Esquema real en `backend/prisma/schema.prisma`, migración aditiva `20261110170000_add_mentor_proposals` (enum, tabla, FK, índices y un CHECK), sin tocar migraciones ni tablas existentes salvo las relaciones inversas en `User` y `Project`.
+
+```prisma
+enum MentorProposalStatus { PENDING APPLIED REJECTED }
+
+model MentorProposal {
+  id                String               @id @default(uuid()) @db.Uuid
+  projectId         String               @db.Uuid
+  authorUserId      String               @db.Uuid
+  authorEmail       String
+  instruction       String
+  baseRevision      Int
+  status            MentorProposalStatus @default(PENDING)
+  command           Json
+  summary           Json
+  createdAt         DateTime             @default(now())
+  resolvedAt        DateTime?
+  resolvedByUserId  String?              @db.Uuid
+  resultingRevision Int?
+  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  author     User    @relation("MentorProposalAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
+  resolvedBy User?   @relation("MentorProposalResolvedBy", fields: [resolvedByUserId], references: [id], onDelete: Restrict)
+  @@index([projectId, createdAt, id])
+  @@index([authorUserId])
+  @@index([resolvedByUserId])
+}
+```
 
 | Campo | Obligatorio | Motivo |
 |---|---|---|
-| `id` (uuid) | Sí | Identidad pública y `operationId` del recibo |
-| `projectId` (FK `Project`, cascade) | Sí | Aislamiento; búsqueda por `(id, projectId)` |
-| `authorUserId` (FK `User`, restrict) | Sí | Autor de la solicitud, como `MentorInteraction.userId` |
-| `authorEmail` | Sí | Instantánea para CU-2P-07, como `MentorInteraction.authorEmail` |
-| `instruction` | Sí | Trazabilidad de la solicitud (no se expone en la respuesta CU-06) |
-| `baseRevision` | Sí | Detección de obsolescencia |
-| `status` (enum, por defecto `PENDING`) | Sí | Ciclo de vida |
-| `command` (Json) | Sí | Fuente de verdad única para vista previa y aplicación |
-| `summary` (Json, diff) | Sí | Diff mostrado al crear; base de la proyección CU-2P-07 |
-| `createdAt` | Sí | Orden y trazabilidad |
-| `resolvedAt` | No | Solo `APPLIED` o `REJECTED` |
-| `resolvedByUserId` (FK `User`, restrict) | No | Quién aplicó o rechazó; puede no ser el autor |
-| `resultingRevision` | No | Solo `APPLIED` (= `ack.revision`) |
+| `id` | Sí | Identidad de la propuesta y futuro `operationId` del recibo. Lo asigna el servidor (`buildNewMentorProposal`); el `@default(uuid())` solo sigue la convención del esquema |
+| `projectId` | Sí | Aislamiento; toda lectura y transición filtra por `(id, projectId)` en la propia consulta |
+| `authorUserId` | Sí | Quien generó la propuesta; viene de la identidad autorizada, nunca del cliente |
+| `authorEmail` | Sí | Instantánea para CU-2P-07, como `MentorInteraction.authorEmail`; no se usa para autorizar |
+| `instruction` | Sí | Instrucción procesada (recortada, 1..500); no se expone en la respuesta CU-06 |
+| `baseRevision` | Sí | `preview.baseRevision`, la revisión autoritativa; nunca la del candidato |
+| `status` | Sí | Siempre `PENDING` al crear |
+| `command` | Sí | Exactamente el `AddAttributeProposalCommand` resuelto; nunca se expone |
+| `summary` | Sí | Exactamente `preview.diff`; no se recalcula al leer |
+| `createdAt` | Sí | Hora del servidor, inyectable con `nowFactory` |
+| `resolvedAt`, `resolvedByUserId` | No | Solo `APPLIED` o `REJECTED`; quien resuelve puede no ser el autor |
+| `resultingRevision` | No | Solo `APPLIED` |
 
-Invariantes: `PENDING` ⇔ `resolvedAt` y `resolvedByUserId` nulos; `APPLIED` ⇒ `resultingRevision` presente; `REJECTED` ⇒ `resultingRevision` nulo. Índices previstos: `(projectId, createdAt, id)` para la futura proyección y `(authorUserId)`. No se incluye `mentorInteractionId` en v1: CU-2P-05 no entrega ese identificador y no se modifica su recorder. La decisión final sobre cada columna se revisa antes de la Fase 4 y requiere una migración aditiva.
+- Relaciones: dos relaciones con nombre explícito hacia `User` (`MentorProposalAuthor`, `MentorProposalResolvedBy`) para evitar ambigüedad, siguiendo el precedente `ProjectInvitationInvitedBy`.
+- `onDelete`: `Project` → `Cascade` (como `MentorInteraction`, invitaciones, membresías y recibos; no quedan propuestas huérfanas). `User` → `Restrict` (como `MentorInteraction.author`, `ProjectMembership.user` y `ProjectInvitation.invitedBy`; un usuario con propuestas no se borra).
+- Índices: `(projectId, createdAt, id)` para la futura proyección CU-2P-07 por proyecto con orden estable; `authorUserId` y `resolvedByUserId` para las FK, como el repositorio indexa cada FK a `User`. La búsqueda por `(id, projectId)` usa la PK. No se crea `(projectId, status, createdAt, id)` porque ninguna consulta actual ni prevista filtra por estado: CU-2P-07 muestra todas las propuestas con su estado.
+- Invariante de estado: `PENDING` sin resolución; `REJECTED` con `resolvedAt` y `resolvedByUserId` y sin `resultingRevision`; `APPLIED` con los tres. La garantizan el tipo `StoredMentorProposal` (unión por `status`), el store (escribe solo esos campos y revalida cada fila al leer) y el CHECK `MentorProposal_resolution_check` añadido a mano en la migración, porque `schema.prisma` no puede expresarlo; Prisma no gestiona ese CHECK y no lo elimina.
+- Parsers estrictos: `parseStoredMentorProposalCommand` y `parseStoredMentorProposalSummary` validan claves exactas, `AddAttribute`, UUID con la forma del validador de uml-core, nombre recortado no vacío, primitivo de `UML_PRIMITIVE_TYPES`, multiplicidad entera coherente y líneas de diff del vocabulario del contrato. Se aplican antes de escribir y en cada lectura; un JSON corrupto lanza `MentorProposalDataError` (`MENTOR_PROPOSAL_DATA_CORRUPTED`, solo con el nombre del campo, nunca el JSON), que la futura API traducirá a un 500 seguro. La base no puede saltarse la allow-list.
+- Store (`MentorProposalStore`, implementado por `PrismaMentorProposalStore`): `create` (siempre `PENDING`, solo campos de creación), `findByProjectAndId` (`findFirst` con `id` y `projectId`), `reject` y `markApplied`. Las transiciones son un único `updateMany` condicional `WHERE id AND projectId AND status = 'PENDING'` que solo escribe `status` y los campos de resolución; si no actualiza nada, se lee el estado y se devuelve `NOT_FOUND`, `PROPOSAL_ALREADY_APPLIED` o `PROPOSAL_REJECTED`. `command`, `summary`, `baseRevision`, `instruction` y autor no cambian nunca. `markApplied` solo persiste un resultado que la Fase 5 obtendrá aplicando de verdad.
+- Creación: `buildNewMentorProposal` convierte comando resuelto, vista previa, identidad autorizada e instrucción en el registro persistible. Una vista previa inválida, un diff vacío o una instrucción fuera de 1..500 no producen propuesta.
+- No se incluye `mentorInteractionId` en v1: CU-2P-05 no entrega ese identificador y no se modifica su recorder.
+- Verificación PostgreSQL: `prisma-mentor-proposal.store.integration.test.ts` (DB-01 a DB-13, más el CHECK y el `Restrict` de usuario) sigue la convención del repositorio (`process.loadEnvFile(".env")`). En la PC donde se implementó no hay `backend/.env` ni PostgreSQL, por lo que la migración no se aplicó y esas pruebas quedan pendientes; el SQL se generó con `prisma migrate diff` desde el esquema anterior y se revisó.
 
 ### Errores de dominio y HTTP
 

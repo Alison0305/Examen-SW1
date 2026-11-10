@@ -17,6 +17,8 @@ model User {
   memberships  ProjectMembership[]
   invitationsSent ProjectInvitation[] @relation("ProjectInvitationInvitedBy")
   mentorInteractions MentorInteraction[]
+  mentorProposalsAuthored MentorProposal[] @relation("MentorProposalAuthor")
+  mentorProposalsResolved MentorProposal[] @relation("MentorProposalResolvedBy")
 }
 
 model Project {
@@ -32,6 +34,7 @@ model Project {
   invitations ProjectInvitation[]
   operationReceipts ProjectOperationReceipt[]
   mentorInteractions MentorInteraction[]
+  mentorProposals MentorProposal[]
 
   @@index([ownerId])
 }
@@ -53,6 +56,37 @@ model MentorInteraction {
 
   @@index([projectId, occurredAt, id])
   @@index([userId])
+}
+
+enum MentorProposalStatus {
+  PENDING
+  APPLIED
+  REJECTED
+}
+
+// CU-2P-06. command and summary are written once at creation; transitions only change the resolution fields.
+// The status/resolution invariant is enforced by the store and by a CHECK constraint in the migration.
+model MentorProposal {
+  id                String               @id @default(uuid()) @db.Uuid
+  projectId         String               @db.Uuid
+  authorUserId      String               @db.Uuid
+  authorEmail       String
+  instruction       String
+  baseRevision      Int
+  status            MentorProposalStatus @default(PENDING)
+  command           Json
+  summary           Json
+  createdAt         DateTime             @default(now())
+  resolvedAt        DateTime?
+  resolvedByUserId  String?              @db.Uuid
+  resultingRevision Int?
+  project           Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  author            User                 @relation("MentorProposalAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
+  resolvedBy        User?                @relation("MentorProposalResolvedBy", fields: [resolvedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([projectId, createdAt, id])
+  @@index([authorUserId])
+  @@index([resolvedByUserId])
 }
 
 model ProjectOperationReceipt {
