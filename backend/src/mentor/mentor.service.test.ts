@@ -22,7 +22,8 @@ function identity(projectId: string, user: AuthenticatedUser = alice): MentorInt
 function serviceFor(projects: Record<string, ReturnType<typeof project> | null>, provider: MentorAiProvider, recorder: MentorInteractionRecorder = { record: vi.fn().mockResolvedValue(undefined) }) {
   const identities = { resolve: vi.fn(async (projectId: string, user: AuthenticatedUser) => identity(projectId, user)) };
   const persistence = { findProject: vi.fn(async (id: string) => projects[id] ?? null) };
-  return { service: new MentorService(identities as never, persistence as never, new MentorContextBuilder(), provider, recorder), identities, persistence, recorder };
+  const memory = { recent: vi.fn().mockResolvedValue([]) };
+  return { service: new MentorService(identities as never, persistence as never, new MentorContextBuilder(), provider, recorder, memory), identities, persistence, recorder, memory };
 }
 
 describe("MentorService", () => {
@@ -35,8 +36,8 @@ describe("MentorService", () => {
     await service.query("a-id", alice, "Describe el modelo");
     await service.query("b-id", alice, "Describe el modelo");
 
-    expect(provider.ask).toHaveBeenNthCalledWith(1, expect.objectContaining({ projectName: "A", classes: [{ name: "Cliente", attributes: [{ name: "nombre", type: "string", multiplicity: undefined }] }] }), "Describe el modelo");
-    expect(provider.ask).toHaveBeenNthCalledWith(2, expect.objectContaining({ projectName: "B", classes: [{ name: "Factura", attributes: [{ name: "nombre", type: "string", multiplicity: undefined }] }] }), "Describe el modelo");
+    expect(provider.ask).toHaveBeenNthCalledWith(1, expect.objectContaining({ projectName: "A", classes: [{ name: "Cliente", attributes: [{ name: "nombre", type: "string", multiplicity: undefined }] }] }), "Describe el modelo", []);
+    expect(provider.ask).toHaveBeenNthCalledWith(2, expect.objectContaining({ projectName: "B", classes: [{ name: "Factura", attributes: [{ name: "nombre", type: "string", multiplicity: undefined }] }] }), "Describe el modelo", []);
   });
 
   it("autoriza antes de cargar el proyecto", async () => {
@@ -47,6 +48,31 @@ describe("MentorService", () => {
     await expect(service.query("a-id", alice, "Describe el modelo")).rejects.toBeInstanceOf(NotFoundException);
     expect(persistence.findProject).not.toHaveBeenCalled();
     expect(provider.ask).not.toHaveBeenCalled();
+  });
+
+  it("entrega antecedentes compartidos, aislados y sin identidad al segundo turno", async () => {
+    const provider = { ask: vi.fn().mockResolvedValue("Respuesta") };
+    const { service, memory, identities } = serviceFor({ "a-id": project("A", 2, "Categoria") }, provider);
+    const antecedent = { question: "¿Qué solución sugerís para la relación Categoria-Producto?", answer: "Usá una asociación 1:N.", projectRevision: 1, isStale: true };
+    memory.recent.mockResolvedValueOnce([]).mockResolvedValueOnce([antecedent]);
+    await service.query("a-id", alice, antecedent.question);
+    await service.query("a-id", { id: "user-b", email: "bob@example.test" }, "¿Qué solución me sugeriste antes para esa relación?");
+    expect(provider.ask).toHaveBeenLastCalledWith(expect.anything(), "¿Qué solución me sugeriste antes para esa relación?", [antecedent]);
+    expect(JSON.stringify(provider.ask.mock.calls[1])).not.toMatch(/user-a|user-b|alice@example|bob@example|VIEWER|password|secret|hash/i);
+    identities.resolve.mockRejectedValueOnce(new NotFoundException());
+    await expect(service.query("a-id", alice, "Pregunta")).rejects.toBeInstanceOf(NotFoundException);
+    expect(memory.recent).toHaveBeenCalledTimes(2);
+  });
+
+  it("advierte determinísticamente solo cuando la memoria usada está desactualizada", async () => {
+    const provider = { ask: vi.fn().mockResolvedValue("Respuesta Qwen") };
+    const { service, memory } = serviceFor({ "a-id": project("A", 2, "Categoria") }, provider);
+    memory.recent.mockResolvedValueOnce([{ question: "Antes", answer: "Respuesta", projectRevision: 1, isStale: true }]);
+    await expect(service.query("a-id", alice, "Describe Categoria")).resolves.toMatchObject({ answer: expect.stringContaining("podría estar desactualizada") });
+    memory.recent.mockResolvedValueOnce([{ question: "Actual", answer: "Respuesta", projectRevision: 2, isStale: false }]);
+    await expect(service.query("a-id", alice, "Describe Categoria")).resolves.toEqual({ answer: "Respuesta Qwen", grounded: true, projectRevision: 2 });
+    memory.recent.mockResolvedValueOnce([]);
+    await expect(service.query("a-id", alice, "Describe Categoria")).resolves.toEqual({ answer: "Respuesta Qwen", grounded: true, projectRevision: 2 });
   });
 
   it("devuelve insuficiencia de contexto sin llamar al proveedor", async () => {

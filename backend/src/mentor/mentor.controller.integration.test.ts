@@ -9,7 +9,7 @@ import { ProjectAccessService } from "../projects/project-access.service";
 import { ProjectsPersistenceService } from "../projects/projects-persistence.service";
 import { MentorController } from "./mentor.controller";
 import { MentorContextBuilder } from "./mentor-context.builder";
-import { MENTOR_AI_PROVIDER, MENTOR_INTERACTION_RECORDER } from "./mentor.contracts";
+import { MENTOR_AI_PROVIDER, MENTOR_INTERACTION_MEMORY, MENTOR_INTERACTION_RECORDER } from "./mentor.contracts";
 import { MentorService } from "./mentor.service";
 import { createProjectDocument, primitiveType } from "@examen-sw1/uml-core";
 
@@ -32,7 +32,7 @@ describe("POST /projects/:id/mentor/query", () => {
     const projects = { findProject: vi.fn().mockResolvedValue({ id: projectId, name: "CRM", revision: 5, document }) };
     const module = await Test.createTestingModule({
       controllers: [MentorController],
-      providers: [MentorService, MentorContextBuilder, MentorInteractionIdentityResolver, { provide: ProjectAccessService, useValue: access }, { provide: ProjectsPersistenceService, useValue: projects }, { provide: MENTOR_AI_PROVIDER, useValue: provider }, { provide: MENTOR_INTERACTION_RECORDER, useValue: recorder }],
+      providers: [MentorService, MentorContextBuilder, MentorInteractionIdentityResolver, { provide: ProjectAccessService, useValue: access }, { provide: ProjectsPersistenceService, useValue: projects }, { provide: MENTOR_AI_PROVIDER, useValue: provider }, { provide: MENTOR_INTERACTION_RECORDER, useValue: recorder }, { provide: MENTOR_INTERACTION_MEMORY, useValue: { recent: vi.fn().mockResolvedValue([]) } }],
     }).overrideGuard(JwtAuthGuard).useValue({ canActivate(context: { switchToHttp(): { getRequest(): { headers: { authorization?: string }; authenticatedUser?: { id: string; email: string } } } }) {
       const request = context.switchToHttp().getRequest();
       request.authenticatedUser = users[request.headers.authorization as keyof typeof users] ?? users["Bearer user-a"];
@@ -49,7 +49,7 @@ describe("POST /projects/:id/mentor/query", () => {
     const response = await request(app.getHttpServer()).post(`/projects/${projectId}/mentor/query`).set("Authorization", "Bearer user-a").send({ question: "Describe Cliente" }).expect(201);
 
     expect(response.body).toEqual({ answer: "Cliente tiene un nombre.", grounded: true, projectRevision: 5 });
-    expect(provider.ask).toHaveBeenCalledWith(expect.objectContaining({ projectName: "CRM", elementNames: ["Cliente"] }), "Describe Cliente");
+    expect(provider.ask).toHaveBeenCalledWith(expect.objectContaining({ projectName: "CRM", elementNames: ["Cliente"] }), "Describe Cliente", []);
     expect(JSON.stringify(provider.ask.mock.calls)).not.toMatch(/user-a|alice@example\.test|VIEWER/);
     expect(recorder.record).toHaveBeenCalledWith(expect.objectContaining({ projectId, userId: "user-a", author: { email: "alice@example.test" }, accessRole: "VIEWER", occurredAt: expect.any(Date) }));
   });

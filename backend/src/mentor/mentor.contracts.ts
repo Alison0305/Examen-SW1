@@ -1,5 +1,6 @@
 export const MENTOR_AI_PROVIDER = Symbol("MENTOR_AI_PROVIDER");
 export const MENTOR_INTERACTION_RECORDER = Symbol("MENTOR_INTERACTION_RECORDER");
+export const MENTOR_INTERACTION_MEMORY = Symbol("MENTOR_INTERACTION_MEMORY");
 
 export type MentorDiagnostic = "INSUFFICIENT_CONTEXT" | "ELEMENT_NOT_FOUND";
 
@@ -22,11 +23,18 @@ export type MentorProjectContext = Readonly<{
 }>;
 
 export interface MentorAiProvider {
-  ask(context: MentorProjectContext, question: string): Promise<string>;
+  ask(context: MentorProjectContext, question: string, memory: MentorMemory): Promise<string>;
 }
+
+export type MentorMemoryEntry = Readonly<{ question: string; answer: string; projectRevision: number; isStale: boolean }>;
+export type MentorMemory = readonly MentorMemoryEntry[];
 
 export interface MentorInteractionRecorder {
   record(interaction: MentorInteractionIdentity & Readonly<{ projectRevision: number; question: string; answer: string; grounded: boolean }>): Promise<void>;
+}
+
+export interface MentorInteractionMemory {
+  recent(projectId: string, currentRevision: number): Promise<MentorMemory>;
 }
 
 export type MentorQueryResponse = Readonly<{
