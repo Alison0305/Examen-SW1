@@ -7,6 +7,8 @@ import {
   LOCAL_MODEL_CONTEXT_TOKENS,
   LOCAL_MODEL_OUTPUT_TOKENS,
   MAX_PROMPT_CHARACTERS,
+  OTHER_LIMITATIONS_TITLE,
+  RELEVANT_OBSERVATIONS_TITLE,
   UML_ANALYSIS_SYSTEM_PROMPT,
   type UmlAnalysisPromptOptions,
   type UmlAnalysisPromptResult,
@@ -191,7 +193,7 @@ describe("buildUmlAnalysisPrompt: hechos por foco", () => {
 
     expect(section(userPrompt, "HECHOS UML")).toContain("Composición: Cliente [1] — [0..*] Pedido. Todo: Cliente. Parte: Pedido.");
     expect(section(userPrompt, "HECHOS RELACIONALES")).toContain("FK pedido.cliente_id → cliente.id; nullable: no; única: no; lifecycle: COMPOSITION.");
-    expect(section(userPrompt, "LIMITACIONES")).toEqual(expect.arrayContaining([expect.stringContaining("lifecycle COMPOSITION")]));
+    expect(section(userPrompt, RELEVANT_OBSERVATIONS_TITLE)).toEqual(expect.arrayContaining([expect.stringContaining("lifecycle COMPOSITION")]));
   });
 
   it("T-12: la generalización JOINED muestra hija, padre, estrategia y FK de herencia sin frases de multiplicidad", () => {
@@ -221,7 +223,7 @@ describe("buildUmlAnalysisPrompt: limitaciones y conflictos", () => {
   it("T-14: las características no soportadas relevantes al foco se conservan aunque se recorte el catálogo", () => {
     const relationshipContext = contextOf(clientePedido(), { kind: "relationship", id: id(40) });
     const tight = ready(buildUmlAnalysisPrompt(relationshipContext, { maxPromptCharacters: requiredBudget(relationshipContext) }));
-    const limitations = section(tight.userPrompt, "LIMITACIONES");
+    const limitations = section(tight.userPrompt, OTHER_LIMITATIONS_TITLE);
 
     expect(limitations).toEqual(expect.arrayContaining(["No soportado: Los extremos de una relación no declaran navegabilidad.", "No soportado: Los extremos de una relación no tienen nombre de rol."]));
     expect(tight.userPrompt).not.toContain("interfaces");
@@ -229,7 +231,7 @@ describe("buildUmlAnalysisPrompt: limitaciones y conflictos", () => {
 
     const inheritanceContext = contextOf(model([cliente(), entity(CLIENTE_VIP, "ClienteVip")], [generalization(42, CLIENTE_VIP, CLIENTE)]), { kind: "relationship", id: id(42) });
     const inheritance = ready(buildUmlAnalysisPrompt(inheritanceContext, { maxPromptCharacters: requiredBudget(inheritanceContext) }));
-    expect(section(inheritance.userPrompt, "LIMITACIONES")).toEqual(["No soportado: ShareGrams no distingue clases abstractas."]);
+    expect(section(inheritance.userPrompt, OTHER_LIMITATIONS_TITLE)).toEqual(["No soportado: ShareGrams no distingue clases abstractas."]);
   });
 
   it("T-15: el conflicto de FK duplicada aparece como detección propia, fuera de los diagnósticos", () => {
@@ -287,7 +289,7 @@ describe("buildUmlAnalysisPrompt: prioridades y recorte", () => {
     expect(tight.contextTruncation.truncated).toBe(true);
     for (const title of ["FOCO", "ESTADO", "HECHOS RELACIONALES", "DIAGNÓSTICOS", "CONFLICTOS"]) expect(section(tight.userPrompt, title)).toEqual(section(full, title));
     expect(section(tight.userPrompt, "HECHOS UML")).toEqual(expect.arrayContaining(["Asociación \"realiza\": Cliente [1] — [2..5] Pedido.", "Por cada Cliente: 2..5 Pedido.", "Por cada Pedido: 1 Cliente."]));
-    expect(section(tight.userPrompt, "LIMITACIONES")).toEqual(expect.arrayContaining([expect.stringContaining("exige al menos 2 Pedido"), expect.stringContaining("limita a 5 los Pedido")]));
+    expect(section(tight.userPrompt, RELEVANT_OBSERVATIONS_TITLE)).toEqual(expect.arrayContaining([expect.stringContaining("exige al menos 2 Pedido"), expect.stringContaining("limita a 5 los Pedido")]));
     // P1 (the attributes of the end classes) is what was dropped.
     expect(tight.userPrompt).not.toContain("Cliente.nombre");
   });
@@ -311,6 +313,103 @@ describe("buildUmlAnalysisPrompt: prioridades y recorte", () => {
     expect(result.contextTruncation).toEqual({ truncated: true, omitted: { classes: 4, enumerations: 1, relationships: 6, attributes: 12, diagnostics: 0, limitations: 10 } });
     expect(section(result.userPrompt, "RECORTE")).toEqual(["CONTEXTO RECORTADO: se omitieron 4 clases, 1 enumeración, 6 relaciones, 12 atributos y 10 limitaciones secundarios. El resumen global, los diagnósticos de error y los conflictos están completos."]);
     expect(section(result.userPrompt, "HECHOS UML")).toEqual(["ninguno"]);
+  });
+});
+
+describe("buildUmlAnalysisPrompt: observaciones relevantes obligatorias (fase 4.7.1)", () => {
+  const multivalued = (className: string, attributeName: string) => model(
+    [entity(CLIENTE, className, [attribute(101, "nombre"), attribute(102, attributeName, "string", { multiplicity: MANY })]), pedido()],
+    [association(40, CLIENTE, PEDIDO, ONE, MANY)],
+  );
+  const finite = (lower: number, upper: number) => model([cliente(), pedido()], [association(40, CLIENTE, PEDIDO, ONE, M(lower, upper), { name: "realiza" })]);
+  const blockTitles = (userPrompt: string) => userPrompt.split("\n\n").map((block) => block.split("\n")[0]);
+
+  it("P-01: una limitación relevante del foco aparece en el bloque que debe explicarse, separada del catálogo general", () => {
+    const userPrompt = prompt(multivalued("Cliente", "telefonos"), { kind: "class", id: id(CLIENTE) }).userPrompt;
+    const relevant = section(userPrompt, RELEVANT_OBSERVATIONS_TITLE);
+    const others = section(userPrompt, OTHER_LIMITATIONS_TITLE);
+
+    expect(relevant).toEqual([expect.stringContaining("no hay estructura relacional de colección")]);
+    // The generic catalog is not promoted to mandatory.
+    expect(relevant.some((line) => line.startsWith("No soportado:"))).toBe(false);
+    expect(others.every((line) => line.startsWith("No soportado:"))).toBe(true);
+    // The mandatory block is the last one before RECORTE.
+    expect(blockTitles(userPrompt).slice(-3)).toEqual([OTHER_LIMITATIONS_TITLE, RELEVANT_OBSERVATIONS_TITLE, "RECORTE"]);
+    // The system prompt tells the model to explain it.
+    expect(UML_ANALYSIS_SYSTEM_PROMPT).toContain("Explica cada línea de OBSERVACIONES RELEVANTES sin sustituirla por otra");
+  });
+
+  it("P-01: la limitación de un elemento no enfocado no se vuelve obligatoria", () => {
+    const userPrompt = prompt(multivalued("Cliente", "telefonos"), { kind: "relationship", id: id(40) }).userPrompt;
+
+    expect(section(userPrompt, RELEVANT_OBSERVATIONS_TITLE)).toEqual(["ninguno"]);
+    expect(section(userPrompt, OTHER_LIMITATIONS_TITLE)).toEqual(expect.arrayContaining([expect.stringContaining("telefonos")]));
+  });
+
+  it("P-02: el nombre real del elemento afectado se conserva en la observación", () => {
+    for (const [className, attributeName] of [["Cliente", "telefonos"], ["Proveedor", "correosAlternativos"]] as const) {
+      const relevant = section(prompt(multivalued(className, attributeName), { kind: "class", id: id(CLIENTE) }).userPrompt, RELEVANT_OBSERVATIONS_TITLE);
+      expect(relevant).toEqual([expect.stringContaining(`${className}.${attributeName}`)]);
+    }
+    expect(UML_ANALYSIS_SYSTEM_PROMPT).toContain("con el nombre del elemento afectado");
+  });
+
+  it("P-03: los límites mínimo y máximo no garantizados son observaciones obligatorias distintas de la semántica UML", () => {
+    for (const [lower, upper] of [[2, 5], [3, 7]] as const) {
+      const userPrompt = prompt(finite(lower, upper), { kind: "relationship", id: id(40) }).userPrompt;
+      const relevant = section(userPrompt, RELEVANT_OBSERVATIONS_TITLE);
+
+      // UML semantics stay in HECHOS UML…
+      expect(section(userPrompt, "HECHOS UML")).toContain(`Por cada Cliente: ${lower}..${upper} Pedido.`);
+      // …and what the schema does not guarantee is a separate, mandatory observation for each bound.
+      expect(relevant).toEqual([
+        expect.stringMatching(new RegExp(`exige al menos ${lower} Pedido.*no lo garantiza`)),
+        expect.stringMatching(new RegExp(`limita a ${upper} los Pedido.*no garantiza ese máximo`)),
+      ]);
+      expect(section(userPrompt, "HECHOS UML").join("\n")).not.toContain("garantiza");
+    }
+    expect(UML_ANALYSIS_SYSTEM_PROMPT).toContain("distinguiendo lo que expresa UML de lo que el esquema relacional garantiza");
+  });
+
+  it("P-04: el prompt de sistema es general y no contiene nombres ni multiplicidades de fixtures", () => {
+    for (const fixture of ["Cliente", "Pedido", "telefonos", "Proveedor", "Producto", "DetallePedido", "realiza"]) expect(UML_ANALYSIS_SYSTEM_PROMPT).not.toContain(fixture);
+    expect(UML_ANALYSIS_SYSTEM_PROMPT).not.toMatch(/\d\.\.(\d|\*)/);
+  });
+
+  it("P-05: el presupuesto de caracteres se sigue respetando con el prompt de sistema ampliado", () => {
+    const contexts = [
+      contextOf(multivalued("Cliente", "telefonos"), { kind: "class", id: id(CLIENTE) }),
+      contextOf(finite(2, 5), { kind: "relationship", id: id(40) }),
+      contextOf(fullModel(30, 6), { kind: "model" }),
+    ];
+    for (const context of contexts) {
+      const full = ready(buildUmlAnalysisPrompt(context));
+      expect(full.characters).toBe(full.systemPrompt.length + full.userPrompt.length);
+      expect(full.characters).toBeLessThanOrEqual(MAX_PROMPT_CHARACTERS);
+      const budget = requiredBudget(context);
+      const tight = ready(buildUmlAnalysisPrompt(context, { maxPromptCharacters: budget }));
+      expect(tight.characters).toBeLessThanOrEqual(budget);
+    }
+  });
+
+  it("P-06: el reetiquetado no cambia las prioridades: las observaciones obligatorias sobreviven al recorte y el catálogo P3 se recorta primero", () => {
+    const context = contextOf(finite(2, 5), { kind: "relationship", id: id(40) });
+    const full = ready(buildUmlAnalysisPrompt(context));
+    const tight = ready(buildUmlAnalysisPrompt(context, { maxPromptCharacters: requiredBudget(context) }));
+
+    expect(section(tight.userPrompt, RELEVANT_OBSERVATIONS_TITLE)).toEqual(section(full.userPrompt, RELEVANT_OBSERVATIONS_TITLE));
+    // Only the 8 P3 features of the catalog are dropped; the 2 P0 features (roles, navigability) stay.
+    expect(tight.contextTruncation.omitted.limitations).toBe(8);
+    expect(section(tight.userPrompt, OTHER_LIMITATIONS_TITLE)).toEqual(["No soportado: Los extremos de una relación no tienen nombre de rol.", "No soportado: Los extremos de una relación no declaran navegabilidad."]);
+    // In the whole model, relationship limitations are P2: they are not mandatory and are cut with their relationship.
+    expect(section(prompt(finite(2, 5), { kind: "model" }).userPrompt, RELEVANT_OBSERVATIONS_TITLE)).toEqual(["ninguno"]);
+  });
+
+  it("P-07: sigue siendo determinista", () => {
+    for (const context of [contextOf(multivalued("Cliente", "telefonos"), { kind: "class", id: id(CLIENTE) }), contextOf(finite(2, 5), { kind: "relationship", id: id(40) })]) {
+      expect(buildUmlAnalysisPrompt(context)).toEqual(buildUmlAnalysisPrompt(context));
+    }
+    expect(buildUmlAnalysisPrompt(contextOf(finite(2, 5), { kind: "relationship", id: id(40) }))).toEqual(buildUmlAnalysisPrompt(contextOf(finite(2, 5), { kind: "relationship", id: id(40) })));
   });
 });
 

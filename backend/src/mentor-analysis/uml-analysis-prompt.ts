@@ -72,6 +72,7 @@ export const UML_ANALYSIS_SYSTEM_PROMPT = [
   "- Separa hechos de observaciones: toda sugerencia empieza con \"Observación:\".",
   "- No afirmes que ShareGrams soporta algo marcado como no soportado.",
   "- No ejecutas acciones: nunca digas que el modelo fue modificado.",
+  "- Explica cada línea de OBSERVACIONES RELEVANTES sin sustituirla por otra, con el nombre del elemento afectado y distinguiendo lo que expresa UML de lo que el esquema relacional garantiza.",
   "Lectura:",
   "- En \"A [m] — [n] B\", m es la multiplicidad escrita junto a A (source) y n la escrita junto a B (target). Las frases \"Por cada\" ya expresan cada sentido: úsalas tal cual.",
   "- Generalization: source es la hija y target el padre. Aggregation y Composition: source es el todo y target la parte.",
@@ -148,8 +149,15 @@ export function buildUmlAnalysisPrompt(context: UmlAnalysisContext, options: Uml
 // Items and rendering
 
 type Tier = 0 | 1 | 2 | 3;
-type Section = "focus" | "state" | "uml" | "relational" | "diagnostics" | "conflicts" | "limitations";
+type Section = "focus" | "state" | "uml" | "relational" | "diagnostics" | "conflicts" | "limitations" | "relevant";
 
+export const RELEVANT_OBSERVATIONS_TITLE = "OBSERVACIONES RELEVANTES — DEBEN EXPLICARSE";
+export const OTHER_LIMITATIONS_TITLE = "OTRAS LIMITACIONES";
+
+// Fase 4.7.1: the schema and editor limitations of the P0 elements are relabelled as observations that must be
+// explained, apart from the generic catalog of unsupported features and from the limitations of non-focused
+// elements. Only the label changes: no content is created and the tiers (hence the truncation order) stay as they
+// were. The mandatory block goes last, right before RECORTE, so the small model reads it closest to its answer.
 const SECTIONS: readonly (readonly [Section, string])[] = [
   ["focus", "FOCO"],
   ["state", "ESTADO"],
@@ -157,8 +165,12 @@ const SECTIONS: readonly (readonly [Section, string])[] = [
   ["relational", "HECHOS RELACIONALES"],
   ["diagnostics", "DIAGNÓSTICOS"],
   ["conflicts", "CONFLICTOS"],
-  ["limitations", "LIMITACIONES"],
+  ["limitations", OTHER_LIMITATIONS_TITLE],
+  ["relevant", RELEVANT_OBSERVATIONS_TITLE],
 ];
+
+// Element limitations are mandatory only when they belong to the P0 content of the focus.
+const limitationSection = (tier: Tier): Section => (tier === 0 ? "relevant" : "limitations");
 
 // One unit of content that is kept or omitted as a whole; it may write lines into several sections.
 type PromptItem = Readonly<{
@@ -343,7 +355,7 @@ function collectItems(context: UmlAnalysisContext, names: Names): PromptItem[] {
       const limitations = full.attributes.flatMap((attribute) => limitationsOf(attribute.id));
       add(attributeTier, { attributes: full.attributes.length, limitations: limitations.length }, [
         ["uml", classMemberLines(full, classFacts.get(classId), names)],
-        ["limitations", limitations.map((entry) => entry.message)],
+        [limitationSection(attributeTier), limitations.map((entry) => entry.message)],
       ], RANK.attributes);
     }
   }
@@ -352,10 +364,11 @@ function collectItems(context: UmlAnalysisContext, names: Names): PromptItem[] {
   for (const relationship of uml.relationships) {
     const fact = relationshipFacts.get(relationship.id);
     const limitations = limitationsOf(relationship.id);
-    add(focus.kind === "model" ? 2 : 0, { relationships: 1, limitations: limitations.length }, [
+    const relationshipTier: Tier = focus.kind === "model" ? 2 : 0;
+    add(relationshipTier, { relationships: 1, limitations: limitations.length }, [
       ["uml", relationshipUmlLines(relationship, names)],
       ["relational", fact ? relationshipRelationalLines(relationship, fact, names) : []],
-      ["limitations", limitations.map((entry) => entry.message)],
+      [limitationSection(relationshipTier), limitations.map((entry) => entry.message)],
     ], RANK.relationship);
   }
 
@@ -390,13 +403,14 @@ function collectItems(context: UmlAnalysisContext, names: Names): PromptItem[] {
   // Schema limitations not attached above (elements outside the projected relationships and classes).
   const attachedIds = new Set([...uml.relationships.map((entry) => entry.id), ...uml.classes.flatMap((entry) => entry.attributes.map((attribute) => attribute.id))]);
   for (const limitation of schemaLimitations.filter((entry) => !attachedIds.has(entry.elementId))) {
-    add(0, { limitations: 1 }, [["limitations", [limitation.message]]]);
+    add(0, { limitations: 1 }, [["relevant", [limitation.message]]]);
   }
 
   // Editor limitations affect concrete elements of this fragment: P0.
-  for (const limitation of context.limitations.editor) add(0, { limitations: 1 }, [["limitations", [limitation.message]]]);
+  for (const limitation of context.limitations.editor) add(0, { limitations: 1 }, [["relevant", [limitation.message]]]);
 
   // Unsupported features: those that matter for the focused relationships are P0; the general catalog is P3.
+  // Both are generic product limitations, so they stay in OTRAS LIMITACIONES: P0 only keeps them from truncation.
   const relevant = relevantFeatures(focusedRelationships);
   for (const limitation of context.limitations.unsupportedFeatures) {
     add(relevant.has(limitation.code) ? 0 : 3, { limitations: 1 }, [["limitations", [unsupportedLine(limitation)]]]);

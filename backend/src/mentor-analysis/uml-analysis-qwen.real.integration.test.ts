@@ -88,7 +88,7 @@ describeQwenIntegration("CU-2P-04 con Qwen3 real local", () => {
     await sharedModel.dispose();
   });
 
-  async function analyze(caso: string, uml: CanonicalUmlModel, focus: UmlAnalysisFocus): Promise<Readonly<{ response: UmlAnalysisResponse; text: string; request: UmlAnalysisAiRequest }>> {
+  async function analyze(caso: string, uml: CanonicalUmlModel, focus: UmlAnalysisFocus, { prose = true }: { prose?: boolean } = {}): Promise<Readonly<{ response: UmlAnalysisResponse; text: string; request: UmlAnalysisAiRequest }>> {
     const document = { ...createProjectDocument({ id: id(900), now: new Date("2026-11-09T00:00:00.000Z") }), uml };
     const service = new UmlAnalysisService(
       { requireView: async () => "VIEWER" },
@@ -103,16 +103,19 @@ describeQwenIntegration("CU-2P-04 con Qwen3 real local", () => {
     const request = sent[sent.length - 1]!;
     const text = response.explanation?.text ?? "";
     metrics.push({ caso, ms, promptChars: request.systemPrompt.length + request.userPrompt.length, respuestaChars: text.length, palabras: words(text), recorte: response.explanation?.contextTruncation.truncated ?? false, sobre120: words(text) > TARGET_WORDS });
-    expectWellFormed(caso, text, request);
+    expectWellFormed(caso, text, request, prose);
     return { response, text, request };
   }
 
   // Shared invariants of any answer: non-empty Spanish text, brief, no JSON, no reasoning, no prompt echo.
-  function expectWellFormed(caso: string, text: string, request: UmlAnalysisAiRequest): void {
+  // `prose: false` (fase 4.7.1) drops only the Spanish function-word check for cases whose facts are asserted
+  // one by one: a correct but telegraphic answer ("FK pedido.cliente_id → cliente.id, MANY_TO_ONE") is a style
+  // matter, not a semantic error.
+  function expectWellFormed(caso: string, text: string, request: UmlAnalysisAiRequest, prose: boolean): void {
     const context = `${caso}\n--- respuesta ---\n${text}`;
     expect(text.trim().length, context).toBeGreaterThan(0);
     expect(words(text), context).toBeLessThanOrEqual(TOLERATED_WORDS);
-    expect(mentions(text, /\b(el|la|los|las|de|cada|una?|que)\b/), context).toBe(true);
+    if (prose) expect(mentions(text, /\b(el|la|los|las|de|cada|una?|que)\b/), context).toBe(true);
     expect(/^\s*[[{]/.test(text), context).toBe(false);
     expect(/<\/?think>/i.test(text), context).toBe(false);
     for (const echoed of ["HECHOS RELACIONALES", "HECHOS UML", "Eres el Mentor IA", request.systemPrompt.split("\n")[2]!]) expect(text.includes(echoed), context).toBe(false);
@@ -154,11 +157,15 @@ describeQwenIntegration("CU-2P-04 con Qwen3 real local", () => {
 
   it("con Pedido como source y Cliente como target la explicación no se invierte", async () => {
     const inverted = model([cliente(), pedido()], [association(40, PEDIDO, CLIENTE, MANY, ONE, { name: "realiza" })]);
-    const { text, request } = await analyze("1:N invertida", inverted, { kind: "relationship", id: id(40) });
+    const { text, request } = await analyze("1:N invertida", inverted, { kind: "relationship", id: id(40) }, { prose: false });
 
     expect(request.userPrompt).toContain("Pedido [0..*] — [1] Cliente.");
     expect(request.userPrompt).toContain("FK pedido.cliente_id → cliente.id");
+    // Orientation, FK table, non-null FK, no inversion and no invented attributes, as in the direct orientation.
     expectClientePedidoFacts("1:N invertida", text);
+    // The many end is stated, and only next to Pedido.
+    expectPresent("1:N invertida", text, /0\.\.\*/);
+    expectAbsent("1:N invertida", text, [/cliente\s*\[0\.\.\*\]/, /\[0\.\.\*\]\s*cliente/]);
   }, CASE_TIMEOUT_MS);
 
   it("1:1 Usuario 1 — 0..1 Perfil con foreignKeyOwner explícito", async () => {
@@ -207,7 +214,12 @@ describeQwenIntegration("CU-2P-04 con Qwen3 real local", () => {
 
     expect(response.analysis!.summary.relationalDerivable).toBe(false);
     expect(request.userPrompt).toContain("REL_RELATIONSHIP_REQUIRES_PRIMARY_KEY");
-    expectPresent("no derivable", text, /(no (es )?derivable|no (se )?puede|no es posible|no se genera|no se pudo|incomplet)/);
+    // Either form communicates the real problem (fase 4.7.1): an explicit "not derivable" statement with its
+    // cause, or the mapper diagnostic code together with an explicit mention of the missing identifier.
+    const statesNotDerivable = mentions(text, /(no (es )?derivable|no (se )?puede|no es posible|no se genera|no se pudo|incomplet)/);
+    const statesMissingIdentifier = mentions(text, /(identificador|clave primaria|\bpk\b|primary key)/);
+    const namesDiagnostic = mentions(text, /rel_relationship_requires_primary_key/);
+    expect(statesNotDerivable || (namesDiagnostic && statesMissingIdentifier), `no derivable: no declara la transformación no derivable ni nombra el diagnóstico con la falta de identificador\n--- respuesta ---\n${text}`).toBe(true);
     expectPresent("no derivable", text, /(identificador|clave primaria|\bpk\b|primary key|rel_relationship_requires_primary_key|rel_no_primary_key)/);
     expectAbsent("no derivable", text, [/\w+_id\b/]);
   }, CASE_TIMEOUT_MS);
@@ -257,10 +269,14 @@ describeQwenIntegration("CU-2P-04 con Qwen3 real local", () => {
   it("contexto recortado: explica el foco y no menciona elementos omitidos", async () => {
     const classes = Array.from({ length: 24 }, (_, c) => entity(100 + c, `Entidad${c}`, Array.from({ length: 5 }, (_, a) => attribute(20_000 + c * 10 + a, `campoE${c}A${a}`))));
     const relationships = Array.from({ length: 26 }, (_, r) => association(3000 + r, 100 + (r % 24), 100 + ((r * 5 + 1) % 24), ONE, MANY, { name: `vinculo${r}` }));
-    const { text, response, request } = await analyze("contexto recortado", model(classes, relationships), { kind: "model" });
+    const { text, response, request } = await analyze("contexto recortado", model(classes, relationships), { kind: "model" }, { prose: false });
 
     expect(response.explanation!.contextTruncation.truncated).toBe(true);
     expect(request.userPrompt).toContain("CONTEXTO RECORTADO");
+    // Focus: the answer talks about this model (a class name that is in the prompt), not something else.
+    expect(classes.some((entry) => request.userPrompt.includes(entry.name) && text.includes(entry.name)), `contexto recortado: no menciona ninguna clase del modelo\n--- respuesta ---\n${text}`).toBe(true);
+    // No contradictory facts: every relationship is 1 — 0..* with an FK, none is N:M or inheritance.
+    expectAbsent("contexto recortado", text, [/many_to_many|\bn:m\b|tabla intermedia/, /many_to_one|one_to_one/, /herencia|hereda|joined/]);
     // Names that exist in the model but were left out of the prompt must not appear in the answer.
     const omitted = [...relationships.map((entry) => entry.name!), ...classes.flatMap((entry) => entry.attributes.map((item) => item.name))].filter((name) => !request.userPrompt.includes(name));
     expect(omitted.length).toBeGreaterThan(0);
