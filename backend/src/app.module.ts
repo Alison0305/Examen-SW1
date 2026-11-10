@@ -9,10 +9,11 @@ import { RealtimeModule } from "./realtime/realtime.module";
 import { SpeechRecognitionController } from "./speech/speech-recognition.controller";
 import { MentorModule } from "./mentor/mentor.module";
 import { MentorAnalysisModule } from "./mentor-analysis/mentor-analysis.module";
+import { MentorHistoryModule } from "./mentor-history/mentor-history.module";
 import { VisionModule } from "./vision/vision.module";
 
 @Module({
-  imports: [PrismaModule, ProjectsPersistenceModule, AuthModule, RealtimeModule, AssistantModule, VisionModule, MentorModule, MentorAnalysisModule],
+  imports: [PrismaModule, ProjectsPersistenceModule, AuthModule, RealtimeModule, AssistantModule, VisionModule, MentorModule, MentorAnalysisModule, MentorHistoryModule],
   controllers: [HealthController, SpeechRecognitionController],
 })
 export class AppModule {}

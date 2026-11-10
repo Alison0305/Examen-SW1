@@ -17,9 +17,10 @@
 
 ## 4. Controlador y DTO HTTP
 
-- [ ] 4.1 Implementar `GET /projects/:id/mentor/history` con `JwtAuthGuard`, `ParseUUIDPipe` y `parseMentorHistoryQuery`, y mapear los errores de contrato a 400.
-- [ ] 4.2 Registrar `MentorHistoryModule` en `AppModule` sin importar `AssistantModule`.
-- [ ] 4.3 Pruebas HTTP: 200, vacío, 400 por cursor, `limit`, búsqueda y parámetros desconocidos, 401, 404 y cuerpo sin campos internos.
+- [x] 4.1 Implementar `GET /projects/:id/mentor/history` con `JwtAuthGuard`, `ParseUUIDPipe` y `parseMentorHistoryQuery`, y mapear los errores de contrato a 400 (`{ statusCode, error, code, reason?, message }`). `MentorHistoryController` pasa la query cruda sin DTO duplicado; 404 y errores inesperados se propagan sin capturar.
+- [x] 4.2 Registrar `MentorHistoryController` en `MentorHistoryModule` (con `AuthModule`, necesario para `JwtAuthGuard`) y `MentorHistoryModule` en `AppModule`, sin importar `AssistantModule`.
+- [x] 4.3 Pruebas HTTP sin base de datos, con JWT, guard, `ParseUUIDPipe`, `ValidationPipe` global, controlador, servicio y lector reales: 200 (vacío, elementos, `limit`, cursor y búsqueda), 400 (UUID, `limit` 0/51/1.5/repetido, `q` vacío/espacios/201/repetido, cursor con `reason`, parámetros desconocidos), 401 sin servicio, 404 externo e inexistente, aislamiento, VIEWER ve a OWNER, sin campos internos, 500 genérico y sin Qwen (32 pruebas); controlador unitario (12) y wiring del módulo (6).
+- [ ] 4.4 Ejecutar contra PostgreSQL la integración HTTP con `createApp()`, usuarios reales registrados por `/auth/register` y `ProjectAccessService` real (`mentor-history.controller.integration.test.ts`, 19 pruebas, escrita en la fase 4 sin ejecutar por falta de base de datos en ese equipo).
 
 ## 5. Pruebas multiusuario
 

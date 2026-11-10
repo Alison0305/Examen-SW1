@@ -90,7 +90,24 @@ Orden de UUID (medido): Prisma genera `UuidFilter` con `lt` para `id @db.Uuid`, 
 - Los errores del reader se propagan; nunca se convierten en una página vacía.
 - No hay lógica de roles en el servicio: OWNER, EDITOR y VIEWER los decide `requireView`.
 
-`MentorHistoryModule` importa solo `ProjectsPersistenceModule` (exporta el `ProjectAccessService` compartido; `AuthModule` llega de forma transitiva desde ahí) y usa el `PrismaService` del `PrismaModule` global. Registra `PrismaMentorHistoryReader`, `MENTOR_HISTORY_READER` con `useExisting` y el servicio. No importa `AssistantModule`; se registra en `AppModule` junto con el controlador.
+`MentorHistoryModule` importa `AuthModule` y `ProjectsPersistenceModule` (exporta el `ProjectAccessService` compartido) y usa el `PrismaService` del `PrismaModule` global. Registra `MentorHistoryController`, `PrismaMentorHistoryReader`, `MENTOR_HISTORY_READER` con `useExisting` y el servicio. No importa `AssistantModule`. Está registrado en `AppModule`.
+
+`AuthModule` es necesario (medido en la fase 4): `JwtAuthGuard` necesita `JwtService` y `AuthService` en el ámbito del módulo del controlador, y `ProjectsPersistenceModule` importa `AuthModule` sin reexportarlo. Sin esa importación Nest falla con «can't resolve dependencies of the JwtAuthGuard». Es el mismo patrón de `MentorModule` y `MentorAnalysisModule`. Durante la fase 3, sin controlador, no hacía falta.
+
+### Controlador HTTP
+
+`MentorHistoryController` (`@Controller("projects")`, `@UseGuards(JwtAuthGuard)`, `@Get(":id/mentor/history")`) sigue el patrón de `MentorController` y `UmlAnalysisController`:
+
+- `:id` con `ParseUUIDPipe`: UUID inválido → 400 antes del servicio; UUID válido de un proyecto inexistente → 404 de `requireView`.
+- `userId` = `request.authenticatedUser.id`; si faltara, 404 defensivo, igual que `MentorController`.
+- `@Query() rawQuery: unknown` se pasa sin tocar al servicio. No hay DTO de class-validator ni `DtoValidationPipe` para la query: `parseMentorHistoryQuery` es la única fuente de verdad. El `ValidationPipe` global de `createApp` no altera el objeto, porque su metatipo es `Object`; las pruebas lo verifican con el mismo pipe.
+- `{ ok: true, page }` → 200 con `page` (`items`, `nextCursor`), sin el envoltorio interno.
+- `{ ok: false, error }` → `BadRequestException` con cuerpo `{ statusCode: 400, error: "Bad Request", code, reason?, message }`. Mantiene la forma estándar de Nest y añade el código estable; `reason` solo aparece con `INVALID_CURSOR`.
+- `NotFoundException` y cualquier otro error se propagan sin capturar: 404, o 500 genérico de Nest (`{ statusCode: 500, message: "Internal server error" }`) sin detalles de Prisma.
+
+Parámetros repetidos (medido en la fase 4): el parser de query de Fastify no colapsa valores repetidos. `?limit=10&limit=20` llega como `{ limit: ["10", "20"] }` y `?q=uml&q=prisma` como `{ q: ["uml", "prisma"] }`. `parseMentorHistoryQuery` solo acepta cadenas, así que responden `INVALID_LIMIT` e `INVALID_SEARCH` sin ningún cambio en el contrato. Las claves con corchetes (`limit[]`, `limit[a]`) llegan literales y son `UNKNOWN_PARAMETER`.
+
+Fastify expone automáticamente `HEAD` para cada ruta `GET`. `HEAD /projects/:id/mentor/history` pasa por el mismo guard, la misma autorización y la misma lectura, y no devuelve cuerpo.
 
 ### Cursor fuera de su contexto
 
@@ -105,7 +122,7 @@ El cursor no lleva `projectId` ni el texto de búsqueda, y no se añaden:
 
 ### Errores
 
-| Caso | Contrato | HTTP previsto (fase de controlador) |
+| Caso | Contrato | HTTP |
 |---|---|---|
 | Historial vacío | `{ items: [], nextCursor: null }` | 200 |
 | Cursor inválido | `INVALID_CURSOR` + `reason` | 400 |
@@ -129,7 +146,7 @@ CU-2P-06 todavía no existe y no hay modelo de propuestas. CU-2P-07 no añade ca
 - Búsqueda con `contains` sin índice de texto → recorre solo las filas del proyecto (filtradas por el índice existente); suficiente para la escala del proyecto.
 - Comodines `%` y `_` en `q` → confirmado que Prisma no los escapa; resuelto escapándolos en el lector y cubierto con pruebas de integración.
 - El email del autor queda visible para VIEWER, que hoy no puede listar miembros → decisión aceptada; no se expone ningún otro dato del usuario.
-- Primer uso de parámetros `@Query` en el repositorio → el parser propio evita depender de que `DtoValidationPipe` maneje objetos de query.
+- Primer uso de parámetros `@Query` en el repositorio → el parser propio evita depender de que `DtoValidationPipe` maneje objetos de query; el comportamiento real de Fastify con parámetros repetidos se midió y está cubierto por pruebas HTTP.
 - Si el recorder falla, la consulta del Mentor falla aunque Qwen haya respondido → comportamiento existente de CU-2P-01/03, fuera de alcance.
 
 ## Migration Plan
