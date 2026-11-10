@@ -90,6 +90,13 @@ export const MENTOR_PROPOSAL_ERROR_CODES = [
 ] as const;
 export type MentorProposalErrorCode = (typeof MENTOR_PROPOSAL_ERROR_CODES)[number];
 
+// Expected domain failure, returned (never thrown) by the resolver and the preview. Diagnostics are already public.
+export type MentorProposalError = Readonly<{
+  code: MentorProposalErrorCode;
+  message: string;
+  diagnostics: readonly MentorProposalDiagnostic[];
+}>;
+
 // Future read projection for CU-2P-07 (requireView). Not exposed by CU-2P-06.
 export type MentorProposalHistoryProjection = Readonly<{
   proposalId: string;

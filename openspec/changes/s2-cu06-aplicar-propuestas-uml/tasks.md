@@ -6,9 +6,9 @@
 
 ## 2. Resolver y vista previa pura
 
-- [ ] 2.1 Validar estrictamente un intent desconocido (`unknown`): claves exactas, tipos, longitudes, operación en allow-list, sin identificadores; verificar `INVALID_PROPOSAL` y `UNSUPPORTED_OPERATION`.
-- [ ] 2.2 Resolver `className` a `classId` sobre el documento autoritativo, normalizar el tipo con `normalizePrimitiveTypeName` sin respaldo a `string` y analizar la multiplicidad con un parser estricto; verificar `ELEMENT_NOT_FOUND`, `UNKNOWN_TYPE` y multiplicidad ausente o inválida.
-- [ ] 2.3 Construir exactamente un `AddAttribute` con `attributeId` asignado por una fábrica inyectable y ejecutar la vista previa sobre una copia con `UmlCommandBus` (`historyLimit: 0`); verificar que el documento original, su revisión y su layout no cambian y que un candidato inválido produce `INVALID_PROPOSAL` con diagnósticos públicos sin `path` ni `elementId`.
+- [ ] 2.1 Validar estrictamente un intent desconocido (`unknown`): claves exactas, tipos, longitudes, operación en allow-list, sin identificadores; verificar `INVALID_PROPOSAL` y `UNSUPPORTED_OPERATION`. Pendiente: se hará junto con la generación estructurada (7.x), que es la primera fuente de entrada no tipada; el resolver actual ya rechaza en ejecución una operación fuera de la allow-list.
+- [x] 2.2 Resolver `className` a `classId` sobre el documento autoritativo, normalizar el tipo con `normalizePrimitiveTypeName` sin respaldo a `string` y analizar la multiplicidad con un parser estricto; verificar `ELEMENT_NOT_FOUND`, `UNKNOWN_TYPE` y multiplicidad ausente o inválida.
+- [x] 2.3 Construir exactamente un `AddAttribute` con `attributeId` asignado por una fábrica inyectable y ejecutar la vista previa sobre una copia con `UmlCommandBus` (`historyLimit: 0`); verificar que el documento original, su revisión y su layout no cambian y que un candidato inválido produce `INVALID_PROPOSAL` con diagnósticos públicos sin `path` ni `elementId`.
 
 ## 3. Diff determinista
 
