@@ -443,6 +443,7 @@ function PersistedWorkspace() {
         onPrepareInterface={prepareInterface}
         onMentorQuery={(question) => api.queryMentor(project.id, question)}
         onUmlAnalysis={(focus) => api.analyzeUml(project.id, focus)}
+        mentorHistory={{ projectKey: project.id, onLoad: (params) => api.getMentorHistory(project.id, params) }}
         onRecognizeImage={
           readOnly ? undefined : (image) => api.recognizeDiagram(project.id, image)
         }

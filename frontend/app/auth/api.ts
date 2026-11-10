@@ -88,6 +88,18 @@ export type UmlAnalysisResponse = {
   explanation: { text: string; contextTruncation: UmlAnalysisContextTruncation } | null;
   diagnostic?: UmlAnalysisDiagnostic;
 };
+// CU-2P-07: public contract of GET /projects/:id/mentor/history (backend MentorHistoryPage). Read only; the project
+// goes in the URL and the identity in the JWT, never in the query.
+export type MentorHistoryItem = {
+  id: string;
+  author: { email: string };
+  question: string;
+  answer: string;
+  // ISO 8601 (UTC); formatted for display only.
+  occurredAt: string;
+};
+export type MentorHistoryPage = { items: MentorHistoryItem[]; nextCursor: string | null };
+export type MentorHistoryParams = { limit?: number; cursor?: string; q?: string };
 export type VisionRecognition = {
   proposal: import("@examen-sw1/uml-core").UmlImportProposal;
   image: { width: number; height: number };
@@ -136,6 +148,7 @@ export type ApiClient = {
   exportFrontend(id: string): Promise<FrontendExport>;
   queryMentor(id: string, question: string): Promise<MentorQueryResponse>;
   analyzeUml(id: string, focus: UmlAnalysisFocus): Promise<UmlAnalysisResponse>;
+  getMentorHistory(id: string, params?: MentorHistoryParams): Promise<MentorHistoryPage>;
   recognizeDiagram(id: string, image: Blob): Promise<VisionRecognition>;
 };
 
@@ -443,6 +456,17 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
         // Rebuilt field by field so nothing else (store state, names, layout) can travel with the focus.
         body: JSON.stringify({ focus: focus.kind === "model" ? { kind: "model" } : { kind: focus.kind, id: focus.id } }),
       }),
+    getMentorHistory: (id, params = {}) => {
+      // Only present values, encoded by URLSearchParams. An empty or blank search is omitted (the backend rejects
+      // q=""), and nothing but limit, cursor and q is ever sent.
+      const query = new URLSearchParams();
+      if (params.limit !== undefined) query.set("limit", String(params.limit));
+      if (params.cursor) query.set("cursor", params.cursor);
+      const search = params.q?.trim();
+      if (search) query.set("q", search);
+      const suffix = query.toString();
+      return request<MentorHistoryPage>(`/projects/${encodeURIComponent(id)}/mentor/history${suffix ? `?${suffix}` : ""}`, options);
+    },
     recognizeDiagram: (id, image) =>
       requestDiagramRecognition(id, image, options),
   };

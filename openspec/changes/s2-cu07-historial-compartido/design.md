@@ -135,7 +135,31 @@ El cursor no lleva `projectId` ni el texto de búsqueda, y no se añaden:
 
 ### Frontend
 
-Sección plegable «Historial del proyecto» dentro de `MentorPanel`: búsqueda, lista (autor, fecha, inicio de la pregunta), detalle desplegable con la respuesta completa en texto plano y «Cargar más». Se refresca al abrirla, tras una consulta propia completada y con un botón «Actualizar». Sin tiempo real.
+Sección plegable «Historial del proyecto» dentro de `MentorPanel`, después de la consulta (CU-2P-01) y del análisis UML (CU-2P-04): búsqueda, lista (autor, fecha, pregunta), respuesta desplegable en texto plano y «Cargar más». Sin tiempo real ni polling.
+
+Decisiones de la fase 6:
+
+- **Estado encapsulado.** `MentorHistorySection` guarda su propio estado. `WorkspaceClient` solo reenvía `mentorHistory = { projectKey, onLoad }`, y la página construye `onLoad` con `api.getMentorHistory(project.id, params)`.
+- **Carga diferida.** No hay petición hasta la primera apertura. Al cerrar y reabrir se conservan los datos y no se repite la petición, salvo que haya algo pendiente o la última carga fallara.
+- **Búsqueda.** Se envía al servidor como `q`, recortada, con una espera de 400 ms y sin dependencias nuevas. Un texto vacío o en blanco vuelve al historial sin filtro y nunca envía `q=""`. Cada búsqueda nueva empieza en la primera página y descarta el cursor anterior, que es la regla de la fase 2.
+- **«Cargar más»** envía el cursor y la búsqueda actuales, añade al final en el orden del servidor y omite los `id` ya mostrados. Si falla, conserva lo ya cargado y permite reintentar. Desaparece cuando `nextCursor` es `null`.
+- **«Actualizar»** recarga la primera página sin cursor, con la misma búsqueda, y reemplaza la lista.
+- **Refresco tras una consulta.** `MentorPanel` incrementa `interactionVersion` después de cada consulta correcta. La sección recarga si está abierta, queda marcada para recargar al reabrirse si ya se había cargado, y no hace nada si nunca se abrió. Una consulta fallida (503) no refresca, y el historial sigue visible: no depende de Qwen.
+- **Carreras.** Un contador de peticiones descarta cualquier respuesta que no sea la última: una búsqueda anterior lenta, una actualización o un «Cargar más» adelantado por una búsqueda nueva.
+- **Cambio de proyecto.** La sección se monta con `key={projectKey}`. El estado se reinicia, incluida la búsqueda; la sección vuelve a estar cerrada; y una respuesta tardía del proyecto anterior se ignora, porque pertenece a una instancia ya desmontada.
+- **Errores** con mensajes seguros, sin el detalle técnico del servidor:
+
+  | Caso | Mensaje |
+  |---|---|
+  | 400 | «No se pudo cargar el historial.» |
+  | 401 | «Tu sesión expiró. Inicia sesión nuevamente.» (además, el cliente aplica su manejo global de sesión) |
+  | 404 | «Proyecto no encontrado o no disponible.» (no distingue entre proyecto inexistente y sin acceso) |
+  | 5xx o red | «No se pudo cargar el historial en este momento.» |
+
+- **Fecha** con `Intl.DateTimeFormat("es", { dateStyle: "medium", timeStyle: "short" })`. El ISO original se conserva en `<time dateTime>`.
+- **Texto plano.** Pregunta y respuesta se renderizan como texto de React (`pre-wrap`), sin `dangerouslySetInnerHTML`.
+- **Solo el DTO público.** La interfaz usa `id`, `author.email`, `question`, `answer` y `occurredAt`. No hay estado de propuestas: depende de CU-2P-06.
+- **Compatibilidad verificada.** El parser de query de Fastify (`fast-querystring`) decodifica la salida de `URLSearchParams`: `+` como espacio, `%2B` como `+` y el cursor base64url intacto. No hizo falta ningún cambio en el backend.
 
 ### Estado de propuestas (CU-2P-06)
 

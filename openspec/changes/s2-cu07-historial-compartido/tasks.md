@@ -28,9 +28,18 @@
 
 ## 6. Frontend
 
-- [ ] 6.1 Añadir el cliente `mentorHistory` en `frontend/app/auth/api.ts` con los tipos públicos.
-- [ ] 6.2 Añadir la sección «Historial del proyecto» en `MentorPanel`: búsqueda, lista, detalle desplegable, «Cargar más», «Actualizar», estados vacío, carga y error, y refresco tras una consulta propia.
-- [ ] 6.3 Pruebas de interfaz con React Testing Library.
+- [x] 6.1 Añadir `getMentorHistory(id, { limit?, cursor?, q? })` en `frontend/app/auth/api.ts` con los tipos públicos `MentorHistoryItem`, `MentorHistoryPage` y `MentorHistoryParams`. La query se construye con `URLSearchParams`, solo con valores presentes y sin `q` vacío (18 pruebas).
+- [x] 6.2 Añadir `MentorHistorySection` (`frontend/app/workspace/mentor-history-section.tsx`) dentro de `MentorPanel`:
+  - plegable, con carga al abrir;
+  - búsqueda en el servidor con espera de 400 ms;
+  - lista con autor, fecha y pregunta, y respuesta desplegable;
+  - «Cargar más» con cursor y búsqueda, y sin duplicados por `id`;
+  - «Actualizar»;
+  - estados vacío, carga y error;
+  - refresco tras una consulta correcta del Mentor;
+  - descarte de respuestas obsoletas;
+  - reinicio al cambiar de proyecto (`key`).
+- [x] 6.3 Pruebas de interfaz con React Testing Library (28 pruebas: 23 de la sección y 5 de su integración en `MentorPanel`), sin romper CU-2P-01 ni CU-2P-04.
 
 ## 7. Documentación y smoke test
 
