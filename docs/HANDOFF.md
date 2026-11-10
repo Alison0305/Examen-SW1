@@ -3,7 +3,7 @@
 ## Estado Operativo
 
 - CU-10 (XMI e imagen → UML) cerrado, aceptado y archivado en `openspec/changes/archive/2026-11-08-cu-10-xmi-imagen-uml/`.
-- CU-2P-05 validado manualmente en `feat/s2-cu05-recomendaciones-tecnicas`; OpenSpec activo `s2-cu05-recomendaciones-tecnicas`, 19/19 tareas. `origin/main` (CU-2P-04) está integrado localmente; el panel Mentor único conserva consulta libre, análisis UML y recomendación técnica. Sin archive, commit ni push.
+- CU-2P-05 está terminado y aceptado: la prueba manual fue aprobada, PR #13 fue fusionado en `main` mediante `2e6fade062361b25edde73ee446fb900b861147e` e issue #5 quedó cerrado. OpenSpec archivado en `openspec/changes/archive/2026-11-10-s2-cu05-recomendaciones-tecnicas/` con 19/19 tareas.
 - CU-2P-01 Mentor IA contextual con Qwen está completado, aceptado e integrado en `main`; OpenSpec archivado en `openspec/changes/archive/2026-11-09-s2-cu01-mentor-contextual/`.
 - CU-2P-02 de `feat/s2-cu02-identidad-mentor` está completado y aceptado; OpenSpec archivado en `openspec/changes/archive/2026-11-09-s2-cu02-identidad-mentor/`. La identidad Mentor proviene del JWT, `ProjectAccessService.requireView` mantiene la autorización y el recorder recibe identidad segura. Anti-suplantación verificada; userId, email y rol siguen fuera del prompt Qwen.
 - CU-2P-03 Memoria contextual completado, aceptado e integrado en `main` (PR #10). Detalle en la sección CU-2P-03.
@@ -57,4 +57,4 @@ Defectos externos detectados durante CU-2P-04 (no corregidos aquí):
 
 ## Siguiente Acción
 
-Resolver o aceptar explícitamente el fallo real de Qwen de CU-2P-04 antes de declarar la suite raíz correcta; después preparar la revisión de CU-2P-05. No archivar ni cerrar hasta recibir la instrucción correspondiente.
+Siguiente trabajo disponible: CU-2P-06. El baseline real-Qwen de CU-2P-04 permanece documentado y no bloquea el cierre de CU-2P-05.

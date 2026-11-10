@@ -2,7 +2,7 @@
 
 ## Estado
 
-Activo. Implementación automatizada y gates completados en la rama `feat/s2-cu05-recomendaciones-tecnicas`; OpenSpec activo `s2-cu05-recomendaciones-tecnicas` con 13/14 tareas. La prueba manual 4.3 sigue pendiente; no está aceptado, archivado ni cerrado.
+Completado y aceptado. PR #13 fue fusionado en `main`, cerró automáticamente el issue #5 y produjo el merge commit `2e6fade062361b25edde73ee446fb900b861147e`. OpenSpec archivado en `openspec/changes/archive/2026-11-10-s2-cu05-recomendaciones-tecnicas/` con 19/19 tareas; la prueba manual 4.3 fue aprobada.
 
 ## Objetivo Y Alcance
 
@@ -13,7 +13,7 @@ RF-15, RF-16 y RF-17: producir recomendaciones técnicas estructuradas, contextu
 - CU-2P-01: endpoint Mentor y Qwen local.
 - CU-2P-02: identidad derivada de JWT y autorización previa.
 - CU-2P-03: memoria Prisma aislada por proyecto.
-- CU-2P-04 puede aportar contexto UML especializado cuando se integre, pero no bloquea este CU ni se reutiliza mientras permanezca fuera de `main`.
+- CU-2P-04 aporta el análisis UML que convive con la consulta y recomendación en el panel Mentor; no bloqueó este CU.
 
 ## Decisión De API
 
@@ -63,13 +63,13 @@ RF-15, RF-16 y RF-17: producir recomendaciones técnicas estructuradas, contextu
 - `mentor.controller.integration.test.ts`: ruta nueva autenticada y regresión de consulta libre.
 - `mentor-panel.test.tsx` y `auth.test.tsx`: acción UI diferenciada, renderizado legible, aclaración, ausencia de aplicación y cliente API de recomendaciones.
 - Focalizadas Mentor/identidad/memoria/Spring: 46/46 correctas, incluida persistencia PostgreSQL.
-- Suite raíz: backend 185 correctas, 9 pruebas reales omitidas por configuración; los demás workspaces correctos.
+- Suite raíz: el baseline preexistente de CU-2P-04 en `uml-analysis-qwen.real.integration.test.ts:222` falla cuando existe `ASSISTANT_MODEL_PATH`; fue reproducido también en `origin/main` limpio `536cd6f`. Sin modelo local, esa integración real se omite.
 
 ## Gates Ejecutados
 
 - `npm run typecheck`: correcto.
 - `npm run lint`: correcto.
-- `npm run test`: correcto.
+- Pruebas focalizadas CU-2P-05: backend 75/75 y frontend 52/52 correctas; la suite raíz conserva únicamente el baseline real-Qwen preexistente de CU-2P-04.
 - `npm run build`: correcto; advertencia conocida del plugin ESLint de Next.js.
 - `npx prisma validate` y `npx prisma migrate status`: correctos; esquema al día, sin migración de este CU.
 - `openspec validate s2-cu05-recomendaciones-tecnicas --strict --no-interactive`: correcto.
@@ -80,7 +80,7 @@ RF-15, RF-16 y RF-17: producir recomendaciones técnicas estructuradas, contextu
 
 ## Prueba Manual
 
-La validación manual final fue aprobada. La consulta Spring `¿Qué debo tener en cuenta para que este modelo genere correctamente el backend Spring Boot?` respondió 5/5 al primer clic, de forma rápida, determinista, en español y `READ_ONLY`, con `requiresUmlChange: false`, sin mutar UML y sin `recommendation:provider-start`. La consulta de teléfono a Producto respondió en español, sin alternativas duplicadas, como cambio futuro con `requiresUmlChange: true`, sin declarar aplicación ni inferir tipo o validación; Producto permaneció sin ese atributo. La tarea 4.3 está completada. El CU queda validado, pero todavía activo y sin archivar ni cerrar hasta integrar `main`, ejecutar gates finales y recibir la instrucción de cierre.
+La validación manual final fue aprobada. La consulta Spring `¿Qué debo tener en cuenta para que este modelo genere correctamente el backend Spring Boot?` respondió 5/5 al primer clic, de forma rápida, determinista, en español y `READ_ONLY`, con `requiresUmlChange: false`, sin mutar UML y sin `recommendation:provider-start`. La consulta de teléfono a Producto respondió en español, sin alternativas duplicadas, como cambio futuro con `requiresUmlChange: true`, sin declarar aplicación ni inferir tipo o validación; Producto permaneció sin ese atributo. La tarea 4.3 está completada. El CU fue aceptado, PR #13 fusionado en `main` e issue #5 cerrado; el OpenSpec está archivado.
 
 ## Limitaciones
 
