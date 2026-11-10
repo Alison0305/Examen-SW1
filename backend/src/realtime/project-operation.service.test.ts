@@ -160,4 +160,17 @@ describe("ProjectOperationService", () => {
     expect(invalid.tx.project.updateMany).not.toHaveBeenCalled();
     expect(invalid.tx.projectOperationReceipt.create).not.toHaveBeenCalled();
   });
+
+  it("findAcceptedOperation lee el recibo por proyecto y operationId sin ejecutar ni autorizar", async () => {
+    const { service, prisma, access, tx } = setup();
+    const ack = { operationId, projectId, revision: 2, command };
+    const createdAt = new Date("2026-11-10T12:00:00.000Z");
+    prisma.projectOperationReceipt.findUnique.mockResolvedValueOnce(receipt(ack, { createdAt })).mockResolvedValueOnce(null);
+
+    await expect(service.findAcceptedOperation(projectId, operationId)).resolves.toEqual({ ack, actorUserId: actorId, resultingRevision: 2, acceptedAt: createdAt });
+    await expect(service.findAcceptedOperation(projectId, operationId)).resolves.toBeUndefined();
+    expect(prisma.projectOperationReceipt.findUnique).toHaveBeenCalledWith({ where: { projectId_operationId: { projectId, operationId } } });
+    expect(access.requireEdit).not.toHaveBeenCalled();
+    expect(tx.project.updateMany).not.toHaveBeenCalled();
+  });
 });

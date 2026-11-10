@@ -24,9 +24,10 @@
 
 ## 5. Aplicación, concurrencia y tiempo real
 
-- [ ] 5.1 Exportar `ProjectOperationService` y aplicar mediante `apply` con `operationId = proposal.id`, `baseRevision` y comando persistidos; traducir `STALE_REVISION` e `INVALID_OPERATION`.
-- [ ] 5.2 Reconciliar por recibo antes de reaplicar y cubrir doble aplicación secuencial y concurrente con una sola revisión nueva.
-- [ ] 5.3 Difundir el ACK `ACCEPTED` a la sala del proyecto con la modificación aditiva mínima; verificar que un segundo cliente observa el mismo resultado que una operación del editor.
+- [x] 5.1 Exportar `ProjectOperationService` y aplicar mediante `apply` con `operationId = proposal.id`, `baseRevision` y comando persistidos; traducir `STALE_REVISION` e `INVALID_OPERATION`. `MentorProposalApplicationService` y `MentorProposalsModule` (sin controlador ni registro en `AppModule` todavía); verificado con el `ProjectOperationService` y el store reales sobre un Prisma en memoria y con la resolución DI del módulo.
+- [x] 5.2 Reconciliar por recibo antes de reaplicar (`findAcceptedOperation`) y cubrir doble aplicación secuencial y concurrente (mismo actor y actores distintos) con una sola revisión nueva, interrupción entre aplicar y persistir `APPLIED` y reintento de otro editor.
+- [x] 5.3 Difundir el ACK `ACCEPTED` a la sala con la modificación aditiva mínima (`broadcastAccepted` del gateway expuesto como `PROJECT_OPERATION_BROADCASTER`); verificar una emisión por `ACCEPTED`, ninguna en errores ni en reconciliación, y el payload igual al ACK autoritativo. La observación con dos clientes Socket.IO reales queda en 10.1.
+- [ ] 5.4 Ejecutar `mentor-proposal-application.integration.test.ts` contra PostgreSQL (aplicación única con recibo `operationId = proposal.id`, propuesta obsoleta sin recibo y aplicación concurrente). Pendiente junto con 4.4: la PC de implementación no tiene `backend/.env` ni PostgreSQL.
 
 ## 6. API y autorización
 

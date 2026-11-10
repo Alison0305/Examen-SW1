@@ -97,15 +97,37 @@ Todas usan `ProjectAccessService.requireEdit` antes de cargar proyecto, propuest
 
 La propuesta captura `baseRevision` desde la revisión autoritativa al crearse. Apply exige `proposal.baseRevision === project.revision`; si no, `STALE_PROPOSAL` (409), sin regenerar ni aplicar sobre la revisión nueva. La comprobación definitiva la realiza `ProjectOperationService` (`STALE_REVISION`), que se traduce a `STALE_PROPOSAL`.
 
-### Aplicación mediante `ProjectOperationService`
+### Aplicación mediante `ProjectOperationService` (Fase 5)
 
-CU-06 no escribe `Project.document`. Apply invoca `ProjectOperationService.apply(userId, { operationId: proposal.id, projectId: proposal.projectId, baseRevision: proposal.baseRevision, command: proposal.command })`, reutilizando `requireEdit`, cola por proyecto, control de revisión, recibo e idempotencia. Respuestas: ACK → `APPLIED` con `resultingRevision = ack.revision`; `STALE_REVISION` → `STALE_PROPOSAL`; `INVALID_OPERATION` → `INVALID_PROPOSAL` con diagnósticos.
+CU-06 no escribe `Project.document`, no usa `PUT /projects/:id` ni ejecuta el executor contra la persistencia. `MentorProposalApplicationService.apply(projectId, proposalId, user)` recibe solo esos tres datos; comando, revisión base y `operationId` salen de la propuesta persistida.
 
-Idempotencia y doble aplicación, por capas: guarda síncrona en el cliente; transición condicional `updateMany({ where: { id, projectId, status: "PENDING" } })`; y recibo con `operationId = proposal.id`. Como la transacción de `ProjectOperationService` es propia, aplicar y marcar el estado no son atómicos entre sí: antes de aplicar se consulta el recibo `(projectId, operationId = proposal.id)` y, si existe, se marca `APPLIED` con su ACK en lugar de reaplicar (reconciliación dentro de la ventana del recibo). La integración exacta se cierra en la Fase 5.
+Infraestructura real auditada:
 
-### Tiempo real (pendiente técnico)
+- `ProjectOperationService.apply(userId, { operationId, projectId, baseRevision, command })` hace `requireEdit`, serializa por proyecto en una cola en memoria y, en una transacción: busca el recibo `(projectId, operationId)`; si existe y no expiró devuelve el mismo ACK cuando el fingerprint coincide (`sha256` de actor, proyecto, `baseRevision` y comando) o `INVALID_OPERATION` si otro actor reutiliza el `operationId`; si la revisión difiere devuelve `STALE_REVISION`; si el comando es inválido, `INVALID_OPERATION` con diagnósticos; si no, actualiza documento y revisión (`updateMany` condicionado a `baseRevision`) y crea el recibo. Resultados: `ProjectOperationAck { operationId, projectId, revision, command }`, `ProjectOperationConflict { code: "STALE_REVISION", revision, requiresResync }`, `ProjectOperationRejected { code: "INVALID_OPERATION" | "FORBIDDEN", diagnostics }`.
+- Los recibos solo se crean dentro de la transacción de una operación aceptada: un recibo existente prueba que la operación se aplicó. Expiran a las 24 h (`RECEIPT_TTL_MS`) y se podan de forma perezosa; no son un historial permanente. La fuente de verdad duradera del estado es `MentorProposal`.
+- Cambios aditivos en `realtime`: `RealtimeModule` exporta `ProjectOperationService` y el token `PROJECT_OPERATION_BROADCASTER` (`useExisting` del gateway); `ProjectOperationService.findAcceptedOperation(projectId, operationId)` lee un recibo sin autorizar (los llamadores autorizan antes) y devuelve ACK, actor, revisión resultante y hora; el gateway centraliza la emisión en `broadcastAccepted(ack)`, que también usa su manejador `project.operation.apply`. El contrato de `apply` no cambia.
 
-Una aplicación exitosa debe ser observable por los clientes conectados igual que una operación normal del editor. No se crea una segunda infraestructura: en la Fase 5 se decidirá la modificación aditiva mínima para exportar `ProjectOperationService` desde `RealtimeModule` y difundir el ACK `ACCEPTED` a la sala del proyecto.
+Orden: `requireEdit` (404 sin acceso, 403 VIEWER) → `findByProjectAndId(projectId, proposalId)` → estado (`APPLIED` → `PROPOSAL_ALREADY_APPLIED`, `REJECTED` → `PROPOSAL_REJECTED`, sin llamar a `apply`) → recibo de `proposal.id` → `apply` → emisión → `markApplied`. La propuesta solo se lee después de autorizar, por lo que su existencia no se filtra.
+
+Traducción del resultado:
+
+| Resultado de `apply` | CU-06 | Propuesta | Emisión |
+|---|---|---|---|
+| ACK | éxito; `markApplied` con `resultingRevision = ack.revision` (nunca `baseRevision + 1`) y `resolvedByUserId` = quien aplica | `APPLIED` | sí, una vez |
+| `STALE_REVISION` | `STALE_PROPOSAL` | sigue `PENDING` | no |
+| `INVALID_OPERATION` con recibo de `proposal.id` | colisión con otro actor concurrente: se reconcilia desde el recibo | `APPLIED` | no |
+| `INVALID_OPERATION` sin recibo | `INVALID_PROPOSAL` con diagnósticos públicos (`code`, `severity`, `message`) | sigue `PENDING` | no |
+| `FORBIDDEN` | `ForbiddenException` | sin cambios | no |
+
+Atomicidad y recuperación: aplicar (transacción de `ProjectOperationService`) y persistir `APPLIED` (store) son dos transacciones. Si el proceso falla entre ambas, el modelo cambió y la propuesta sigue `PENDING`. Antes de llamar a `apply`, el servicio busca el recibo de `proposal.id`; si existe, persiste `APPLIED` desde él (actor real del recibo, su hora y su revisión resultante), sin reejecutar ni emitir, y devuelve `reconciled: true`. Esto también evita la colisión de fingerprint cuando reintenta otro editor. Funciona dentro del TTL del recibo; pasado el TTL, un reintento se rechaza como `STALE_PROPOSAL` porque el proyecto ya avanzó al menos a `baseRevision + 1`, así que nunca se aplica dos veces.
+
+Concurrencia: no hay mutex propio. La cola por proyecto, la comparación de revisión y el recibo único garantizan una sola mutación; la transición condicional de `markApplied` garantiza un solo `APPLIED`. Mismo actor en paralelo: el segundo `apply` obtiene el ACK repetido y su `markApplied` pierde (`PROPOSAL_ALREADY_APPLIED`). Actores distintos: el segundo obtiene `INVALID_OPERATION` por colisión de fingerprint y se reconcilia desde el recibo. Si la propuesta se rechaza concurrentemente después de que la operación fue aceptada, el resultado es `PROPOSAL_REJECTED` con un aviso en el log; el modelo ya cambió y la mutación ya se emitió. La futura capa de rechazo (Fase 6) debe consultar el recibo antes de rechazar para reducir esta ventana, que no puede cerrarse sin modificar la transacción de `ProjectOperationService`.
+
+Autor y resolución: `authorUserId` y `authorEmail` nunca cambian; `resolvedByUserId` es quien aplicó realmente (el llamador en el camino normal, el actor del recibo al reconciliar).
+
+### Tiempo real (Fase 5)
+
+La emisión sigue exactamente la regla del gateway: cada resultado `ACCEPTED` que devuelve `apply` en esa llamada se emite una vez, de inmediato y antes de `markApplied`, para que la sala conozca la mutación aunque persistir `APPLIED` falle después. El evento es `project.operation.accepted` a la sala `project:<projectId>`, con el ACK autoritativo como payload, mediante `broadcastAccepted` del gateway (un único camino de emisión). Igual que el gateway con los reintentos, un ACK repetido por una llamada concurrente del mismo actor se emite otra vez con payload idéntico; los clientes lo deduplican por `operationId`. Los errores (`STALE`, `INVALID`, `FORBIDDEN`, `NOT_FOUND`, estados terminales) no emiten. La reconciliación nunca emite: no hay mutación nueva, y el cliente fija su revisión desde el ACK y solo deduplica dentro de su sesión, por lo que reemitir un ACK antiguo podría hacer retroceder la revisión de un cliente que entró después. Un cliente que no recibió la emisión original se resincroniza en su siguiente `STALE_REVISION`. La prueba con dos clientes reales queda para la prueba E2E (tarea 10).
 
 ### Persistencia `MentorProposal` (Fase 4)
 
