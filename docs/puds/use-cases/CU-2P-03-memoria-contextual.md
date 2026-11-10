@@ -2,7 +2,7 @@
 
 ## Estado
 
-Implementación automática y prueba manual funcional completadas. Pendiente de autorrevisión, commit, push, PR y aceptación/cierre formal; OpenSpec activo `s2-cu03-memoria-contextual`.
+Cerrado y aceptado. PR #10 fusionado en `main`; issue #3 cerrado automáticamente por `Closes #3`. Merge commit `150e62911469d0b8b0e0063365163546d7dae8ca`. OpenSpec archivado en `openspec/changes/archive/2026-11-09-s2-cu03-memoria-contextual/`.
 
 ## Objetivo Y Alcance
 
@@ -26,7 +26,7 @@ RF-08 a RF-11: persistir interacciones Mentor, recuperar antecedentes por proyec
 - Focalizadas Mentor/memoria/identidad: 29/29 correctas.
 - Integración PostgreSQL entre dos instancias Prisma: correcta; verifica persistencia y recuperación tras desconexión.
 - Typecheck, lint, Prisma validate/migrate status, OpenSpec strict y diff-check: correctos.
-- Suite raíz y build correctos en la ejecución anterior; React emite advertencias preexistentes `act(...)` sin fallo.
+- Suite raíz y build correctos; React emite advertencias preexistentes `act(...)` sin fallo.
 
 ## Prueba Manual
 
