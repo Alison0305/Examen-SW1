@@ -4,13 +4,13 @@
 
 ### Segundo Parcial
 
-**CU activo del segundo parcial:** ninguno.
+**CU activo del segundo parcial:** CU-2P-03 - Persistir y recuperar memoria contextual del Mentor IA.
 
 **Último CU cerrado del segundo parcial:** CU-2P-02 - Identificar al desarrollador y personalizar la mentoría.
 
 Este track académico es independiente del roadmap histórico CU-00...CU-11. No renumera ni modifica el estado del primer parcial.
 
-CU-2P-01 Mentor contextual con Qwen está integrado en `main`. CU-2P-02 está completado y aceptado: la identidad Mentor se deriva del JWT/autenticación, `ProjectAccessService.requireView` mantiene la autorización antes de cargar el proyecto y `MentorInteractionRecorder` recibe la identidad segura. Se verificó anti-suplantación; userId, email y rol no llegan al proveedor ni al prompt Qwen. No se implementaron memoria ni historial, que pertenecen a CU-03/CU-07. OpenSpec archivado en `openspec/changes/archive/2026-11-09-s2-cu02-identidad-mentor/`; no hay pendientes funcionales del CU.
+CU-2P-03 está activo: persistencia PostgreSQL y memoria contextual por proyecto implementadas; 29/29 focalizadas e integración PostgreSQL correctas. Suite raíz y build correctos. Prueba manual aprobada; pendiente autorrevisión, commit, push, PR, aceptación y archive.
 
 ### Primer Parcial
 

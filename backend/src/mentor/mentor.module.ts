@@ -6,8 +6,8 @@ import { MentorInteractionIdentityModule } from "../mentor-identity/mentor-inter
 import { ProjectsPersistenceModule } from "../projects/projects-persistence.module";
 import { MentorController } from "./mentor.controller";
 import { MentorContextBuilder } from "./mentor-context.builder";
-import { MENTOR_AI_PROVIDER, MENTOR_INTERACTION_RECORDER } from "./mentor.contracts";
-import { EphemeralMentorInteractionRecorder } from "./mentor-interaction-recorder";
+import { MENTOR_AI_PROVIDER, MENTOR_INTERACTION_MEMORY, MENTOR_INTERACTION_RECORDER } from "./mentor.contracts";
+import { PrismaMentorInteractionMemory, PrismaMentorInteractionRecorder } from "./mentor-interaction-recorder";
 import { LocalQwenMentorProvider } from "./local-qwen-mentor.provider";
 import { MentorService } from "./mentor.service";
 
@@ -17,9 +17,11 @@ import { MentorService } from "./mentor.service";
   providers: [
     MentorContextBuilder,
     MentorService,
-    EphemeralMentorInteractionRecorder,
+    PrismaMentorInteractionRecorder,
+    PrismaMentorInteractionMemory,
     { provide: MENTOR_AI_PROVIDER, useFactory: (model: QueuedLocalTextModel | undefined) => new LocalQwenMentorProvider(model), inject: [ASSISTANT_LOCAL_MODEL] },
-    { provide: MENTOR_INTERACTION_RECORDER, useExisting: EphemeralMentorInteractionRecorder },
+    { provide: MENTOR_INTERACTION_RECORDER, useExisting: PrismaMentorInteractionRecorder },
+    { provide: MENTOR_INTERACTION_MEMORY, useExisting: PrismaMentorInteractionMemory },
   ],
 })
 export class MentorModule {}
