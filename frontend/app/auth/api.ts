@@ -49,6 +49,45 @@ export type MentorQueryResponse = {
   projectRevision: number;
   diagnostic?: "INSUFFICIENT_CONTEXT" | "ELEMENT_NOT_FOUND";
 };
+// CU-2P-04: public contract of POST /projects/:id/mentor/analysis (backend UmlAnalysisResponse). Only the focus
+// travels to the server; the model, the user and the revision are resolved there.
+export type UmlAnalysisFocus =
+  | { kind: "class"; id: string }
+  | { kind: "relationship"; id: string }
+  | { kind: "model" };
+export type UmlAnalysisDiagnostic =
+  | "EMPTY_MODEL"
+  | "ELEMENT_NOT_FOUND"
+  | "INVALID_FOCUS_ID"
+  | "INCONSISTENT_REFERENCE"
+  | "CONTEXT_TOO_LARGE";
+export type UmlAnalysisFinding = {
+  severity: "error" | "warning";
+  code: string;
+  message: string;
+  path: string;
+  elementId?: string;
+};
+export type UmlAnalysisLimitation = { code: string; message: string; elementId?: string; elementIds?: string[] };
+export type UmlAnalysisResult = {
+  // Deterministic UML and relational facts; the UI does not render them raw.
+  facts: { uml: unknown; relational: unknown };
+  diagnostics: { uml: UmlAnalysisFinding[]; relational: UmlAnalysisFinding[] };
+  conflicts: { code: string; message: string; table: string; column: string; relationshipIds: string[] }[];
+  limitations: { unsupportedFeatures: UmlAnalysisLimitation[]; editor: UmlAnalysisLimitation[]; schema: UmlAnalysisLimitation[] };
+  summary: { hasUmlErrors: boolean; hasRelationalErrors: boolean; relationalDerivable: boolean };
+};
+export type UmlAnalysisContextTruncation = {
+  truncated: boolean;
+  omitted: { classes: number; enumerations: number; relationships: number; attributes: number; diagnostics: number; limitations: number };
+};
+export type UmlAnalysisResponse = {
+  projectRevision: number;
+  focus: { kind: "class" | "relationship" | "model"; id?: string; name?: string };
+  analysis: UmlAnalysisResult | null;
+  explanation: { text: string; contextTruncation: UmlAnalysisContextTruncation } | null;
+  diagnostic?: UmlAnalysisDiagnostic;
+};
 export type VisionRecognition = {
   proposal: import("@examen-sw1/uml-core").UmlImportProposal;
   image: { width: number; height: number };
@@ -96,6 +135,7 @@ export type ApiClient = {
   exportSpring(id: string, basePackage: string): Promise<SpringExport>;
   exportFrontend(id: string): Promise<FrontendExport>;
   queryMentor(id: string, question: string): Promise<MentorQueryResponse>;
+  analyzeUml(id: string, focus: UmlAnalysisFocus): Promise<UmlAnalysisResponse>;
   recognizeDiagram(id: string, image: Blob): Promise<VisionRecognition>;
 };
 
@@ -396,6 +436,12 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
       request<MentorQueryResponse>(`/projects/${encodeURIComponent(id)}/mentor/query`, options, {
         method: "POST",
         body: JSON.stringify({ question }),
+      }),
+    analyzeUml: (id, focus) =>
+      request<UmlAnalysisResponse>(`/projects/${encodeURIComponent(id)}/mentor/analysis`, options, {
+        method: "POST",
+        // Rebuilt field by field so nothing else (store state, names, layout) can travel with the focus.
+        body: JSON.stringify({ focus: focus.kind === "model" ? { kind: "model" } : { kind: focus.kind, id: focus.id } }),
       }),
     recognizeDiagram: (id, image) =>
       requestDiagramRecognition(id, image, options),

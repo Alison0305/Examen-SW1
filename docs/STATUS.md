@@ -4,13 +4,19 @@
 
 ### Segundo Parcial
 
-**CU activo del segundo parcial:** ninguno.
+**CU activo del segundo parcial:** CU-2P-04 - Analizar y explicar un modelo UML 2.5 (en validación).
 
 **Último CU cerrado del segundo parcial:** CU-2P-03 - Persistir y recuperar memoria contextual del Mentor IA.
 
 Este track académico es independiente del roadmap histórico CU-00...CU-11. No renumera ni modifica el estado del primer parcial.
 
 CU-2P-03 está cerrado y aceptado: PR #10 fusionado en `main`, issue #3 cerrado automáticamente y merge commit `150e629`. OpenSpec archivado en `openspec/changes/archive/2026-11-09-s2-cu03-memoria-contextual/`; specs principales sincronizadas. Persistencia PostgreSQL y memoria contextual por proyecto implementadas; 29/29 focalizadas e integración PostgreSQL correctas. Suite raíz y build correctos. Prueba manual aprobada: la memoria persiste tras reiniciar backend, se aísla entre proyectos y antecedentes de revisiones UML anteriores muestran una advertencia visible.
+
+**CU-2P-04 - Analizar y explicar un modelo UML 2.5** (issue #4, rama `feat/s2-cu04-analisis-uml`, OpenSpec `openspec/changes/s2-cu04-analisis-uml/`).
+
+Estado: implementación funcional completa — pendiente validación Qwen real y smoke test visual antes de PR/cierre. No está cerrado.
+
+Implementación: `POST /projects/:id/mentor/analysis` con contexto determinista (fragmento UML, diagnósticos canónicos, hechos relacionales del mapper, conflictos y limitaciones), prompt compacto con recorte declarado y explicación con el mismo Qwen local compartido por CU-2P-01 (`ASSISTANT_LOCAL_MODEL`). Sección "Análisis UML" en el panel Mentor IA con "Explicar selección" y "Explicar modelo", de solo lectura. Integra `main` con CU-2P-01 (PR #8), CU-2P-02 (PR #9) y CU-2P-03 (PR #10/#11). OpenSpec 14/18 tareas. Pruebas: `mentor-analysis` 181 correctas + 15 reales de Qwen omitidas; backend completo 328 correctas + 36 omitidas (5 archivos PostgreSQL sin `backend/.env`); frontend 208/208; ESLint y TypeScript correctos. Pendiente: ejecutar la suite real de Qwen, revisión manual en navegador, revisión del compañero, PR, aceptación y cierre del issue.
 
 ### Primer Parcial
 
@@ -20,7 +26,7 @@ CU-2P-03 está cerrado y aceptado: PR #10 fusionado en `main`, issue #3 cerrado 
 
 **CU activo:** ninguno. El siguiente es CU-11, el último del roadmap.
 
-**Track paralelo cerrado:** CU-2P-02 — identidad de interacción Mentor en `feat/s2-cu02-identidad-mentor`, aceptado y archivado. La integración con CU-2P-01 está completada en la rama; su llegada a `main` depende del flujo de merge, sin pendientes funcionales del CU.
+**Track paralelo cerrado:** CU-2P-02 — identidad de interacción Mentor en `feat/s2-cu02-identidad-mentor`, aceptado y archivado. Integrado en `main` mediante el PR #9.
 
 **Último correctivo cerrado:** `fix-cu-08-qwen-local-runtime` — intérprete local Qwen3 1.7B para texto y voz.
 
@@ -193,6 +199,8 @@ El correctivo CU-06 está completo en 9/9. Con el proyecto `Prueba CU06 Backend`
 - Test intermitente en `frontend`: con la CPU cargada, `app/projects/page.tsx` puede actualizar el estado después del teardown de `auth.test.tsx` y Vitest lo reporta como error no controlado aunque todos los tests pasen. Visto el 2026-11-06; no se reprodujo en tres repeticiones.
 - No hay proveedor de cobertura Vitest instalado ni configurado.
 - El despliegue horizontal requiere afinidad de sesión o un adaptador Socket.IO compartido; el Incremento 1 se comprobó en una instancia.
+- `relational-core`: dos asociaciones entre las mismas clases pueden generar columnas y FK duplicadas sin diagnóstico del mapper. Detectado durante CU-2P-04, que lo informa como conflicto sin corregir el mapper.
+- `DtoValidationPipe`: un POST con cuerpo `null` o `undefined` responde 500 en lugar de 400. Detectado durante CU-2P-04, que usa una protección local.
 
 ## Trabajo Futuro Separado
 
@@ -200,4 +208,4 @@ El correctivo CU-06 está completo en 9/9. Con el proyecto `Prueba CU06 Backend`
 
 ## Siguiente Acción
 
-No hay CU activo en el segundo parcial. En el track histórico, planificar CU-11 según `docs/puds/use-cases/README.md` cuando se autorice (plan, aprobación del usuario y OpenSpec). Opcionalmente, crear un correctivo separado `fix-cu-10-...` para mejorar y medir el analizador de imágenes con capturas nuevas.
+Segundo parcial: CU-2P-04 (Análisis UML) es el CU activo. Antes de su PR hay que ejecutar la suite real de Qwen y hacer la revisión manual en navegador. En el track histórico, planificar CU-11 según `docs/puds/use-cases/README.md` cuando se autorice (plan, aprobación del usuario y OpenSpec). Opcionalmente, crear un correctivo separado `fix-cu-10-...` para mejorar y medir el analizador de imágenes con capturas nuevas.
