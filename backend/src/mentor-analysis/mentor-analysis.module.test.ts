@@ -137,7 +137,7 @@ describe("MentorAnalysisModule: wiring", () => {
 
     // Identity seen from behaviour: each consumer reaches that very object.
     await module.get<UmlAnalysisAiProvider>(UML_ANALYSIS_AI_PROVIDER, { strict: false }).explain({ systemPrompt: "CU-04", userPrompt: "análisis" });
-    await module.get<MentorAiProvider>(MENTOR_AI_PROVIDER, { strict: false }).ask({ projectName: "CRM", revision: 7, classes: [], enumerations: [], relationships: [], elementNames: [] }, "¿Qué hay?");
+    await module.get<MentorAiProvider>(MENTOR_AI_PROVIDER, { strict: false }).ask({ projectName: "CRM", revision: 7, classes: [], enumerations: [], relationships: [], elementNames: [] }, "¿Qué hay?", []);
     await module.get(AssistantInterpreterService, { strict: false }).interpretUml("crear clase Cliente", []).catch(() => undefined);
     expect(localModel!.generateText.mock.calls.map(([sent]) => sent.systemPrompt)).toEqual(["CU-04", expect.stringContaining("Mentor IA de un proyecto UML")]);
     expect(localModel!.generateStructured).toHaveBeenCalledTimes(1);

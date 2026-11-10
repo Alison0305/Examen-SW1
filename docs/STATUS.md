@@ -4,19 +4,19 @@
 
 ### Segundo Parcial
 
-**CU activo del segundo parcial:** CU-2P-01 - Consultar al Mentor IA con contexto del proyecto.
+**CU activo del segundo parcial:** CU-2P-04 - Analizar y explicar un modelo UML 2.5 (en validación).
 
-**OpenSpec activo:** `openspec/changes/s2-cu01-mentor-contextual/`.
+**Último CU cerrado del segundo parcial:** CU-2P-03 - Persistir y recuperar memoria contextual del Mentor IA.
 
 Este track académico es independiente del roadmap histórico CU-00...CU-11. No renumera ni modifica el estado del primer parcial.
 
-Implementación: ruta autenticada contextual, constructor semántico sin layout, proveedor Qwen local desacoplado, registrador efímero y panel dentro del workspace persistido. OpenSpec 9/9 tareas; gates raíz correctos (516 tests y 8 reales omitidos), prueba focal Mentor 10/10 y Assistant 18/18 + 5 omitidas. Pendiente prueba manual Qwen, revisión del compañero, aceptación, archive y commit.
+CU-2P-03 está cerrado y aceptado: PR #10 fusionado en `main`, issue #3 cerrado automáticamente y merge commit `150e629`. OpenSpec archivado en `openspec/changes/archive/2026-11-09-s2-cu03-memoria-contextual/`; specs principales sincronizadas. Persistencia PostgreSQL y memoria contextual por proyecto implementadas; 29/29 focalizadas e integración PostgreSQL correctas. Suite raíz y build correctos. Prueba manual aprobada: la memoria persiste tras reiniciar backend, se aísla entre proyectos y antecedentes de revisiones UML anteriores muestran una advertencia visible.
 
 **CU-2P-04 - Analizar y explicar un modelo UML 2.5** (issue #4, rama `feat/s2-cu04-analisis-uml`, OpenSpec `openspec/changes/s2-cu04-analisis-uml/`).
 
 Estado: implementación funcional completa — pendiente validación Qwen real y smoke test visual antes de PR/cierre. No está cerrado.
 
-Implementación: `POST /projects/:id/mentor/analysis` con contexto determinista (fragmento UML, diagnósticos canónicos, hechos relacionales del mapper, conflictos y limitaciones), prompt compacto con recorte declarado y explicación con el mismo Qwen local compartido por CU-2P-01 (`ASSISTANT_LOCAL_MODEL`). Sección "Análisis UML" en el panel Mentor IA con "Explicar selección" y "Explicar modelo", de solo lectura. Integra CU-2P-01 desde `main` (PR #8). OpenSpec 14/18 tareas. Pruebas: `mentor-analysis` 181 correctas + 15 reales de Qwen omitidas; backend completo 328 correctas + 36 omitidas (5 archivos PostgreSQL sin `backend/.env`); frontend 208/208; ESLint y TypeScript correctos. Pendiente: ejecutar la suite real de Qwen, revisión manual en navegador, revisión del compañero, PR, aceptación y cierre del issue.
+Implementación: `POST /projects/:id/mentor/analysis` con contexto determinista (fragmento UML, diagnósticos canónicos, hechos relacionales del mapper, conflictos y limitaciones), prompt compacto con recorte declarado y explicación con el mismo Qwen local compartido por CU-2P-01 (`ASSISTANT_LOCAL_MODEL`). Sección "Análisis UML" en el panel Mentor IA con "Explicar selección" y "Explicar modelo", de solo lectura. Integra `main` con CU-2P-01 (PR #8), CU-2P-02 (PR #9) y CU-2P-03 (PR #10/#11). OpenSpec 14/18 tareas. Pruebas: `mentor-analysis` 181 correctas + 15 reales de Qwen omitidas; backend completo 328 correctas + 36 omitidas (5 archivos PostgreSQL sin `backend/.env`); frontend 208/208; ESLint y TypeScript correctos. Pendiente: ejecutar la suite real de Qwen, revisión manual en navegador, revisión del compañero, PR, aceptación y cierre del issue.
 
 ### Primer Parcial
 
@@ -25,6 +25,8 @@ Implementación: `POST /projects/:id/mentor/analysis` con contexto determinista 
 **Último CU completado:** CU-10 — XMI e imagen → UML.
 
 **CU activo:** ninguno. El siguiente es CU-11, el último del roadmap.
+
+**Track paralelo cerrado:** CU-2P-02 — identidad de interacción Mentor en `feat/s2-cu02-identidad-mentor`, aceptado y archivado. Integrado en `main` mediante el PR #9.
 
 **Último correctivo cerrado:** `fix-cu-08-qwen-local-runtime` — intérprete local Qwen3 1.7B para texto y voz.
 
@@ -130,6 +132,7 @@ El correctivo CU-06 está completo en 9/9. Con el proyecto `Prueba CU06 Backend`
 - `openspec/changes/archive/2026-09-12-cu-04-landing-proyectos-membresias-invitaciones/`
 - `openspec/changes/archive/2026-09-18-cu-08-frontend-generado-asistentes-texto/`
 - `openspec/changes/archive/2026-11-08-cu-10-xmi-imagen-uml/`
+- `openspec/changes/archive/2026-11-09-s2-cu03-memoria-contextual/`
 
 ## Specs Principales
 
@@ -144,6 +147,8 @@ El correctivo CU-06 está completo en 9/9. Con el proyecto `Prueba CU06 Backend`
 - `openspec/specs/uml-fragment-import/spec.md`
 - `openspec/specs/xmi-interop/spec.md`
 - `openspec/specs/image-uml-recognition/spec.md`
+- `openspec/specs/project-contextual-mentor/spec.md`
+- `openspec/specs/mentor-interaction-memory/spec.md`
 
 ## Cierre De CU-01
 
@@ -203,4 +208,4 @@ El correctivo CU-06 está completo en 9/9. Con el proyecto `Prueba CU06 Backend`
 
 ## Siguiente Acción
 
-Completar la prueba manual y aceptación de CU-2P-01 con dos proyectos aislados y Qwen real. Para CU-2P-04, ejecutar la suite real de Qwen y la revisión manual en navegador antes del PR. En el track histórico, planificar CU-11 según `docs/puds/use-cases/README.md` (plan, aprobación del usuario y OpenSpec). Opcionalmente, crear un correctivo separado `fix-cu-10-...` para mejorar y medir el analizador de imágenes con capturas nuevas.
+Segundo parcial: CU-2P-04 (Análisis UML) es el CU activo. Antes de su PR hay que ejecutar la suite real de Qwen y hacer la revisión manual en navegador. En el track histórico, planificar CU-11 según `docs/puds/use-cases/README.md` cuando se autorice (plan, aprobación del usuario y OpenSpec). Opcionalmente, crear un correctivo separado `fix-cu-10-...` para mejorar y medir el analizador de imágenes con capturas nuevas.

@@ -13,8 +13,8 @@ export class MentorController {
 
   @Post(":id/mentor/query")
   query(@Req() request: AuthenticatedRequest, @Param("id", new ParseUUIDPipe()) projectId: string, @Body(new DtoValidationPipe(MentorQueryDto)) dto: MentorQueryDto): Promise<MentorQueryResponse> {
-    const userId = request.authenticatedUser?.id;
-    if (!userId) throw new NotFoundException();
-    return this.mentor.query(projectId, userId, dto.question);
+    const authenticatedUser = request.authenticatedUser;
+    if (!authenticatedUser) throw new NotFoundException();
+    return this.mentor.query(projectId, authenticatedUser, dto.question);
   }
 }

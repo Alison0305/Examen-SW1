@@ -2,7 +2,7 @@
 
 ## Estado
 
-Segundo parcial. Cierre técnico automatizado completado; pendiente de prueba manual con Qwen, revisión del compañero y del usuario, aceptación, archivado y commit. No altera el historial ni el estado de CU-10 del primer parcial.
+Segundo parcial. Completado, aceptado e integrado en `main` mediante el PR #8. OpenSpec archivado en `openspec/changes/archive/2026-11-09-s2-cu01-mentor-contextual/`. No altera el historial ni el estado de CU-10 del primer parcial.
 
 ## Objetivo
 
@@ -54,6 +54,7 @@ Respuesta exitosa: `answer`, `grounded`, `projectRevision` y `diagnostic` opcion
 - `npm run test --workspace frontend -- --run app/workspace/mentor-panel.test.tsx app/auth/auth.test.tsx`: 17/17 correctas.
 - `npm run test --workspace @examen-sw1/spring-generator`: 57/57 correctas.
 - `openspec validate s2-cu01-mentor-contextual --strict`: correcto.
+- Prueba manual satisfactoria: desde un proyecto real, una consulta al Mentor con Qwen local devolvió las clases reales de su modelo UML.
 
 ## Estado De RF
 
@@ -62,9 +63,14 @@ Respuesta exitosa: `answer`, `grounded`, `projectRevision` y `diagnostic` opcion
 - RF-03: implementado y cubierto con proveedor simulado, cola compartida y regresiones de Assistant. La inferencia real Qwen no quedó validada: el test real fue omitido (5/5).
 - RF-04: implementado y cubierto automáticamente para modelo vacío, elemento explícitamente inexistente y fallo del proveedor.
 
+## Resultado Final
+
+- CU-2P-01 quedó aceptado, integrado en `main` y archivado.
+- La ruta Mentor conserva autorización previa, contexto derivado exclusivamente de UML y el proveedor local Qwen.
+- El registrador permanece reemplazable; la persistencia de memoria corresponde a CU-2P-03 y el historial visible a CU-2P-07.
+
 ## Limitaciones
 
-- No se aprobó la prueba manual: falta contrastar dos proyectos con modelos distintos y consultar una clase inexistente con Qwen real.
 - La comprobación de `process.env.ASSISTANT_MODEL_PATH` estuvo disponible en el proceso de esta sesión, pero `npx vitest run src/assistant/node-llama-cpp.real.integration.test.ts` se omitió 5/5; no se fabricó resultado de inferencia real.
 - El panel muestra texto plano. Las marcas Markdown del proveedor, como `**`, no se renderizan; incorporar un renderer Markdown sanitizado se difiere para no ampliar este CU con una dependencia o política de renderizado nueva.
 

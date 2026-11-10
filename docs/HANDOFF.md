@@ -4,8 +4,10 @@
 
 - CU-10 (XMI e imagen → UML) cerrado, aceptado y archivado en `openspec/changes/archive/2026-11-08-cu-10-xmi-imagen-uml/`.
 - Ningún CU activo. El siguiente es CU-11, el último del roadmap; todavía no tiene plan ni OpenSpec.
-- Segundo parcial: CU-2P-01 Mentor IA contextual en `openspec/changes/s2-cu01-mentor-contextual/`, 9/9 tareas. Backend y UI implementados; pendiente prueba manual Qwen, revisión y aceptación antes de archive/commit.
-- Segundo parcial: CU-2P-04 Análisis UML en `openspec/changes/s2-cu04-analisis-uml/`, 14/18 tareas, rama `feat/s2-cu04-analisis-uml`. Implementación funcional completa; pendiente validación Qwen real y smoke test visual antes de PR/cierre. Detalle en la sección CU-2P-04.
+- CU-2P-01 Mentor IA contextual con Qwen está completado, aceptado e integrado en `main`; OpenSpec archivado en `openspec/changes/archive/2026-11-09-s2-cu01-mentor-contextual/`.
+- CU-2P-02 de `feat/s2-cu02-identidad-mentor` está completado y aceptado; OpenSpec archivado en `openspec/changes/archive/2026-11-09-s2-cu02-identidad-mentor/`. La identidad Mentor proviene del JWT, `ProjectAccessService.requireView` mantiene la autorización y el recorder recibe identidad segura. Anti-suplantación verificada; userId, email y rol siguen fuera del prompt Qwen.
+- CU-2P-03 Memoria contextual completado, aceptado e integrado en `main` (PR #10). Detalle en la sección CU-2P-03.
+- Segundo parcial, CU activo: CU-2P-04 Análisis UML en `openspec/changes/s2-cu04-analisis-uml/`, 14/18 tareas, rama `feat/s2-cu04-analisis-uml` (ya integra `main` con CU-2P-02 y CU-2P-03). Implementación funcional completa; pendiente validación Qwen real y smoke test visual antes de PR/cierre. Detalle en la sección CU-2P-04.
 
 ## Entorno
 
@@ -20,9 +22,17 @@
 
 - Imagen → UML se cerró con la limitación medida: en capturas reales, la cobertura es de 0,58 en clases y 0,16 en relaciones. Cualquier mejora del analizador irá en un correctivo `fix-cu-10-...` y debe medirse con capturas nuevas.
 
+## CU-2P-03
+
+- Cerrado y aceptado; PR #10 fusionado en `main`, issue #3 cerrado automáticamente y merge commit `150e629`.
+- OpenSpec archivado en `openspec/changes/archive/2026-11-09-s2-cu03-memoria-contextual/`; specs principales sincronizadas.
+- Migración `20261109170000_add_mentor_interactions` aplicada. Memoria Prisma por proyecto, compartida entre usuarios autorizados y con autoría persistida.
+- Límites: 6 interacciones, 1.200 caracteres por campo y 6.000 totales; revisiones anteriores llevan `isStale` y una advertencia visible determinista.
+- Gates: 29/29 focalizadas, integración PostgreSQL entre instancias, suite raíz y build correctos. Prueba manual aprobada: persiste tras reinicio y se aísla entre proyectos.
+
 ## CU-2P-04 - Análisis UML
 
-- Rama: `feat/s2-cu04-analisis-uml` (issue #4). Integra CU-2P-01 desde `main` (PR #8).
+- Rama: `feat/s2-cu04-analisis-uml` (issue #4). Integra `main` con CU-2P-01 (PR #8), CU-2P-02 (PR #9) y CU-2P-03 (PR #10/#11).
 - Endpoint: `POST /projects/:id/mentor/analysis` con `{ "focus": { "kind": "class" | "relationship", "id" } }` o `{ "focus": { "kind": "model" } }`. Responde hechos deterministas (`analysis`) separados de la explicación (`explanation`); diagnósticos 200 `EMPTY_MODEL`, `ELEMENT_NOT_FOUND`, `INVALID_FOCUS_ID`, `INCONSISTENT_REFERENCE` y `CONTEXT_TOO_LARGE`; errores 400, 401, 404, 422 y 503.
 - Arquitectura: `UmlAnalysisController` → `UmlAnalysisService` → `buildUmlAnalysisContext` (fragmento, validador canónico, mapper relacional, hechos relacionales) → `buildUmlAnalysisPrompt` → `UML_ANALYSIS_AI_PROVIDER` → `LocalQwenUmlAnalysisProvider` → `ASSISTANT_LOCAL_MODEL`. `MentorAnalysisModule` no importa `MentorModule`; comparte con CU-2P-01 y CU-08 la misma instancia del modelo local.
 - Frontend: sección "Análisis UML" dentro de `MentorPanel` (`frontend/app/workspace/uml-analysis-section.tsx`), independiente de la consulta libre.
@@ -45,4 +55,4 @@ Defectos externos detectados durante CU-2P-04 (no corregidos aquí):
 
 ## Siguiente Acción
 
-Completar la suite real de Qwen y la revisión manual de CU-2P-04 antes de su PR. Completar la prueba manual y aceptación de CU-2P-01; en el track histórico, planificar CU-11 según `docs/puds/use-cases/README.md` y pedir aprobación antes del OpenSpec.
+Completar la suite real de Qwen y la revisión manual de CU-2P-04 antes de su PR. En el track histórico, el siguiente CU es CU-11 cuando se autorice su planificación.
