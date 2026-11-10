@@ -1,12 +1,13 @@
 import { UmlCommandExecutor, type Diagnostic, type ProjectDocument } from "@examen-sw1/uml-core";
-import type { AddAttributeProposalCommand, MentorProposalDiagnostic, MentorProposalError } from "./mentor-proposal.contracts";
+import type { AddAttributeProposalCommand, MentorProposalDiagnostic, MentorProposalDiffLine, MentorProposalError } from "./mentor-proposal.contracts";
+import { diffCanonicalUml } from "./uml-diff";
 
 export type PreviewMentorProposalOptions = Readonly<{ nowFactory?: () => Date }>;
 
 // Internal result: the candidate document feeds the deterministic diff (phase 3) and is never exposed publicly.
 // baseRevision is the authoritative revision the proposal was built on; candidate.revision is only the potential result.
 export type MentorProposalPreviewResult =
-  | Readonly<{ ok: true; baseRevision: number; candidate: ProjectDocument; diagnostics: readonly MentorProposalDiagnostic[] }>
+  | Readonly<{ ok: true; baseRevision: number; candidate: ProjectDocument; diff: readonly MentorProposalDiffLine[]; diagnostics: readonly MentorProposalDiagnostic[] }>
   | Readonly<{ ok: false; baseRevision: number; error: MentorProposalError }>;
 
 // Public projection: keeps code, severity and message only; path and elementId carry internal identifiers.
@@ -34,5 +35,7 @@ export function previewMentorProposal(document: ProjectDocument, command: AddAtt
   const applied = result.document.uml.classes.find((umlClass) => umlClass.id === command.classId)?.attributes.some((attribute) => attribute.id === command.attributeId);
   if (!applied) return invalid(baseRevision, "La propuesta no produjo el cambio esperado.");
 
-  return { ok: true, baseRevision, candidate: result.document, diagnostics: result.diagnostics.map(toMentorProposalDiagnostic) };
+  // The diff compares the authoritative model with the executor's candidate, never the instruction or model output.
+  const diff = diffCanonicalUml(document.uml, result.document.uml);
+  return { ok: true, baseRevision, candidate: result.document, diff, diagnostics: result.diagnostics.map(toMentorProposalDiagnostic) };
 }

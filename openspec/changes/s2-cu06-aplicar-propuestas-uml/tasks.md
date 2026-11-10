@@ -12,7 +12,8 @@
 
 ## 3. Diff determinista
 
-- [ ] 3.1 Implementar una función pura de diff entre `uml` antes y después por identificador; verificar `Cliente.teléfono: string`, la etiqueta con multiplicidad y la estabilidad ante repeticiones.
+- [x] 3.1 Implementar una función pura de diff entre `uml` antes y después por identificador; verificar `Cliente.teléfono: string`, la etiqueta con multiplicidad y la estabilidad ante repeticiones.
+- [x] 3.2 Integrar el diff en el resultado interno de `previewMentorProposal` y verificar que revisión, timestamps y layout no producen líneas, que no se exponen identificadores y que ninguna entrada se modifica.
 
 ## 4. Persistencia `MentorProposal`
 
