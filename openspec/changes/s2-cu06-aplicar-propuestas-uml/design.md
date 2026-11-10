@@ -65,9 +65,13 @@ Un candidato rechazado por la validación canónica al crear devuelve `INVALID_P
 
 Persistentes: `PENDING`, `APPLIED` (terminal) y `REJECTED` (terminal). `STALE` no se persiste: se calcula como `status === "PENDING" && baseRevision !== project.revision`.
 
+`APPLIED` es terminal siempre. `REJECTED` es terminal para las acciones normales del usuario, salvo una reconciliación excepcional cuando existe evidencia autoritativa (un `ProjectOperationReceipt` aceptado para `proposal.id`) de que el cambio UML ya fue aceptado: entonces `REJECTED → APPLIED` mediante `reconcileAcceptedOperation`. Nunca se revierte el UML ni se declara `REJECTED` una propuesta cuyo cambio consta como aceptado; eventualmente, recibo aceptado implica `APPLIED`.
+
 ### Cancelar frente a rechazar
 
 Cancelar o cerrar la vista previa es solo del cliente: sin petición, sin cambio de estado y sin cambio UML. Rechazar es `POST .../reject`: transición condicional `PENDING → REJECTED` persistida, sin tocar el documento. Una propuesta rechazada no puede aplicarse (`PROPOSAL_REJECTED`). El issue #6 no exige motivo, por lo que no se añade.
+
+`MentorProposalRejectionService.reject(projectId, proposalId, user)`: `requireEdit` → búsqueda `(projectId, proposalId)` → `APPLIED` da `PROPOSAL_ALREADY_APPLIED` y `REJECTED` da `PROPOSAL_REJECTED`, sin tocar el store → si hay recibo aceptado de `proposal.id`, se reconcilia a `APPLIED` y se responde `PROPOSAL_ALREADY_APPLIED` → si no, `reject` condicional → segundo chequeo del recibo inmediatamente después; si apareció, `REJECTED → APPLIED` y `PROPOSAL_ALREADY_APPLIED` → si no, `REJECTED`. Si el `ACCEPTED` llega después del segundo chequeo, el servicio de aplicación lo corrige al encontrar `REJECTED` en `markApplied`. Ambas capas se complementan.
 
 ### API
 
@@ -78,7 +82,11 @@ Cancelar o cerrar la vista previa es solo del cliente: sin petición, sin cambio
 | POST | `/projects/:projectId/mentor/proposals/:proposalId/apply` | vacío | `MentorProposalResponse` (`APPLIED`) |
 | POST | `/projects/:projectId/mentor/proposals/:proposalId/reject` | vacío | `MentorProposalResponse` (`REJECTED`) |
 
-El cuerpo de creación no admite `userId`, `projectId`, `baseRevision`, comando ni UUID; el DTO rechaza propiedades extra. La revisión base procede del proyecto cargado por el servidor. Apply y reject no aceptan cuerpo con datos de operación.
+Estado (Fase 6): `MentorProposalController` expone GET detalle, `apply` y `reject` con `JwtAuthGuard`, `ParseUUIDPipe` en `projectId` y `proposalId`, identidad solo desde el JWT y `@HttpCode(200)` en los POST; `MentorProposalsModule` (con `AuthModule`, `ProjectsPersistenceModule` y `RealtimeModule`) está registrado en `AppModule`. La creación (`POST .../proposals`) se añade en la Fase 7 porque necesita generar la intención estructurada.
+
+El cuerpo de creación no admite `userId`, `projectId`, `baseRevision`, comando ni UUID; el DTO rechaza propiedades extra. La revisión base procede del proyecto cargado por el servidor. Apply y reject no declaran `@Body()`: cualquier cuerpo (por ejemplo `{ baseRevision: 999, command: { type: "DeleteClass" } }`) se ignora por completo y la operación usa solo la propuesta persistida.
+
+Detalle (`MentorProposalQueryService`): `requireEdit` → búsqueda `(projectId, proposalId)` → revisión actual con `ProjectsPersistenceService.findProject` (el mismo servicio que usan Mentor, análisis UML y exportaciones) → `toMentorProposalResponse`. La respuesta se construye solo desde los snapshots persistidos (`operation`, `summary`, `diagnostics`); no se recalculan diff, comando ni vista previa. Una propuesta `PENDING` con `baseRevision` distinta de la revisión actual responde `preview.valid = false` y añade `STALE_PROPOSAL` a los diagnósticos almacenados; con la misma revisión, `valid = true`. Las propuestas `APPLIED` y `REJECTED` conservan su vista previa tal como se creó (`valid = true`, porque solo se persisten propuestas con vista previa válida) y no se tratan como obsoletas aunque el proyecto avance: su estado terminal ya informa el resultado. Las respuestas de `apply` y `reject` usan el mismo constructor; el ACK no es parte del contrato HTTP.
 
 `MentorProposalResponse` expone `id`, `status`, `baseRevision`, `operation` por nombre (`kind`, `target.className`, `change`), `preview` (`valid`, `diff`, `diagnostics`), `createdAt`, `resolvedAt?` y `resultingRevision?`. No expone `authorUserId`, el comando persistido, la instrucción, identificadores internos de clase o atributo, prompts, contexto Qwen, rutas ni trazas.
 
@@ -121,7 +129,7 @@ Traducción del resultado:
 
 Atomicidad y recuperación: aplicar (transacción de `ProjectOperationService`) y persistir `APPLIED` (store) son dos transacciones. Si el proceso falla entre ambas, el modelo cambió y la propuesta sigue `PENDING`. Antes de llamar a `apply`, el servicio busca el recibo de `proposal.id`; si existe, persiste `APPLIED` desde él (actor real del recibo, su hora y su revisión resultante), sin reejecutar ni emitir, y devuelve `reconciled: true`. Esto también evita la colisión de fingerprint cuando reintenta otro editor. Funciona dentro del TTL del recibo; pasado el TTL, un reintento se rechaza como `STALE_PROPOSAL` porque el proyecto ya avanzó al menos a `baseRevision + 1`, así que nunca se aplica dos veces.
 
-Concurrencia: no hay mutex propio. La cola por proyecto, la comparación de revisión y el recibo único garantizan una sola mutación; la transición condicional de `markApplied` garantiza un solo `APPLIED`. Mismo actor en paralelo: el segundo `apply` obtiene el ACK repetido y su `markApplied` pierde (`PROPOSAL_ALREADY_APPLIED`). Actores distintos: el segundo obtiene `INVALID_OPERATION` por colisión de fingerprint y se reconcilia desde el recibo. Si la propuesta se rechaza concurrentemente después de que la operación fue aceptada, el resultado es `PROPOSAL_REJECTED` con un aviso en el log; el modelo ya cambió y la mutación ya se emitió. La futura capa de rechazo (Fase 6) debe consultar el recibo antes de rechazar para reducir esta ventana, que no puede cerrarse sin modificar la transacción de `ProjectOperationService`.
+Concurrencia: no hay mutex propio. La cola por proyecto, la comparación de revisión y el recibo único garantizan una sola mutación; la transición condicional de `markApplied` garantiza un solo `APPLIED`. Mismo actor en paralelo: el segundo `apply` obtiene el ACK repetido y su `markApplied` pierde (`PROPOSAL_ALREADY_APPLIED`). Actores distintos: el segundo obtiene `INVALID_OPERATION` por colisión de fingerprint y se reconcilia desde el recibo. Si una propuesta se rechaza concurrentemente después de que su operación fue aceptada, `markApplied` encuentra `REJECTED` y el servicio la corrige con `reconcileAcceptedOperation` usando el ACK aceptado (revisión del ACK, quien aplicó), con un aviso en el log; responde éxito con `reconciled: true`. Una propuesta `REJECTED` con recibo aceptado también se reconcilia al intentar aplicarla, sin reejecutar ni emitir. Una reconciliación que encuentra la propuesta ya `APPLIED` (`changed: false`) se informa como `PROPOSAL_ALREADY_APPLIED`.
 
 Autor y resolución: `authorUserId` y `authorEmail` nunca cambian; `resolvedByUserId` es quien aplicó realmente (el llamador en el camino normal, el actor del recibo al reconciliar).
 
@@ -145,7 +153,9 @@ model MentorProposal {
   baseRevision      Int
   status            MentorProposalStatus @default(PENDING)
   command           Json
+  operation         Json
   summary           Json
+  diagnostics       Json
   createdAt         DateTime             @default(now())
   resolvedAt        DateTime?
   resolvedByUserId  String?              @db.Uuid
@@ -169,7 +179,9 @@ model MentorProposal {
 | `baseRevision` | Sí | `preview.baseRevision`, la revisión autoritativa; nunca la del candidato |
 | `status` | Sí | Siempre `PENDING` al crear |
 | `command` | Sí | Exactamente el `AddAttributeProposalCommand` resuelto; nunca se expone |
+| `operation` | Sí | Exactamente la operación pública resuelta (`AddAttributeProposalOperation`, por nombre, sin UUID); base del detalle |
 | `summary` | Sí | Exactamente `preview.diff`; no se recalcula al leer |
+| `diagnostics` | Sí | Exactamente `preview.diagnostics`, ya proyectados sin `path` ni `elementId` |
 | `createdAt` | Sí | Hora del servidor, inyectable con `nowFactory` |
 | `resolvedAt`, `resolvedByUserId` | No | Solo `APPLIED` o `REJECTED`; quien resuelve puede no ser el autor |
 | `resultingRevision` | No | Solo `APPLIED` |
@@ -178,8 +190,9 @@ model MentorProposal {
 - `onDelete`: `Project` → `Cascade` (como `MentorInteraction`, invitaciones, membresías y recibos; no quedan propuestas huérfanas). `User` → `Restrict` (como `MentorInteraction.author`, `ProjectMembership.user` y `ProjectInvitation.invitedBy`; un usuario con propuestas no se borra).
 - Índices: `(projectId, createdAt, id)` para la futura proyección CU-2P-07 por proyecto con orden estable; `authorUserId` y `resolvedByUserId` para las FK, como el repositorio indexa cada FK a `User`. La búsqueda por `(id, projectId)` usa la PK. No se crea `(projectId, status, createdAt, id)` porque ninguna consulta actual ni prevista filtra por estado: CU-2P-07 muestra todas las propuestas con su estado.
 - Invariante de estado: `PENDING` sin resolución; `REJECTED` con `resolvedAt` y `resolvedByUserId` y sin `resultingRevision`; `APPLIED` con los tres. La garantizan el tipo `StoredMentorProposal` (unión por `status`), el store (escribe solo esos campos y revalida cada fila al leer) y el CHECK `MentorProposal_resolution_check` añadido a mano en la migración, porque `schema.prisma` no puede expresarlo; Prisma no gestiona ese CHECK y no lo elimina.
-- Parsers estrictos: `parseStoredMentorProposalCommand` y `parseStoredMentorProposalSummary` validan claves exactas, `AddAttribute`, UUID con la forma del validador de uml-core, nombre recortado no vacío, primitivo de `UML_PRIMITIVE_TYPES`, multiplicidad entera coherente y líneas de diff del vocabulario del contrato. Se aplican antes de escribir y en cada lectura; un JSON corrupto lanza `MentorProposalDataError` (`MENTOR_PROPOSAL_DATA_CORRUPTED`, solo con el nombre del campo, nunca el JSON), que la futura API traducirá a un 500 seguro. La base no puede saltarse la allow-list.
-- Store (`MentorProposalStore`, implementado por `PrismaMentorProposalStore`): `create` (siempre `PENDING`, solo campos de creación), `findByProjectAndId` (`findFirst` con `id` y `projectId`), `reject` y `markApplied`. Las transiciones son un único `updateMany` condicional `WHERE id AND projectId AND status = 'PENDING'` que solo escribe `status` y los campos de resolución; si no actualiza nada, se lee el estado y se devuelve `NOT_FOUND`, `PROPOSAL_ALREADY_APPLIED` o `PROPOSAL_REJECTED`. `command`, `summary`, `baseRevision`, `instruction` y autor no cambian nunca. `markApplied` solo persiste un resultado que la Fase 5 obtendrá aplicando de verdad.
+- Parsers estrictos: `parseStoredMentorProposalCommand`, `parseStoredMentorProposalOperation`, `parseStoredMentorProposalSummary` y `parseStoredMentorProposalDiagnostics` validan claves exactas, `AddAttribute`, UUID con la forma del validador de uml-core, nombre recortado no vacío, primitivo de `UML_PRIMITIVE_TYPES`, multiplicidad entera coherente, operación pública con texto de multiplicidad canónico, líneas de diff del vocabulario del contrato y diagnósticos solo con `code`, `severity` y `message`; los textos públicos (`className`, `attributeName`, etiquetas, códigos y mensajes) no pueden contener UUID. Se aplican antes de escribir y en cada lectura; un JSON corrupto lanza `MentorProposalDataError` (`MENTOR_PROPOSAL_DATA_CORRUPTED`, solo con el nombre del campo, nunca el JSON), que la API traduce a un 500 genérico (`No fue posible procesar la propuesta.`). La base no puede saltarse la allow-list.
+- Store (`MentorProposalStore`, implementado por `PrismaMentorProposalStore`): `create` (siempre `PENDING`, solo campos de creación), `findByProjectAndId` (`findFirst` con `id` y `projectId`), `reject` y `markApplied`. Las transiciones son un único `updateMany` condicional `WHERE id AND projectId AND status = 'PENDING'` que solo escribe `status` y los campos de resolución; si no actualiza nada, se lee el estado y se devuelve `NOT_FOUND`, `PROPOSAL_ALREADY_APPLIED` o `PROPOSAL_REJECTED`. `command`, `summary`, `baseRevision`, `instruction` y autor no cambian nunca. `markApplied` solo persiste un resultado obtenido aplicando de verdad. `reconcileAcceptedOperation` es la única transición excepcional: un `updateMany` condicional `WHERE id AND projectId AND status IN (PENDING, REJECTED)` a `APPLIED` con la revisión aceptada; si la propuesta ya era `APPLIED` no se reescribe (`changed: false`, misma revisión). Solo la invocan los servicios de aplicación y rechazo cuando un recibo o un ACK aceptado prueba el cambio.
+- Corrección de Fase 6 (antes de aplicar o compartir la migración): se añadieron `operation` y `diagnostics` (`JSONB NOT NULL`) a la misma migración `20261110170000_add_mentor_proposals`, regenerada con `prisma migrate diff`; el CHECK `MentorProposal_resolution_check` no cambia y admite `REJECTED → APPLIED` porque solo restringe la combinación final de estado y resolución.
 - Creación: `buildNewMentorProposal` convierte comando resuelto, vista previa, identidad autorizada e instrucción en el registro persistible. Una vista previa inválida, un diff vacío o una instrucción fuera de 1..500 no producen propuesta.
 - No se incluye `mentorInteractionId` en v1: CU-2P-05 no entrega ese identificador y no se modifica su recorder.
 - Verificación PostgreSQL: `prisma-mentor-proposal.store.integration.test.ts` (DB-01 a DB-13, más el CHECK y el `Restrict` de usuario) sigue la convención del repositorio (`process.loadEnvFile(".env")`). En la PC donde se implementó no hay `backend/.env` ni PostgreSQL, por lo que la migración no se aplicó y esas pruebas quedan pendientes; el SQL se generó con `prisma migrate diff` desde el esquema anterior y se revisó.
@@ -199,8 +212,9 @@ model MentorProposal {
 | — | 404 | Sin acceso, proyecto inexistente o propuesta de otro proyecto |
 | — | 400 | Cuerpo inválido según el DTO (`instruction` ausente, vacía, > 500, propiedades extra) |
 | — | 503 | Generación estructurada no disponible (Fase 7), como en CU-2P-01, 04 y 05 |
+| — | 500 | `MentorProposalDataError` (JSON persistido corrupto): cuerpo genérico, sin JSON, campo, traza ni error de Prisma |
 
-El cuerpo de error sigue el patrón de CU-2P-07: `{ statusCode, error, code, message }`, más `diagnostics` públicos cuando correspondan. Los contratos puros solo fijan los códigos; el mapeo HTTP pertenece al controlador.
+El cuerpo de error sigue el patrón de CU-2P-07: `{ statusCode, error, code, message }`, más `diagnostics` públicos en `INVALID_PROPOSAL` (`toMentorProposalHttpException`). `NOT_FOUND` usa el 404 estándar, idéntico al de un proyecto sin acceso, para no revelar si la propuesta existe en otro proyecto. Los contratos puros solo fijan los códigos; el mapeo HTTP pertenece al controlador.
 
 ### Relación con CU-2P-05
 

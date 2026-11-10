@@ -7,7 +7,7 @@ import type { ProjectOperationAck } from "../realtime/realtime.contracts";
 import type { MentorProposalDiagnostic } from "./mentor-proposal.contracts";
 import { toMentorProposalDiagnostic } from "./mentor-proposal-preview";
 import { MentorProposalDataError } from "./mentor-proposal-stored-json";
-import { MENTOR_PROPOSAL_STORE, type MentorProposalStore, type MentorProposalTransitionResult, type StoredMentorProposal } from "./mentor-proposal-store";
+import { MENTOR_PROPOSAL_STORE, type MentorProposalReconciliationResult, type MentorProposalStore, type MentorProposalTransitionResult, type StoredMentorProposal } from "./mentor-proposal-store";
 
 export const MENTOR_PROPOSAL_CLOCK = Symbol("MENTOR_PROPOSAL_CLOCK");
 
@@ -29,6 +29,9 @@ function applied(result: MentorProposalTransitionResult & { ok: true }): Applied
 
 // Applies a confirmed proposal. The only UML write path is ProjectOperationService.apply with operationId = proposal.id,
 // the persisted baseRevision and the persisted command; this service never writes the project document itself.
+//
+// An accepted ProjectOperationReceipt is the authoritative truth: whenever it exists the proposal ends APPLIED, even
+// if a concurrent reject reached REJECTED first (store.reconcileAcceptedOperation). The UML change is never reverted.
 //
 // Order: requireEdit → load (projectId, proposalId) → state check → receipt reconciliation → apply → broadcast →
 // persist APPLIED. A proposal is read only after authorization, so its existence never leaks to unauthorized callers.
@@ -58,7 +61,11 @@ export class MentorProposalApplicationService {
     const proposal = await this.store.findByProjectAndId(projectId, proposalId);
     if (!proposal) return failure("NOT_FOUND");
     if (proposal.status === "APPLIED") return failure("PROPOSAL_ALREADY_APPLIED");
-    if (proposal.status === "REJECTED") return failure("PROPOSAL_REJECTED");
+    if (proposal.status === "REJECTED") {
+      // A rejection that lost a race against an accepted operation is corrected from the receipt; otherwise terminal.
+      const accepted = await this.operations.findAcceptedOperation(projectId, proposal.id);
+      return accepted ? this.reconcile(proposal, accepted) : failure("PROPOSAL_REJECTED");
+    }
 
     // Recovery: a receipt for proposal.id proves the authoritative operation already happened (e.g. the process died
     // before persisting APPLIED). Persist it from the receipt and never re-execute; a different actor's retry would also
@@ -85,16 +92,22 @@ export class MentorProposalApplicationService {
   private async persistApplied(proposal: StoredMentorProposal, userId: string, ack: ProjectOperationAck): Promise<ApplyMentorProposalResult> {
     const marked = await this.store.markApplied({ projectId: proposal.projectId, proposalId: proposal.id, resolvedByUserId: userId, resolvedAt: this.now(), resultingRevision: ack.revision });
     if (marked.ok) return { ok: true, proposal: applied(marked), ack, reconciled: false };
-    if (marked.reason === "PROPOSAL_REJECTED") {
-      this.logger.warn(JSON.stringify({ stage: "mentor-proposal:apply", errorCode: "REJECTED_AFTER_APPLY", message: "The proposal was rejected concurrently after its operation was accepted." }));
-    }
-    return failure(marked.reason);
+    if (marked.reason !== "PROPOSAL_REJECTED") return failure(marked.reason);
+    // A concurrent reject won between apply and markApplied, but this ACK proves the model changed: correct it.
+    this.logger.warn(JSON.stringify({ stage: "mentor-proposal:apply", errorCode: "REJECTED_AFTER_APPLY", message: "A concurrent rejection was reconciled to APPLIED from the accepted operation." }));
+    return this.fromReconciliation(await this.store.reconcileAcceptedOperation({ projectId: proposal.projectId, proposalId: proposal.id, acceptedByUserId: userId, acceptedAt: this.now(), resultingRevision: ack.revision }), ack);
   }
 
   // The resolver recorded is the actor who actually applied the operation, as stored in the receipt.
   private async reconcile(proposal: StoredMentorProposal, recorded: AcceptedProjectOperation): Promise<ApplyMentorProposalResult> {
-    const marked = await this.store.markApplied({ projectId: proposal.projectId, proposalId: proposal.id, resolvedByUserId: recorded.actorUserId, resolvedAt: recorded.acceptedAt, resultingRevision: recorded.resultingRevision });
-    if (!marked.ok) return failure(marked.reason);
-    return { ok: true, proposal: applied(marked), ack: recorded.ack, reconciled: true };
+    const result = await this.store.reconcileAcceptedOperation({ projectId: proposal.projectId, proposalId: proposal.id, acceptedByUserId: recorded.actorUserId, acceptedAt: recorded.acceptedAt, resultingRevision: recorded.resultingRevision });
+    return this.fromReconciliation(result, recorded.ack);
+  }
+
+  // A reconciliation that finds the proposal already APPLIED (changed: false) means another call persisted it first.
+  private fromReconciliation(result: MentorProposalReconciliationResult, ack: ProjectOperationAck): ApplyMentorProposalResult {
+    if (!result.ok) return failure(result.reason);
+    if (!result.changed) return failure("PROPOSAL_ALREADY_APPLIED");
+    return { ok: true, proposal: result.proposal, ack, reconciled: true };
   }
 }

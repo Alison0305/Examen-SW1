@@ -1,82 +1,15 @@
 import { ForbiddenException, NotFoundException } from "@nestjs/common";
-import { createProjectDocument, primitiveType, type ProjectDocument } from "@examen-sw1/uml-core";
-import type { MentorProposal as MentorProposalRow, ProjectOperationReceipt } from "@prisma/client";
+import { primitiveType, type ProjectDocument } from "@examen-sw1/uml-core";
 import { describe, expect, it, vi } from "vitest";
-import type { PrismaService } from "../prisma/prisma.service";
 import { ProjectOperationService } from "../realtime/project-operation.service";
 import type { ProjectOperationAck } from "../realtime/realtime.contracts";
 import { MentorProposalApplicationService } from "./mentor-proposal-application.service";
-import { previewMentorProposal } from "./mentor-proposal-preview";
-import { resolveMentorProposal } from "./mentor-proposal-resolver";
-import { buildNewMentorProposal, type MentorProposalStore } from "./mentor-proposal-store";
+import type { MentorProposalStore } from "./mentor-proposal-store";
+import { ATTRIBUTE_ID, AUTHOR, CLIENTE_ID, EDITOR_B, memoryDatabase, newProposal, OTHER_PROJECT_ID, PROJECT_ID, PROPOSAL_ID, RECEIPT_AT, VIEWER } from "./mentor-proposal.test-support";
 import { PrismaMentorProposalStore } from "./prisma-mentor-proposal.store";
 
-const PROJECT_ID = "00000000-0000-4000-8000-0000000000f1";
-const OTHER_PROJECT_ID = "00000000-0000-4000-8000-0000000000f2";
 const FORBIDDEN_PROJECT_ID = "00000000-0000-4000-8000-0000000000f3";
-const AUTHOR = { id: "00000000-0000-4000-8000-0000000000b1", email: "autora@example.test" };
-const EDITOR_B = { id: "00000000-0000-4000-8000-0000000000b2", email: "editor@example.test" };
-const VIEWER = { id: "00000000-0000-4000-8000-0000000000b3", email: "viewer@example.test" };
-const PROPOSAL_ID = "00000000-0000-4000-8000-0000000000c1";
-const CLIENTE_ID = "00000000-0000-4000-8000-000000000010";
-const ATTRIBUTE_ID = "00000000-0000-4000-8000-0000000000a1";
-const CREATED_AT = new Date("2026-11-10T12:00:00.000Z");
 const APPLIED_AT = new Date("2026-11-10T12:05:00.000Z");
-const RECEIPT_AT = new Date("2026-11-10T12:04:00.000Z");
-
-function projectDocument(): ProjectDocument {
-  const document = createProjectDocument({ id: "00000000-0000-4000-8000-000000000001", now: new Date("2026-11-10T00:00:00.000Z") });
-  document.revision = 10;
-  document.uml.classes.push({ id: CLIENTE_ID, name: "Cliente", visibility: "public", attributes: [{ id: "00000000-0000-4000-8000-000000000011", name: "nombre", visibility: "private", type: primitiveType("string") }], operations: [] });
-  document.layout.elements.push({ elementId: CLIENTE_ID, x: 0, y: 0 });
-  return document;
-}
-
-// In-memory stand-in for the Prisma delegates used by the real ProjectOperationService and PrismaMentorProposalStore.
-// updateMany honours its where clause (conditional SQL UPDATE); receipts are only written by an accepted operation.
-function memoryDatabase() {
-  const project = { id: PROJECT_ID, revision: 10, document: JSON.parse(JSON.stringify(projectDocument())) as Record<string, unknown> };
-  const receipts: ProjectOperationReceipt[] = [];
-  const proposals: MentorProposalRow[] = [];
-  const matches = (row: Record<string, unknown>, where: Record<string, unknown>) => Object.entries(where).every(([key, value]) => row[key] === value);
-  const receiptFor = (where: { projectId_operationId: { projectId: string; operationId: string } }) => receipts.find((entry) => entry.projectId === where.projectId_operationId.projectId && entry.operationId === where.projectId_operationId.operationId);
-  const client = {
-    project: {
-      findUnique: async ({ where }: { where: { id: string } }) => (where.id === project.id ? structuredClone(project) : null),
-      updateMany: async ({ where, data }: { where: { id: string; revision: number }; data: { document: Record<string, unknown>; revision: { increment: number } } }) => {
-        if (where.id !== project.id || where.revision !== project.revision) return { count: 0 };
-        project.document = structuredClone(data.document);
-        project.revision += data.revision.increment;
-        return { count: 1 };
-      },
-    },
-    projectOperationReceipt: {
-      findUnique: async ({ where }: { where: { projectId_operationId: { projectId: string; operationId: string } } }) => structuredClone(receiptFor(where) ?? null),
-      deleteMany: async () => ({ count: 0 }),
-      create: async ({ data }: { data: Omit<ProjectOperationReceipt, "id" | "createdAt"> }) => {
-        const row = { id: `receipt-${receipts.length + 1}`, createdAt: RECEIPT_AT, ...structuredClone(data) } as ProjectOperationReceipt;
-        receipts.push(row);
-        return row;
-      },
-    },
-    mentorProposal: {
-      create: async ({ data }: { data: Omit<MentorProposalRow, "resolvedAt" | "resolvedByUserId" | "resultingRevision"> }) => {
-        const row = { resolvedAt: null, resolvedByUserId: null, resultingRevision: null, ...structuredClone(data) } as MentorProposalRow;
-        proposals.push(row);
-        return structuredClone(row);
-      },
-      findFirst: async ({ where }: { where: Record<string, unknown> }) => structuredClone(proposals.find((row) => matches(row, where)) ?? null),
-      updateMany: async ({ where, data }: { where: Record<string, unknown>; data: Partial<MentorProposalRow> }) => {
-        const targets = proposals.filter((row) => matches(row, where));
-        targets.forEach((row) => Object.assign(row, data));
-        return { count: targets.length };
-      },
-    },
-    $transaction: async <T>(operation: (tx: unknown) => Promise<T>) => operation(client),
-  };
-  const attributes = () => ((project.document.uml as ProjectDocument["uml"]).classes[0]?.attributes ?? []).map((attribute) => attribute.id);
-  return { prisma: client as unknown as PrismaService, project, receipts, proposals, attributes };
-}
 
 async function setup(options: { failMarkAppliedOnce?: boolean } = {}) {
   const db = memoryDatabase();
@@ -99,18 +32,13 @@ async function setup(options: { failMarkAppliedOnce?: boolean } = {}) {
       if (failures > 0) { failures -= 1; throw new Error("interrupción simulada"); }
       return prismaStore.markApplied(input);
     },
+    reconcileAcceptedOperation: vi.fn((input: Parameters<MentorProposalStore["reconcileAcceptedOperation"]>[0]) => prismaStore.reconcileAcceptedOperation(input)),
   };
   const broadcaster = { broadcastAccepted: vi.fn((ack: ProjectOperationAck) => void ack) };
   const service = new MentorProposalApplicationService(access as never, store, operations, broadcaster, () => APPLIED_AT);
+  const created = await prismaStore.create(newProposal());
 
-  const document = projectDocument();
-  const resolved = resolveMentorProposal(document, { operation: "ADD_ATTRIBUTE", className: "Cliente", attributeName: "teléfono", attributeType: "String" }, { uuidFactory: () => ATTRIBUTE_ID });
-  if (!resolved.ok) throw new Error("se esperaba una resolución correcta");
-  const built = buildNewMentorProposal({ projectId: PROJECT_ID, author: { userId: AUTHOR.id, email: AUTHOR.email }, instruction: "Agrega el atributo teléfono de tipo String a Cliente", command: resolved.command, preview: previewMentorProposal(document, resolved.command) }, { uuidFactory: () => PROPOSAL_ID, nowFactory: () => CREATED_AT });
-  if (!built.ok) throw new Error("se esperaba una propuesta");
-  const created = await prismaStore.create(built.proposal);
-
-  return { db, access, operations, applySpy, store, broadcaster, service, created, command: resolved.command };
+  return { db, access, operations, applySpy, store, broadcaster, service, created, command: created.command };
 }
 
 const expectedAck = (command: unknown): ProjectOperationAck => ({ operationId: PROPOSAL_ID, projectId: PROJECT_ID, revision: 11, command: command as ProjectOperationAck["command"] });
@@ -303,8 +231,8 @@ describe("MentorProposalApplicationService", () => {
     expect(broadcaster.broadcastAccepted).not.toHaveBeenCalled();
   });
 
-  it("si la propuesta se rechaza concurrentemente tras ACCEPTED, la mutación ya se emitió y se informa PROPOSAL_REJECTED", async () => {
-    const { service, store, broadcaster, operations } = await setup();
+  it("RC-04 si la propuesta se rechaza concurrentemente tras ACCEPTED, se corrige REJECTED → APPLIED con la revisión del ACK", async () => {
+    const { service, store, broadcaster, operations, db } = await setup();
     const original = operations.apply.bind(operations);
     vi.spyOn(operations, "apply").mockImplementationOnce(async (userId, dto) => {
       const ack = await original(userId, dto);
@@ -312,7 +240,24 @@ describe("MentorProposalApplicationService", () => {
       return ack;
     });
 
-    expect(await service.apply(PROJECT_ID, PROPOSAL_ID, AUTHOR)).toEqual({ ok: false, code: "PROPOSAL_REJECTED", diagnostics: [] });
+    const result = await service.apply(PROJECT_ID, PROPOSAL_ID, AUTHOR);
+
+    expect(result).toMatchObject({ ok: true, reconciled: true, proposal: { status: "APPLIED", resultingRevision: 11, resolvedByUserId: AUTHOR.id } });
+    expect(store.reconcileAcceptedOperation).toHaveBeenCalledTimes(1);
+    expect(db.proposals[0]).toMatchObject({ status: "APPLIED", resultingRevision: 11 });
+    expect(db.project.revision).toBe(11);
     expect(broadcaster.broadcastAccepted).toHaveBeenCalledTimes(1);
+  });
+
+  it("una propuesta REJECTED con recibo aceptado se reconcilia como APPLIED al intentar aplicarla, sin reejecutar", async () => {
+    const { db, service, store, applySpy, broadcaster, command } = await setup();
+    await store.reject({ projectId: PROJECT_ID, proposalId: PROPOSAL_ID, resolvedByUserId: EDITOR_B.id, resolvedAt: APPLIED_AT });
+    db.addReceipt(AUTHOR.id, expectedAck(command));
+
+    const result = await service.apply(PROJECT_ID, PROPOSAL_ID, EDITOR_B);
+
+    expect(result).toMatchObject({ ok: true, reconciled: true, proposal: { status: "APPLIED", resolvedByUserId: AUTHOR.id, resultingRevision: 11 } });
+    expect(applySpy).not.toHaveBeenCalled();
+    expect(broadcaster.broadcastAccepted).not.toHaveBeenCalled();
   });
 });

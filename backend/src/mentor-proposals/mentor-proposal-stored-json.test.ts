@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MentorProposalDataError, parseStoredMentorProposalCommand, parseStoredMentorProposalSummary } from "./mentor-proposal-stored-json";
+import { MentorProposalDataError, parseStoredMentorProposalCommand, parseStoredMentorProposalDiagnostics, parseStoredMentorProposalOperation, parseStoredMentorProposalSummary } from "./mentor-proposal-stored-json";
 
 const CLASS_ID = "00000000-0000-4000-8000-000000000010";
 const ATTRIBUTE_ID = "00000000-0000-4000-8000-0000000000a1";
@@ -95,5 +95,49 @@ describe("parseStoredMentorProposalSummary", () => {
     expectDataError(() => parseStoredMentorProposalSummary([{ ...line, label: " " }]), "summary[0]");
     expectDataError(() => parseStoredMentorProposalSummary([{ ...line, id: ATTRIBUTE_ID }]), "summary[0]");
     expectDataError(() => parseStoredMentorProposalSummary(["Cliente.teléfono: string"]), "summary[0]");
+  });
+});
+
+describe("parseStoredMentorProposalOperation", () => {
+  const operation = { kind: "ADD_ATTRIBUTE", target: { className: "Cliente" }, change: { attributeName: "teléfono", attributeType: "string" } };
+
+  it("acepta la operación pública, con y sin multiplicidad canónica", () => {
+    expect(parseStoredMentorProposalOperation(operation)).toEqual(operation);
+    const withMultiplicity = { ...operation, change: { ...operation.change, multiplicity: "0..*" } };
+    expect(parseStoredMentorProposalOperation(withMultiplicity)).toEqual(withMultiplicity);
+  });
+
+  it("rechaza otra operación, claves extra o faltantes y UUID", () => {
+    expectDataError(() => parseStoredMentorProposalOperation({ ...operation, kind: "DELETE_CLASS" }), "operation.kind");
+    expectDataError(() => parseStoredMentorProposalOperation({ ...operation, command: {} }), "operation");
+    expectDataError(() => parseStoredMentorProposalOperation({ kind: "ADD_ATTRIBUTE", target: { className: "Cliente" } }), "operation");
+    expectDataError(() => parseStoredMentorProposalOperation({ ...operation, target: { className: "Cliente", classId: CLASS_ID } }), "operation.target");
+    expectDataError(() => parseStoredMentorProposalOperation({ ...operation, target: { className: CLASS_ID } }), "operation.target");
+    expectDataError(() => parseStoredMentorProposalOperation({ ...operation, change: { ...operation.change, attributeId: ATTRIBUTE_ID } }), "operation.change");
+    expectDataError(() => parseStoredMentorProposalOperation({ ...operation, change: { ...operation.change, attributeName: ATTRIBUTE_ID } }), "operation.change.attributeName");
+  });
+
+  it("rechaza tipos y multiplicidades no canónicos", () => {
+    expectDataError(() => parseStoredMentorProposalOperation({ ...operation, change: { ...operation.change, attributeType: "String" } }), "operation.change.attributeType");
+    for (const multiplicity of ["1..1", "5..2", "*", "muchos", 1]) {
+      expectDataError(() => parseStoredMentorProposalOperation({ ...operation, change: { ...operation.change, multiplicity } }), "operation.change.multiplicity");
+    }
+  });
+});
+
+describe("parseStoredMentorProposalDiagnostics", () => {
+  const diagnostic = { code: "UML_DUPLICATE_NAME", severity: "warning", message: "Duplicado." };
+
+  it("acepta diagnósticos públicos y la lista vacía", () => {
+    expect(parseStoredMentorProposalDiagnostics([diagnostic])).toEqual([diagnostic]);
+    expect(parseStoredMentorProposalDiagnostics([])).toEqual([]);
+  });
+
+  it("rechaza path, elementId, severidades desconocidas e identificadores en el mensaje", () => {
+    expectDataError(() => parseStoredMentorProposalDiagnostics(diagnostic), "diagnostics");
+    expectDataError(() => parseStoredMentorProposalDiagnostics([{ ...diagnostic, path: "classes[0]" }]), "diagnostics[0]");
+    expectDataError(() => parseStoredMentorProposalDiagnostics([{ ...diagnostic, elementId: CLASS_ID }]), "diagnostics[0]");
+    expectDataError(() => parseStoredMentorProposalDiagnostics([{ ...diagnostic, severity: "fatal" }]), "diagnostics[0]");
+    expectDataError(() => parseStoredMentorProposalDiagnostics([diagnostic, { ...diagnostic, message: `Elemento ${CLASS_ID}` }]), "diagnostics[1]");
   });
 });

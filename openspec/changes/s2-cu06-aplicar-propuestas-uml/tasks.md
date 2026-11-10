@@ -31,8 +31,10 @@
 
 ## 6. API y autorización
 
-- [ ] 6.1 Exponer crear, detalle, aplicar y rechazar con `JwtAuthGuard`, `ParseUUIDPipe`, DTO de `instruction` sin propiedades extra y `requireEdit`; verificar 403 para VIEWER, 404 sin acceso o con propuesta de otro proyecto y los códigos 409/422.
-- [ ] 6.2 Verificar que crear y leer el detalle no modifican el documento, que el detalle de una propuesta obsoleta conserva el diff y reporta `STALE_PROPOSAL`, y que rechazar no modifica el modelo.
+- [x] 6.0 Corregir la persistencia antes de exponer la API: snapshots `operation` y `diagnostics` (`JSONB NOT NULL`) en la misma migración no aplicada, con parsers estrictos sin UUID, y la transición excepcional `reconcileAcceptedOperation` (`PENDING`/`REJECTED` → `APPLIED`, idempotente sobre `APPLIED`) usada por aplicación y rechazo cuando un recibo o ACK aceptado prueba el cambio.
+- [x] 6.1 Exponer detalle, aplicar y rechazar con `JwtAuthGuard`, `ParseUUIDPipe` y `requireEdit`, sin leer cuerpo en apply/reject, con `MentorProposalsModule` registrado en `AppModule`; verificar con HTTP (Fastify + supertest, módulo real con bordes reemplazados) 200 para OWNER y EDITOR, 403 VIEWER, 404 sin acceso o con propuesta de otro proyecto, 409/422 con códigos públicos, 400 por IDs inválidos, 401 sin JWT, payload sin datos internos, cuerpo ignorado y 500 genérico ante datos corruptos. La creación (`POST .../proposals`) con su DTO de `instruction` se hará en la Fase 7.
+- [x] 6.2 Verificar que leer el detalle no modifica el documento y usa solo snapshots, que una propuesta `PENDING` obsoleta conserva el diff y reporta `STALE_PROPOSAL`, que los estados terminales conservan su vista previa, y que rechazar no modifica el modelo (RC-01 a RC-06 y Q-01 a Q-09).
+- [ ] 6.3 Ejecutar contra PostgreSQL las pruebas actualizadas con `operation`, `diagnostics` y la reconciliación `REJECTED → APPLIED` (DB-14, incluido el CHECK). Pendiente junto con 4.4 y 5.4 por falta de `backend/.env` y PostgreSQL en esta PC.
 
 ## 7. Generación estructurada
 

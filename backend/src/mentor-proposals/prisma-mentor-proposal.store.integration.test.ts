@@ -21,7 +21,9 @@ const proposal = (overrides: Partial<NewMentorProposal> = {}): NewMentorProposal
   instruction: "Agrega el atributo teléfono de tipo String a Cliente",
   baseRevision: 10,
   command: { type: "AddAttribute", classId: CLASS_ID, attributeId: ATTRIBUTE_ID, name: "teléfono", attributeType: { kind: "primitive", name: "string" }, multiplicity: { lower: 0, upper: "unbounded" } },
+  operation: { kind: "ADD_ATTRIBUTE", target: { className: "Cliente" }, change: { attributeName: "teléfono", attributeType: "string", multiplicity: "0..*" } },
   summary: [{ kind: "added", element: "attribute", label: "Cliente.teléfono: string [0..*]" }],
+  diagnostics: [],
   createdAt: CREATED_AT,
   ...overrides,
 });
@@ -141,6 +143,14 @@ describe("MentorProposal PostgreSQL persistence", () => {
     await store.reject({ projectId: PROJECT_ID, proposalId: PROPOSAL_ID, resolvedByUserId: RESOLVER_ID, resolvedAt: RESOLVED_AT });
     const row = await prisma.mentorProposal.findUniqueOrThrow({ where: { id: PROPOSAL_ID } });
     expect(row.resultingRevision).toBeNull();
+  });
+
+  it("DB-14 la reconciliación autoritativa lleva REJECTED a APPLIED respetando el CHECK y no reescribe APPLIED", async () => {
+    await store.create(proposal());
+    await store.reject({ projectId: PROJECT_ID, proposalId: PROPOSAL_ID, resolvedByUserId: RESOLVER_ID, resolvedAt: RESOLVED_AT });
+    const reconciled = await store.reconcileAcceptedOperation({ projectId: PROJECT_ID, proposalId: PROPOSAL_ID, acceptedByUserId: AUTHOR_ID, acceptedAt: RESOLVED_AT, resultingRevision: 11 });
+    expect(reconciled).toMatchObject({ ok: true, changed: true, proposal: { status: "APPLIED", resolvedByUserId: AUTHOR_ID, resultingRevision: 11 } });
+    expect(await store.reconcileAcceptedOperation({ projectId: PROJECT_ID, proposalId: PROPOSAL_ID, acceptedByUserId: RESOLVER_ID, acceptedAt: RESOLVED_AT, resultingRevision: 12 })).toMatchObject({ ok: true, changed: false, proposal: { resultingRevision: 11 } });
   });
 
   it("DB-13 borrar el proyecto elimina sus propuestas; un usuario con propuestas no puede borrarse", async () => {

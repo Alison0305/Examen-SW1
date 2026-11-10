@@ -56,7 +56,7 @@ describe("MentorProposal application through ProjectOperationService (PostgreSQL
     const document = projectDocument();
     const resolved = resolveMentorProposal(document, { operation: "ADD_ATTRIBUTE", className: "Cliente", attributeName: "teléfono", attributeType: "String" }, { uuidFactory: () => ATTRIBUTE_ID });
     if (!resolved.ok) throw new Error("se esperaba una resolución correcta");
-    const built = buildNewMentorProposal({ projectId: PROJECT_ID, author: { userId: OWNER.id, email: OWNER.email }, instruction: "Agrega el atributo teléfono de tipo String a Cliente", command: resolved.command, preview: previewMentorProposal(document, resolved.command) }, { uuidFactory: () => PROPOSAL_ID });
+    const built = buildNewMentorProposal({ projectId: PROJECT_ID, author: { userId: OWNER.id, email: OWNER.email }, instruction: "Agrega el atributo teléfono de tipo String a Cliente", command: resolved.command, operation: resolved.operation, preview: previewMentorProposal(document, resolved.command) }, { uuidFactory: () => PROPOSAL_ID });
     if (!built.ok) throw new Error("se esperaba una propuesta");
     await store.create(built.proposal);
     return { service, broadcaster };

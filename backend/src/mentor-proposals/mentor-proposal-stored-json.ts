@@ -3,9 +3,13 @@ import {
   MENTOR_PROPOSAL_DIFF_ELEMENTS,
   MENTOR_PROPOSAL_DIFF_KINDS,
   type AddAttributeProposalCommand,
+  type AddAttributeProposalOperation,
   type MentorProposalCommand,
+  type MentorProposalDiagnostic,
   type MentorProposalDiffLine,
+  type MentorProposalOperation,
 } from "./mentor-proposal.contracts";
+import { formatMentorProposalMultiplicity, parseMentorProposalMultiplicity } from "./mentor-proposal-multiplicity";
 
 // Persisted JSON is never trusted with a cast: the database must not become a way around the allow-list.
 // Parsers are strict (exact keys, exact types) and throw MentorProposalDataError, which callers map to a safe 500.
@@ -68,12 +72,61 @@ export function parseStoredMentorProposalCommand(value: unknown): MentorProposal
   return command;
 }
 
+// Public, name-based snapshots must never carry internal ids.
+const ANY_UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+const isPublicText = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0 && !ANY_UUID.test(value);
+
+// Only the canonical text produced by formatMentorProposalMultiplicity ("1", "0..1", "0..*", "2..5").
+function isCanonicalMultiplicityText(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const parsed = parseMentorProposalMultiplicity(value);
+  return parsed !== undefined && formatMentorProposalMultiplicity(parsed) === value;
+}
+
+export function parseStoredMentorProposalOperation(value: unknown): MentorProposalOperation {
+  if (!isRecord(value) || !hasExactKeys(value, ["kind", "target", "change"])) throw new MentorProposalDataError("operation");
+  if (value.kind !== "ADD_ATTRIBUTE") throw new MentorProposalDataError("operation.kind");
+  const { target, change } = value;
+  if (!isRecord(target) || !hasExactKeys(target, ["className"]) || !isPublicText(target.className)) throw new MentorProposalDataError("operation.target");
+  if (!isRecord(change) || !hasExactKeys(change, ["attributeName", "attributeType"], ["multiplicity"])) throw new MentorProposalDataError("operation.change");
+  if (!isPublicText(change.attributeName)) throw new MentorProposalDataError("operation.change.attributeName");
+  if (!(UML_PRIMITIVE_TYPES as readonly unknown[]).includes(change.attributeType)) throw new MentorProposalDataError("operation.change.attributeType");
+  if ("multiplicity" in change && !isCanonicalMultiplicityText(change.multiplicity)) throw new MentorProposalDataError("operation.change.multiplicity");
+
+  const operation: AddAttributeProposalOperation = {
+    kind: "ADD_ATTRIBUTE",
+    target: { className: target.className },
+    change: {
+      attributeName: change.attributeName,
+      attributeType: change.attributeType as string,
+      ...("multiplicity" in change ? { multiplicity: change.multiplicity as string } : {}),
+    },
+  };
+  return operation;
+}
+
+function isDiagnostic(value: unknown): value is MentorProposalDiagnostic {
+  return isRecord(value)
+    && hasExactKeys(value, ["code", "severity", "message"])
+    && isPublicText(value.code)
+    && (value.severity === "error" || value.severity === "warning")
+    && typeof value.message === "string" && !ANY_UUID.test(value.message);
+}
+
+export function parseStoredMentorProposalDiagnostics(value: unknown): readonly MentorProposalDiagnostic[] {
+  if (!Array.isArray(value)) throw new MentorProposalDataError("diagnostics");
+  return value.map((diagnostic, index) => {
+    if (!isDiagnostic(diagnostic)) throw new MentorProposalDataError(`diagnostics[${index}]`);
+    return { code: diagnostic.code, severity: diagnostic.severity, message: diagnostic.message };
+  });
+}
+
 function isDiffLine(value: unknown): value is MentorProposalDiffLine {
   return isRecord(value)
     && hasExactKeys(value, ["kind", "element", "label"])
     && (MENTOR_PROPOSAL_DIFF_KINDS as readonly unknown[]).includes(value.kind)
     && (MENTOR_PROPOSAL_DIFF_ELEMENTS as readonly unknown[]).includes(value.element)
-    && typeof value.label === "string" && value.label.trim().length > 0;
+    && isPublicText(value.label);
 }
 
 export function parseStoredMentorProposalSummary(value: unknown): readonly MentorProposalDiffLine[] {

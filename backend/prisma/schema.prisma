@@ -75,7 +75,9 @@ model MentorProposal {
   baseRevision      Int
   status            MentorProposalStatus @default(PENDING)
   command           Json
+  operation         Json
   summary           Json
+  diagnostics       Json
   createdAt         DateTime             @default(now())
   resolvedAt        DateTime?
   resolvedByUserId  String?              @db.Uuid

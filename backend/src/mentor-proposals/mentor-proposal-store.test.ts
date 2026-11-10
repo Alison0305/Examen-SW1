@@ -30,7 +30,7 @@ function buildFromPreview(document = documentFixture(), instruction = "  Agrega 
   const resolved = resolveMentorProposal(document, { operation: "ADD_ATTRIBUTE", className: "Cliente", attributeName: "teléfono", attributeType: "String" }, { uuidFactory: () => ATTRIBUTE_ID });
   if (!resolved.ok) throw new Error("se esperaba una resolución correcta");
   const preview = previewMentorProposal(document, resolved.command);
-  const built = buildNewMentorProposal({ projectId: PROJECT_ID, author: { userId: AUTHOR_ID, email: "autora@example.test" }, instruction, command: resolved.command, preview }, { uuidFactory: () => PROPOSAL_ID, nowFactory: () => CREATED_AT });
+  const built = buildNewMentorProposal({ projectId: PROJECT_ID, author: { userId: AUTHOR_ID, email: "autora@example.test" }, instruction, command: resolved.command, operation: resolved.operation, preview }, { uuidFactory: () => PROPOSAL_ID, nowFactory: () => CREATED_AT });
   return { resolved, preview, built };
 }
 
@@ -44,7 +44,10 @@ function newProposal(): NewMentorProposal {
 function fakePrisma() {
   const rows: MentorProposalRow[] = [];
   const calls: { method: string; args: unknown }[] = [];
-  const matches = (row: MentorProposalRow, where: Record<string, unknown>) => Object.entries(where).every(([key, value]) => row[key as keyof MentorProposalRow] === value);
+  const matches = (row: MentorProposalRow, where: Record<string, unknown>) => Object.entries(where).every(([key, value]) => {
+    if (value && typeof value === "object" && "in" in value) return (value as { in: unknown[] }).in.includes(row[key as keyof MentorProposalRow]);
+    return row[key as keyof MentorProposalRow] === value;
+  });
   const delegate = {
     create: async (args: { data: Omit<MentorProposalRow, "resolvedAt" | "resolvedByUserId" | "resultingRevision"> }) => {
       calls.push({ method: "create", args });
@@ -93,11 +96,21 @@ describe("buildNewMentorProposal", () => {
         instruction: "Agrega el atributo teléfono de tipo String a Cliente",
         baseRevision: 10,
         command: resolved.ok && resolved.command,
+        operation: { kind: "ADD_ATTRIBUTE", target: { className: "Cliente" }, change: { attributeName: "teléfono", attributeType: "string" } },
         summary: [{ kind: "added", element: "attribute", label: "Cliente.teléfono: string" }],
+        diagnostics: [],
         createdAt: CREATED_AT,
       },
     });
     expect(built.ok && built.proposal).not.toHaveProperty("status");
+  });
+
+  it("persiste exactamente operation, diff y diagnostics de la resolución y el preview", () => {
+    const { resolved, preview, built } = buildFromPreview();
+    if (!resolved.ok || !preview.ok || !built.ok) throw new Error("se esperaba una propuesta");
+    expect(built.proposal.operation).toEqual(resolved.operation);
+    expect(built.proposal.summary).toEqual(preview.diff);
+    expect(built.proposal.diagnostics).toEqual(preview.diagnostics);
   });
 
   it("un preview inválido no produce ninguna propuesta", () => {
@@ -123,7 +136,7 @@ describe("PrismaMentorProposalStore (doble en memoria)", () => {
 
     expect(stored.status).toBe("PENDING");
     const data = (calls[0]!.args as { data: Record<string, unknown> }).data;
-    expect(Object.keys(data).sort()).toEqual(["authorEmail", "authorUserId", "baseRevision", "command", "createdAt", "id", "instruction", "projectId", "status", "summary"]);
+    expect(Object.keys(data).sort()).toEqual(["authorEmail", "authorUserId", "baseRevision", "command", "createdAt", "diagnostics", "id", "instruction", "operation", "projectId", "status", "summary"]);
     expect(data.status).toBe("PENDING");
   });
 
@@ -190,6 +203,32 @@ describe("PrismaMentorProposalStore (doble en memoria)", () => {
     expect(await store.findByProjectAndId(PROJECT_ID, PROPOSAL_ID)).toMatchObject({ status: "APPLIED", resultingRevision: 11 });
   });
 
+  it("reconcileAcceptedOperation lleva PENDING o REJECTED a APPLIED y es idempotente sobre APPLIED", async () => {
+    const pending = fakePrisma();
+    const pendingStore = new PrismaMentorProposalStore(pending.prisma);
+    const created = await pendingStore.create(newProposal());
+    const accepted = { projectId: PROJECT_ID, proposalId: PROPOSAL_ID, acceptedByUserId: RESOLVER_ID, acceptedAt: RESOLVED_AT, resultingRevision: 11 };
+
+    expect(await pendingStore.reconcileAcceptedOperation(accepted)).toEqual({ ok: true, changed: true, proposal: { ...created, status: "APPLIED", resolvedAt: RESOLVED_AT, resolvedByUserId: RESOLVER_ID, resultingRevision: 11 } });
+    const again = await pendingStore.reconcileAcceptedOperation({ ...accepted, resultingRevision: 99, acceptedByUserId: AUTHOR_ID });
+    expect(again).toMatchObject({ ok: true, changed: false, proposal: { resultingRevision: 11, resolvedByUserId: RESOLVER_ID } });
+
+    const rejected = fakePrisma();
+    const rejectedStore = new PrismaMentorProposalStore(rejected.prisma);
+    await rejectedStore.create(newProposal());
+    await rejectedStore.reject({ projectId: PROJECT_ID, proposalId: PROPOSAL_ID, resolvedByUserId: AUTHOR_ID, resolvedAt: RESOLVED_AT });
+    expect(await rejectedStore.reconcileAcceptedOperation(accepted)).toMatchObject({ ok: true, changed: true, proposal: { status: "APPLIED", resolvedByUserId: RESOLVER_ID, resultingRevision: 11 } });
+    expect(rejected.calls.filter((call) => call.method === "updateMany").at(-1)!.args).toEqual({ where: { id: PROPOSAL_ID, projectId: PROJECT_ID, status: { in: ["PENDING", "REJECTED"] } }, data: { status: "APPLIED", resolvedAt: RESOLVED_AT, resolvedByUserId: RESOLVER_ID, resultingRevision: 11 } });
+  });
+
+  it("reconcileAcceptedOperation no encuentra propuestas de otro proyecto", async () => {
+    const { prisma } = fakePrisma();
+    const store = new PrismaMentorProposalStore(prisma);
+    await store.create(newProposal());
+    expect(await store.reconcileAcceptedOperation({ projectId: OTHER_PROJECT_ID, proposalId: PROPOSAL_ID, acceptedByUserId: RESOLVER_ID, acceptedAt: RESOLVED_AT, resultingRevision: 11 })).toEqual({ ok: false, reason: "NOT_FOUND" });
+    expect((await store.findByProjectAndId(PROJECT_ID, PROPOSAL_ID))?.status).toBe("PENDING");
+  });
+
   it("una transición sobre otro proyecto o un id inexistente es NOT_FOUND y no cambia nada", async () => {
     const { prisma, rows } = fakePrisma();
     const store = new PrismaMentorProposalStore(prisma);
@@ -205,7 +244,7 @@ describe("PrismaMentorProposalStore (doble en memoria)", () => {
 describe("toStoredMentorProposal", () => {
   const row = (overrides: Partial<MentorProposalRow> = {}): MentorProposalRow => {
     const proposal = newProposal();
-    return { ...proposal, command: proposal.command as never, summary: proposal.summary as never, status: "PENDING", resolvedAt: null, resolvedByUserId: null, resultingRevision: null, ...overrides };
+    return { ...proposal, command: proposal.command as never, operation: proposal.operation as never, summary: proposal.summary as never, diagnostics: proposal.diagnostics as never, status: "PENDING", resolvedAt: null, resolvedByUserId: null, resultingRevision: null, ...overrides };
   };
 
   it("valida la invariante entre estado y campos de resolución", () => {
@@ -215,6 +254,11 @@ describe("toStoredMentorProposal", () => {
     expect(() => toStoredMentorProposal(row({ status: "REJECTED", resolvedAt: RESOLVED_AT, resolvedByUserId: RESOLVER_ID, resultingRevision: 11 }))).toThrow(MentorProposalDataError);
     expect(() => toStoredMentorProposal(row({ status: "APPLIED", resolvedAt: RESOLVED_AT, resolvedByUserId: RESOLVER_ID }))).toThrow(MentorProposalDataError);
     expect(toStoredMentorProposal(row({ status: "APPLIED", resolvedAt: RESOLVED_AT, resolvedByUserId: RESOLVER_ID, resultingRevision: 11 }))).toMatchObject({ status: "APPLIED", resultingRevision: 11 });
+  });
+
+  it("falla de forma controlada ante operation o diagnostics corruptos en la base", () => {
+    expect(() => toStoredMentorProposal(row({ operation: { kind: "DELETE_CLASS" } as never }))).toThrow(MentorProposalDataError);
+    expect(() => toStoredMentorProposal(row({ diagnostics: [{ code: "X", severity: "fatal", message: "m" }] as never }))).toThrow(MentorProposalDataError);
   });
 
   it("falla de forma controlada ante command o summary corruptos en la base", () => {
