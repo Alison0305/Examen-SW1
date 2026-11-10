@@ -5,7 +5,7 @@
 - CU-10 (XMI e imagen → UML) cerrado, aceptado y archivado en `openspec/changes/archive/2026-11-08-cu-10-xmi-imagen-uml/`.
 - Ningún CU activo. El siguiente es CU-11, el último del roadmap; todavía no tiene plan ni OpenSpec.
 - CU-2P-01 Mentor IA contextual con Qwen está completado, aceptado e integrado en `main`; OpenSpec archivado en `openspec/changes/archive/2026-11-09-s2-cu01-mentor-contextual/`.
-- CU-2P-02 de `feat/s2-cu02-identidad-mentor` está completado y aceptado; OpenSpec archivado en `openspec/changes/archive/2026-11-09-s2-cu02-identidad-mentor/`. La identidad Mentor proviene del JWT, `ProjectAccessService.requireView` mantiene la autorización y el recorder recibe identidad segura. Anti-suplantación verificada; userId, email y rol siguen fuera del prompt Qwen. No incluye memoria ni historial (CU-03/CU-07).
+- CU-2P-02 de `feat/s2-cu02-identidad-mentor` está completado y aceptado; OpenSpec archivado en `openspec/changes/archive/2026-11-09-s2-cu02-identidad-mentor/`. La identidad Mentor proviene del JWT, `ProjectAccessService.requireView` mantiene la autorización y el recorder recibe identidad segura. Anti-suplantación verificada; userId, email y rol siguen fuera del prompt Qwen.
 
 ## Entorno
 
@@ -22,10 +22,11 @@
 
 ## CU-2P-03
 
-- Rama: `feat/s2-cu03-memoria-contextual`; OpenSpec activo `s2-cu03-memoria-contextual`.
+- Cerrado y aceptado; PR #10 fusionado en `main`, issue #3 cerrado automáticamente y merge commit `150e629`.
+- OpenSpec archivado en `openspec/changes/archive/2026-11-09-s2-cu03-memoria-contextual/`; specs principales sincronizadas.
 - Migración `20261109170000_add_mentor_interactions` aplicada. Memoria Prisma por proyecto, compartida entre usuarios autorizados y con autoría persistida.
-- Límites: 6 interacciones, 1.200 caracteres por campo y 6.000 totales; revisiones anteriores llevan `isStale`.
-- Gates focalizados, PostgreSQL, suite raíz y build correctos; prueba manual de conversación, reinicio y advertencia stale aprobada. Pendiente autorrevisión y flujo de cierre.
+- Límites: 6 interacciones, 1.200 caracteres por campo y 6.000 totales; revisiones anteriores llevan `isStale` y una advertencia visible determinista.
+- Gates: 29/29 focalizadas, integración PostgreSQL entre instancias, suite raíz y build correctos. Prueba manual aprobada: persiste tras reinicio y se aísla entre proyectos.
 
 ## Siguiente Acción
 

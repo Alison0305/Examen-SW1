@@ -4,13 +4,13 @@
 
 ### Segundo Parcial
 
-**CU activo del segundo parcial:** CU-2P-03 - Persistir y recuperar memoria contextual del Mentor IA.
+**CU activo del segundo parcial:** ninguno.
 
-**Último CU cerrado del segundo parcial:** CU-2P-02 - Identificar al desarrollador y personalizar la mentoría.
+**Último CU cerrado del segundo parcial:** CU-2P-03 - Persistir y recuperar memoria contextual del Mentor IA.
 
 Este track académico es independiente del roadmap histórico CU-00...CU-11. No renumera ni modifica el estado del primer parcial.
 
-CU-2P-03 está activo: persistencia PostgreSQL y memoria contextual por proyecto implementadas; 29/29 focalizadas e integración PostgreSQL correctas. Suite raíz y build correctos. Prueba manual aprobada; pendiente autorrevisión, commit, push, PR, aceptación y archive.
+CU-2P-03 está cerrado y aceptado: PR #10 fusionado en `main`, issue #3 cerrado automáticamente y merge commit `150e629`. OpenSpec archivado en `openspec/changes/archive/2026-11-09-s2-cu03-memoria-contextual/`; specs principales sincronizadas. Persistencia PostgreSQL y memoria contextual por proyecto implementadas; 29/29 focalizadas e integración PostgreSQL correctas. Suite raíz y build correctos. Prueba manual aprobada: la memoria persiste tras reiniciar backend, se aísla entre proyectos y antecedentes de revisiones UML anteriores muestran una advertencia visible.
 
 ### Primer Parcial
 
@@ -126,6 +126,7 @@ El correctivo CU-06 está completo en 9/9. Con el proyecto `Prueba CU06 Backend`
 - `openspec/changes/archive/2026-09-12-cu-04-landing-proyectos-membresias-invitaciones/`
 - `openspec/changes/archive/2026-09-18-cu-08-frontend-generado-asistentes-texto/`
 - `openspec/changes/archive/2026-11-08-cu-10-xmi-imagen-uml/`
+- `openspec/changes/archive/2026-11-09-s2-cu03-memoria-contextual/`
 
 ## Specs Principales
 
@@ -140,6 +141,8 @@ El correctivo CU-06 está completo en 9/9. Con el proyecto `Prueba CU06 Backend`
 - `openspec/specs/uml-fragment-import/spec.md`
 - `openspec/specs/xmi-interop/spec.md`
 - `openspec/specs/image-uml-recognition/spec.md`
+- `openspec/specs/project-contextual-mentor/spec.md`
+- `openspec/specs/mentor-interaction-memory/spec.md`
 
 ## Cierre De CU-01
 
