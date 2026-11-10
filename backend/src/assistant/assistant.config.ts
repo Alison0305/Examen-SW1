@@ -11,7 +11,8 @@ export type AssistantConfig = Readonly<{
 }>;
 
 const GPU_MODES: readonly AssistantGpuMode[] = ["auto", "vulkan", "cuda", "cpu"];
-const DEFAULT_TIMEOUT_MS = 30_000;
+// Local Qwen inference may legitimately exceed 30 seconds on CPU; callers stay pending until this server-side bound.
+const DEFAULT_TIMEOUT_MS = 120_000;
 const DEFAULT_MAX_QUEUE = 5;
 const CONTEXT_SIZE = 4096;
 const MAX_OUTPUT_TOKENS = 256;

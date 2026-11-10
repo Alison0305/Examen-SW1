@@ -1,7 +1,9 @@
 import { existsSync } from "node:fs";
+import { Logger } from "@nestjs/common";
 import type { LocalTextModelRequest } from "@examen-sw1/assistant-core";
 import type { GbnfJsonSchema, Llama, LlamaContext, LlamaContextSequence, LlamaJsonSchemaGrammar, LlamaModel } from "node-llama-cpp";
 import { LocalModelError, type StructuredGenerationEngine, type TextGenerationRequest } from "./local-text-model";
+import { parseSingleJsonObject } from "./structured-json";
 
 type NodeLlamaCpp = typeof import("node-llama-cpp");
 type JsonGrammar = LlamaJsonSchemaGrammar<GbnfJsonSchema>;
@@ -24,6 +26,7 @@ type LoadedRuntime = Readonly<{ lib: NodeLlamaCpp; llama: Llama; model: LlamaMod
 const GRAMMAR_CACHE_LIMIT = 16;
 
 export class NodeLlamaCppEngine implements StructuredGenerationEngine {
+  private readonly logger = new Logger(NodeLlamaCppEngine.name);
   private loading: Promise<LoadedRuntime> | undefined;
   private readonly grammars = new Map<string, Promise<JsonGrammar>>();
 
@@ -42,8 +45,10 @@ export class NodeLlamaCppEngine implements StructuredGenerationEngine {
 
   async generate(request: LocalTextModelRequest, signal: AbortSignal): Promise<unknown> {
     if (signal.aborted) throw new LocalModelError("TIMEOUT");
+    this.logger.log("recommendation:engine-start");
     const runtime = await this.load();
     const grammar = await this.grammarFor(runtime, request.schema);
+    this.logger.log("recommendation:grammar-ready");
     const session = new runtime.lib.LlamaChatSession({
       contextSequence: runtime.sequence,
       systemPrompt: request.systemPrompt,
@@ -52,10 +57,20 @@ export class NodeLlamaCppEngine implements StructuredGenerationEngine {
     });
     try {
       // Greedy decoding (temperature 0) and no thought tokens: only the constrained JSON is generated.
-      const text = await session.prompt(request.userPrompt, { grammar, temperature: 0, maxTokens: this.config.maxTokens, budgets: { thoughtTokens: 0 }, signal });
+      const maxTokens = request.maxTokens ?? this.config.maxTokens;
+      const result = await session.promptWithMeta(request.userPrompt, { grammar, temperature: 0, maxTokens, budgets: { thoughtTokens: 0 }, signal });
+      const text = result.responseText;
       try {
-        return grammar.parse(text);
-      } catch {
+        const json = parseSingleJsonObject(text);
+        if (!json) {
+          this.logger.warn(JSON.stringify({ stage: "recommendation:json-extraction", errorName: "LocalModelError", errorCode: "INVALID_OUTPUT", message: "The model response did not contain one JSON object." }));
+          throw new LocalModelError("INVALID_OUTPUT");
+        }
+        const parsed = grammar.parse(JSON.stringify(json));
+        this.logger.log("recommendation:grammar-parse-ok");
+        return parsed;
+      } catch (error) {
+        if (!(error instanceof LocalModelError)) this.logger.warn(JSON.stringify({ stage: "recommendation:grammar-parse", errorName: error instanceof Error ? error.name : typeof error, errorCode: "INVALID_OUTPUT", message: "The JSON object did not match the constrained schema." }));
         throw new LocalModelError("INVALID_OUTPUT");
       }
     } finally {

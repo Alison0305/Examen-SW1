@@ -86,6 +86,58 @@ describe("cliente API y sesión", () => {
     expect(fetcher.mock.calls[0][1].body).toBe(JSON.stringify({ question: "Describe Cliente" }));
   });
 
+  it("solicita recomendaciones del Mentor mediante la ruta del proyecto activo", async () => {
+    const fetcher = vi.fn().mockResolvedValue({ status: 201, ok: true, json: vi.fn().mockResolvedValue({ status: "READ_ONLY", problem: "ok", alternatives: ["ok"], rationale: "ok", limitations: "ok", confidence: 1, needsClarification: false, requiresUmlChange: false, projectRevision: 2 }) });
+    const client = createApiClient({ getToken: () => "secret-token", onUnauthorized: vi.fn(), fetcher, apiBaseUrl: "http://api.test" });
+
+    await client.recommendMentor("project id", "¿Cómo separar frontend y backend?");
+
+    expect(fetcher).toHaveBeenCalledWith("http://api.test/projects/project%20id/mentor/recommendations", expect.objectContaining({ method: "POST" }));
+    expect((fetcher.mock.calls[0][1].headers as Headers).get("Authorization")).toBe("Bearer secret-token");
+    expect(fetcher.mock.calls[0][1].body).toBe(JSON.stringify({ question: "¿Cómo separar frontend y backend?" }));
+  });
+
+  it("reintenta una vez una recomendación tras un fallo de transporte", async () => {
+    const response = { status: "READ_ONLY", problem: "ok", alternatives: ["ok"], rationale: "Razón completa.", limitations: "ok", confidence: 1, needsClarification: false, requiresUmlChange: false, projectRevision: 2 };
+    const fetcher = vi.fn().mockRejectedValueOnce(new TypeError("NetworkError")).mockResolvedValueOnce({ status: 201, ok: true, json: vi.fn().mockResolvedValue(response) });
+    const delayedRetry = vi.fn().mockResolvedValue(undefined);
+    const client = createApiClient({ getToken: () => "secret-token", onUnauthorized: vi.fn(), fetcher, apiBaseUrl: "http://api.test", waitForRetry: delayedRetry });
+
+    await expect(client.recommendMentor("project-1", "Recomendación")).resolves.toEqual(response);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(delayedRetry).toHaveBeenCalledOnce();
+  });
+
+  it("no reintenta recomendaciones que reciben 4xx o 503", async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce({ status: 503, ok: false, json: vi.fn().mockResolvedValue({ message: "No disponible" }) })
+      .mockResolvedValueOnce({ status: 400, ok: false, json: vi.fn().mockResolvedValue({ message: "Inválida" }) });
+    const client = createApiClient({ getToken: () => "secret-token", onUnauthorized: vi.fn(), fetcher, apiBaseUrl: "http://api.test" });
+
+    await expect(client.recommendMentor("project-1", "Recomendación")).rejects.toMatchObject({ status: 503 });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    await expect(client.recommendMentor("project-1", "Recomendación")).rejects.toMatchObject({ status: 400 });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it("limita a un retry los fallos de transporte de recomendaciones", async () => {
+    const fetcher = vi.fn().mockRejectedValue(new TypeError("NetworkError"));
+    const client = createApiClient({ getToken: () => "secret-token", onUnauthorized: vi.fn(), fetcher, apiBaseUrl: "http://api.test", waitForRetry: vi.fn().mockResolvedValue(undefined) });
+
+    await expect(client.recommendMentor("project-1", "Recomendación")).rejects.toThrow("NetworkError");
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it("no reintenta una cancelación AbortError porque no puede distinguirse de una navegación intencional", async () => {
+    const fetcher = vi.fn().mockRejectedValue(new DOMException("The request was aborted.", "AbortError"));
+    const delayedRetry = vi.fn().mockResolvedValue(undefined);
+    const client = createApiClient({ getToken: () => "secret-token", onUnauthorized: vi.fn(), fetcher, apiBaseUrl: "http://api.test", waitForRetry: delayedRetry });
+
+    await expect(client.recommendMentor("project-1", "Recomendación")).rejects.toMatchObject({ name: "AbortError" });
+    expect(fetcher).toHaveBeenCalledOnce();
+    expect(delayedRetry).not.toHaveBeenCalled();
+  });
+
   it("envía Content-Type solo en solicitudes con JSON y conserva DELETE sin body", async () => {
     const fetcher = vi.fn()
       .mockResolvedValueOnce({ status: 204, ok: true })
