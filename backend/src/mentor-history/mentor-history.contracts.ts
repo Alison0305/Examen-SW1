@@ -57,11 +57,15 @@ export type MentorHistoryPage = Readonly<{
   nextCursor: string | null;
 }>;
 
+// Result of MentorHistoryService.list once access was granted: the page, or the deterministic query error (mapped to
+// HTTP by the controller). Missing access is not a result: requireView throws its existing NotFoundException.
+export type MentorHistoryListResult = Readonly<{ ok: true; page: MentorHistoryPage }> | Readonly<{ ok: false; error: MentorHistoryQueryError }>;
+
 // CU-2P-06 has no proposal model yet: no proposal state is exposed here. When CU-2P-06 provides its source of truth,
 // the item gains its state from there; CU-2P-07 does not invent fields, tables or placeholder values for it.
 
 // ---------------------------------------------------------------------------------------------
-// Persistence port (implemented in the next phase)
+// Persistence port (implemented by PrismaMentorHistoryReader)
 
 // Fields of a `MentorInteraction` row that the history may read. `userId`, `accessRole`, `projectRevision` and
 // `grounded` are deliberately absent: they never reach the public DTO.

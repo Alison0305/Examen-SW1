@@ -12,8 +12,8 @@
 
 ## 3. Servicio y autorización
 
-- [ ] 3.1 Implementar `MentorHistoryService`: `requireView` con el usuario del JWT antes de leer, consulta normalizada y página pública.
-- [ ] 3.2 Pruebas: OWNER, EDITOR, VIEWER, usuario ajeno y proyecto inexistente (404 sin leer) y funcionamiento sin modelo local.
+- [x] 3.1 Implementar `MentorHistoryService.list(projectId, userId, rawQuery)`: `requireView` → `parseMentorHistoryQuery` → `MENTOR_HISTORY_READER`, con resultado `MentorHistoryListResult`, y `MentorHistoryModule` mínimo (importa solo `ProjectsPersistenceModule`; reader Prisma detrás del puerto; sin `AssistantModule`, sin controlador y aún sin registrar en `AppModule`).
+- [x] 3.2 Pruebas: orden observable, consulta inválida sin lectura, 404 propagado sin lectura (también con consulta malformada), fallo del reader propagado, historial vacío, wiring/DI del módulo y, con PostgreSQL y `ProjectAccessService` reales, OWNER, EDITOR y VIEWER ven el historial compartido, usuario externo y proyecto inexistente reciben 404 sin lectura, y funcionamiento sin `ASSISTANT_MODEL_PATH` (29 pruebas).
 
 ## 4. Controlador y DTO HTTP
 

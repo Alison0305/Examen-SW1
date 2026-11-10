@@ -81,6 +81,17 @@ Búsqueda literal (medido en la fase 2): Prisma 6.19 traduce `contains` a `ILIKE
 
 Orden de UUID (medido): Prisma genera `UuidFilter` con `lt` para `id @db.Uuid`, y en PostgreSQL `ORDER BY id DESC` coincide con el orden lexicográfico de la representación canónica en minúsculas, también con ids que solo difieren en el último grupo y cruzan la frontera dígito/letra. El keyset `(occurredAt, id)` se conserva sin cambios.
 
+### Servicio y autorización
+
+`MentorHistoryService.list(projectId, userId, rawQuery)` solo orquesta, en este orden: `ProjectAccessService.requireView` → `parseMentorHistoryQuery` → `MENTOR_HISTORY_READER.page`. `projectId` y `userId` llegan de fuentes confiables (parámetro de ruta y JWT); `rawQuery` es la entrada HTTP sin confiar.
+
+- Autorizar primero: sin acceso se propaga la `NotFoundException` existente de `requireView` (proyecto inexistente y usuario ajeno no se distinguen), aunque la consulta también sea inválida, y no se lee nada del historial.
+- Con acceso, una consulta inválida devuelve `{ ok: false, error }` (`MentorHistoryListResult`) sin llamar al reader; el controlador la traducirá a 400.
+- Los errores del reader se propagan; nunca se convierten en una página vacía.
+- No hay lógica de roles en el servicio: OWNER, EDITOR y VIEWER los decide `requireView`.
+
+`MentorHistoryModule` importa solo `ProjectsPersistenceModule` (exporta el `ProjectAccessService` compartido; `AuthModule` llega de forma transitiva desde ahí) y usa el `PrismaService` del `PrismaModule` global. Registra `PrismaMentorHistoryReader`, `MENTOR_HISTORY_READER` con `useExisting` y el servicio. No importa `AssistantModule`; se registra en `AppModule` junto con el controlador.
+
 ### Cursor fuera de su contexto
 
 El cursor no lleva `projectId` ni el texto de búsqueda, y no se añaden:

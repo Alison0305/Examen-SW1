@@ -83,9 +83,9 @@ describe("independencia del módulo", () => {
     }
   });
 
-  it("ningún archivo del módulo, incluido el reader Prisma, importa Qwen ni el asistente", () => {
+  it("ningún archivo del módulo (reader, servicio y módulo Nest incluidos) importa Qwen, el asistente ni el Mentor", () => {
     const files = readdirSync(__dirname).filter((name) => name.endsWith(".ts") && !name.endsWith(".test.ts"));
-    expect(files).toEqual(expect.arrayContaining([...PURE_FILES, "prisma-mentor-history.reader.ts"]));
-    for (const file of files) expect(readFileSync(join(__dirname, file), "utf8"), file).not.toMatch(/from "(\.\.\/assistant|\.\.\/mentor-analysis|\.\.\/mentor\/local-qwen|node-llama-cpp)/);
+    expect(files).toEqual(expect.arrayContaining([...PURE_FILES, "prisma-mentor-history.reader.ts", "mentor-history.service.ts", "mentor-history.module.ts"]));
+    for (const file of files) expect(readFileSync(join(__dirname, file), "utf8"), file).not.toMatch(/from "(\.\.\/assistant|\.\.\/mentor-analysis|\.\.\/mentor\/|\.\.\/vision|\.\.\/speech|node-llama-cpp|@huggingface)/);
   });
 });
