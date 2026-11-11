@@ -54,6 +54,7 @@ Navegador ─HTTPS─► frontend  (Next.js, frontend/Dockerfile)
    - **`FRONTEND_ORIGIN`** hace referencia al dominio del servicio `frontend` del paso 3. Si todavía no existe, déjala para el final.
    - **`ASSISTANT_PRELOAD=true`** carga Qwen al arrancar, para que la primera consulta no espere a la carga del modelo.
    - Las rutas de los modelos (`ASSISTANT_MODEL_PATH`, `VISION_MODEL_PATH`, `SPEECH_MODEL_PATH`) las fija el script de arranque. No las definas salvo que quieras otros modelos.
+   - **`ASSISTANT_THREADS`** (opcional): hilos de inferencia de Qwen. Si no la defines, el script la calcula con la cuota de CPU del contenedor, con un máximo de 8, y lo escribe en el log (`[ia] hilos de inferencia: …`). Al cargar el modelo, el backend registra `assistant:model-loaded` con los núcleos que ve y los hilos que usa. Sin fijar los hilos, node-llama-cpp usa uno por núcleo detectado, y en la nube puede detectar todos los núcleos del servidor físico: la inferencia se vuelve tan lenta que agota el tiempo.
 6. **Health check:** déjalo vacío en el primer despliegue. El primer arranque descarga cerca de 1,5 GB antes de abrir el puerto. Cuando el servicio esté activo, puedes poner *Healthcheck Path* `/health`.
 
 ## Paso 3. Frontend
@@ -100,7 +101,8 @@ Navegador ─HTTPS─► frontend  (Next.js, frontend/Dockerfile)
 | El navegador bloquea las peticiones por CORS, o el WebSocket no conecta | `FRONTEND_ORIGIN` no es exactamente `https://<dominio-frontend>` | Corrígela, sin `/` final, y vuelve a desplegar el backend |
 | El contenedor se reinicia por memoria (OOM) | El plan o la instancia no tienen RAM suficiente | Plan Hobby; si persiste, `ASSISTANT_PRELOAD=false` y `VISION_PRELOAD=false` |
 | «Faltan las variables de entorno obligatorias JWT_SECRET y JWT_EXPIRES_IN» | Variables sin definir | Añádelas en el backend |
-| El Mentor responde que no está disponible o agota el tiempo | La inferencia en CPU supera `ASSISTANT_TIMEOUT_MS`, que vale 120 000 en la imagen | Sube el valor con la variable o espera a que termine la carga del modelo |
+| El Mentor responde que no está disponible y el log muestra `"errorCode":"TIMEOUT"` | La inferencia en CPU supera `ASSISTANT_TIMEOUT_MS` (120 000 en la imagen). Visto en Railway el 2026-11-11 con los hilos sin fijar | Revisa `[ia] hilos de inferencia` y `assistant:model-loaded` en el log; prueba `ASSISTANT_THREADS` con 2, 4 u 8; si sigue lento, sube `ASSISTANT_TIMEOUT_MS` |
+| El Mentor responde que no está disponible y el log muestra `NOT_CONFIGURED` o `MODEL_NOT_FOUND` | El modelo no está en `/models` | Revisa el volumen y que `[models] modelos listos en /models` aparezca al arrancar |
 
 ## Rendimiento medido (prueba local en contenedor, 2026-11-11)
 

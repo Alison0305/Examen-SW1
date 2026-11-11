@@ -23,7 +23,8 @@
 ## 3. Railway
 
 - [x] 3.1 Guía `docs/deploy/railway.md`: servicios, volumen, variables, dominios, orden de despliegue y verificación.
-- [ ] 3.2 Despliegue en Railway (plan Hobby) con PostgreSQL, backend con volumen y frontend; dominios HTTPS.
+- [x] 3.2 Despliegue en Railway (plan Hobby) con PostgreSQL, backend con volumen y frontend; dominios HTTPS. Backend en línea el 2026-11-11: `/health` responde 200 con certificado válido y Socket.IO ofrece WebSocket.
+- [ ] 3.4 Corregir los `TIMEOUT` de Qwen en Railway: la consulta del Mentor y la creación de propuestas agotaban los 120 s (`mentor-proposal:structured-generation` con `TIMEOUT`), cuando en la prueba local en contenedor tardaban unos 20 s. Causa probable: node-llama-cpp usaba un hilo por núcleo detectado y, en la nube, el contenedor puede ver todos los núcleos del servidor físico. Hecho en código: `ASSISTANT_THREADS` opcional (`maxThreads` en `getLlama` y `threads` en `createContext`; sin la variable, el comportamiento local no cambia), cálculo automático en `docker-entrypoint.sh` con la cuota de `cpu.max` y tope de 8, y log `assistant:model-loaded` con núcleos e hilos. Pruebas unitarias y simulación de `cpu.max`. Pendiente: redesplegar y medir en Railway.
 - [ ] 3.3 Verificación en la nube: dos navegadores, Mentor IA, voz e imagen; latencia medida y documentada.
 
 ## 4. Cierre

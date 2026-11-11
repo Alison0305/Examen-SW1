@@ -10,7 +10,7 @@ export const ASSISTANT_LOCAL_MODEL = Symbol("ASSISTANT_LOCAL_MODEL");
 function createLocalModel(): QueuedLocalTextModel | undefined {
   const config = getAssistantConfig();
   if (!config.modelPath) return undefined;
-  const engine = new NodeLlamaCppEngine({ modelPath: config.modelPath, gpu: config.gpu, contextSize: config.contextSize, maxTokens: config.maxTokens });
+  const engine = new NodeLlamaCppEngine({ modelPath: config.modelPath, gpu: config.gpu, contextSize: config.contextSize, maxTokens: config.maxTokens, threads: config.threads });
   return new QueuedLocalTextModel(engine, { timeoutMs: config.timeoutMs, maxQueue: config.maxQueue });
 }
 

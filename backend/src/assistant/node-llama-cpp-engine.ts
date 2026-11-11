@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { availableParallelism, cpus } from "node:os";
 import { Logger } from "@nestjs/common";
 import type { LocalTextModelRequest } from "@examen-sw1/assistant-core";
 import type { GbnfJsonSchema, Llama, LlamaContext, LlamaContextSequence, LlamaJsonSchemaGrammar, LlamaModel } from "node-llama-cpp";
@@ -19,6 +20,8 @@ export type NodeLlamaCppEngineConfig = Readonly<{
   gpu: AssistantGpuMode;
   contextSize: number;
   maxTokens: number;
+  // Fixed number of inference threads (ASSISTANT_THREADS); undefined keeps the library default.
+  threads?: number;
 }>;
 
 type LoadedRuntime = Readonly<{ lib: NodeLlamaCpp; llama: Llama; model: LlamaModel; context: LlamaContext; sequence: LlamaContextSequence }>;
@@ -126,9 +129,12 @@ export class NodeLlamaCppEngine implements StructuredGenerationEngine {
       throw new LocalModelError("RUNTIME_NOT_AVAILABLE");
     }
     try {
-      const llama = await lib.getLlama({ gpu: this.config.gpu === "cpu" ? false : this.config.gpu });
+      const threads = this.config.threads;
+      const llama = await lib.getLlama({ gpu: this.config.gpu === "cpu" ? false : this.config.gpu, ...(threads ? { maxThreads: threads } : {}) });
       const model = await llama.loadModel({ modelPath: this.config.modelPath });
-      const context = await model.createContext({ contextSize: this.config.contextSize });
+      const context = await model.createContext({ contextSize: this.config.contextSize, ...(threads ? { threads } : {}) });
+      // Diagnostics only (no path or prompt): cores seen by the process versus inference threads actually used.
+      this.logger.log(JSON.stringify({ stage: "assistant:model-loaded", gpu: llama.gpu === false ? "cpu" : llama.gpu, cpus: cpus().length, availableParallelism: availableParallelism(), configuredThreads: threads ?? null, threads: context.currentThreads }));
       return { lib, llama, model, context, sequence: context.getSequence() };
     } catch {
       throw new LocalModelError("RUNTIME_NOT_AVAILABLE", "No se pudo cargar el modelo local con el runtime configurado.");

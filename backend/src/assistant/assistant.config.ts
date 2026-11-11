@@ -8,6 +8,9 @@ export type AssistantConfig = Readonly<{
   preload: boolean;
   contextSize: number;
   maxTokens: number;
+  // Inference threads (ASSISTANT_THREADS); undefined keeps the node-llama-cpp default, one per detected core. In a
+  // container the detected cores can be the whole host while the CPU quota is far lower, which slows inference badly.
+  threads: number | undefined;
 }>;
 
 const GPU_MODES: readonly AssistantGpuMode[] = ["auto", "vulkan", "cuda", "cpu"];
@@ -32,5 +35,6 @@ export function getAssistantConfig(env: NodeJS.ProcessEnv = process.env): Assist
     preload: env.ASSISTANT_PRELOAD?.trim().toLowerCase() === "true",
     contextSize: CONTEXT_SIZE,
     maxTokens: MAX_OUTPUT_TOKENS,
+    threads: positiveInteger(env.ASSISTANT_THREADS, 0) || undefined,
   };
 }

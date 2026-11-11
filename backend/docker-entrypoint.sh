@@ -42,6 +42,28 @@ if [ -z "${ASSISTANT_MODEL_PATH:-}" ] && [ -s "$QWEN_FILE" ]; then export ASSIST
 if [ -z "${VISION_MODEL_PATH:-}" ] && [ -d "$FLORENCE_DIR/onnx" ]; then export VISION_MODEL_PATH="$FLORENCE_DIR"; fi
 if [ -z "${SPEECH_MODEL_PATH:-}" ] && [ -d "$VOSK_DIR" ]; then export SPEECH_MODEL_PATH="$VOSK_DIR"; fi
 
+# Hilos de inferencia de Qwen. Sin fijarlos, node-llama-cpp usa un hilo por núcleo detectado, y en la nube el
+# contenedor puede ver todos los núcleos del servidor físico aunque su cuota de CPU sea mucho menor: la inferencia se
+# vuelve muy lenta. Si ASSISTANT_THREADS no está definida, se calcula con la cuota del cgroup (cpu.max) o, si no hay
+# cuota, con los núcleos disponibles; siempre entre 1 y ASSISTANT_MAX_AUTO_THREADS (8 por defecto).
+if [ -z "${ASSISTANT_THREADS:-}" ]; then
+  cores="$(nproc 2>/dev/null || echo 1)"
+  quota="$(cut -d' ' -f1 /sys/fs/cgroup/cpu.max 2>/dev/null || echo max)"
+  period="$(cut -d' ' -f2 /sys/fs/cgroup/cpu.max 2>/dev/null || echo 100000)"
+  if [ "$quota" != "max" ] && [ -n "$quota" ] && [ "${period:-0}" -gt 0 ] 2>/dev/null; then
+    threads=$(( (quota + period - 1) / period ))
+  else
+    threads="$cores"
+  fi
+  limit="${ASSISTANT_MAX_AUTO_THREADS:-8}"
+  [ "$threads" -gt "$limit" ] && threads="$limit"
+  [ "$threads" -lt 1 ] && threads=1
+  export ASSISTANT_THREADS="$threads"
+  echo "[ia] hilos de inferencia: $ASSISTANT_THREADS (núcleos visibles: $cores, cuota cpu.max: $quota $period)"
+else
+  echo "[ia] hilos de inferencia: $ASSISTANT_THREADS (definidos en la plataforma)"
+fi
+
 # La base de datos puede tardar en aceptar conexiones (primer arranque o reinicio de la plataforma): se reintenta
 # durante DB_MIGRATE_RETRIES × 5 s antes de rendirse.
 echo "[db] aplicando migraciones"
