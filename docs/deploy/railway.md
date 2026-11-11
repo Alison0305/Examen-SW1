@@ -30,12 +30,13 @@ Navegador ─HTTPS─► frontend  (Next.js, frontend/Dockerfile)
 ## Paso 2. Backend
 
 1. Usa el servicio que ya existe, conectado al repositorio. En **Settings** renómbralo a `backend`.
-2. **Settings → Source:** rama `main`, con *Root Directory* vacío, que equivale a la raíz del repositorio.
+2. **Settings → Source:** la rama que se despliega (`main`, o `feat/despliegue-railway` mientras el despliegue está en prueba), con *Root Directory* vacío, que equivale a la raíz del repositorio.
 3. **Volumen:** clic derecho sobre el servicio → **Attach Volume**, con *Mount path* `/models`.
-4. **Settings → Networking → Generate Domain.** Railway asigna el puerto automáticamente mediante `PORT`.
+4. **Settings → Networking → Generate Domain,** con el puerto **3001**, el mismo que `PORT` en las variables.
 5. **Variables** (pestaña *Variables* → *Raw Editor*):
 
    ```env
+   PORT=3001
    RAILWAY_DOCKERFILE_PATH=backend/Dockerfile
    DATABASE_URL=${{Postgres.DATABASE_URL}}
    JWT_SECRET=<pega aquí un secreto aleatorio largo>
@@ -58,11 +59,12 @@ Navegador ─HTTPS─► frontend  (Next.js, frontend/Dockerfile)
 ## Paso 3. Frontend
 
 1. **+ New → GitHub Repo →** el mismo repositorio. Renombra el servicio a `frontend`.
-2. **Settings → Source:** rama `main` y *Root Directory* vacío.
-3. **Settings → Networking → Generate Domain.**
+2. **Settings → Source:** la misma rama que el backend, con *Root Directory* vacío.
+3. **Settings → Networking → Generate Domain,** con el puerto **3000**.
 4. **Variables:**
 
    ```env
+   PORT=3000
    RAILWAY_DOCKERFILE_PATH=frontend/Dockerfile
    NEXT_PUBLIC_API_BASE_URL=https://${{backend.RAILWAY_PUBLIC_DOMAIN}}
    ```
