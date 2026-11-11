@@ -19,6 +19,15 @@ export class ProjectChatController {
     return result.message;
   }
 
+  // Explicit Mentor actions (RECOMMENDATION for every member, PROPOSAL for OWNER and EDITOR). 201 with the human message;
+  // the result (answer, proposal card or notice) is published by the server in the project room.
+  @Post(":id/chat/actions")
+  async action(@Req() request: AuthenticatedRequest, @Param("id", new ParseUUIDPipe()) projectId: string, @Body() rawBody: unknown): Promise<ProjectChatPublicMessage> {
+    const result = await this.chat.postAction(projectId, authenticated(request), rawBody);
+    if (!result.ok) throw badRequest(result.error);
+    return result.message;
+  }
+
   @Get(":id/chat/messages")
   async list(@Req() request: AuthenticatedRequest, @Param("id", new ParseUUIDPipe()) projectId: string, @Query() rawQuery: unknown): Promise<ProjectChatPage> {
     const result = await this.chat.list(projectId, authenticated(request), rawQuery);

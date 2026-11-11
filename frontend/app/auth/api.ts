@@ -153,6 +153,21 @@ export type MentorProposalHistoryItem = {
 export type MentorProposalHistoryList = { items: MentorProposalHistoryItem[] };
 // Only `limit` (1..50); without it the backend uses CU-2P-06's default of 20.
 export type MentorProposalHistoryParams = { limit?: number };
+// CU-2P-08: public message of the project chat. `author` is null for the Mentor IA and for notices; a PROPOSAL message
+// carries the id of a CU-2P-06 proposal and its diff as text. Never user ids, roles or internal UML ids.
+export type ProjectChatMessageKind = "USER" | "MENTOR" | "NOTICE" | "PROPOSAL";
+export type ProjectChatMessage = {
+  id: string;
+  kind: ProjectChatMessageKind;
+  author: { email: string } | null;
+  body: string;
+  replyToId: string | null;
+  proposalId: string | null;
+  createdAt: string;
+};
+export type ProjectChatPage = { items: ProjectChatMessage[]; nextCursor: string | null };
+export type ProjectChatParams = { limit?: number; cursor?: string };
+export type ProjectChatAction = "RECOMMENDATION" | "PROPOSAL";
 export type VisionRecognition = {
   proposal: import("@examen-sw1/uml-core").UmlImportProposal;
   image: { width: number; height: number };
@@ -208,6 +223,9 @@ export type ApiClient = {
   rejectMentorProposal(id: string, proposalId: string): Promise<MentorProposalResponse>;
   getMentorHistory(id: string, params?: MentorHistoryParams): Promise<MentorHistoryPage>;
   getMentorProposalHistory(id: string, params?: MentorProposalHistoryParams): Promise<MentorProposalHistoryList>;
+  getChatMessages(id: string, params?: ProjectChatParams): Promise<ProjectChatPage>;
+  postChatMessage(id: string, body: string): Promise<ProjectChatMessage>;
+  postChatAction(id: string, action: ProjectChatAction, text: string): Promise<ProjectChatMessage>;
   recognizeDiagram(id: string, image: Blob): Promise<VisionRecognition>;
 };
 
@@ -589,6 +607,18 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
       const suffix = params.limit !== undefined ? `?${new URLSearchParams({ limit: String(params.limit) })}` : "";
       return request<MentorProposalHistoryList>(`/projects/${encodeURIComponent(id)}/mentor/history/proposals${suffix}`, options);
     },
+    getChatMessages: (id, params = {}) => {
+      const query = new URLSearchParams();
+      if (params.limit !== undefined) query.set("limit", String(params.limit));
+      if (params.cursor) query.set("cursor", params.cursor);
+      const suffix = query.toString();
+      return request<ProjectChatPage>(`/projects/${encodeURIComponent(id)}/chat/messages${suffix ? `?${suffix}` : ""}`, options);
+    },
+    // Only the text: author, kind, project and dates are decided by the server.
+    postChatMessage: (id, body) =>
+      request<ProjectChatMessage>(`/projects/${encodeURIComponent(id)}/chat/messages`, options, { method: "POST", body: JSON.stringify({ body }) }),
+    postChatAction: (id, action, text) =>
+      request<ProjectChatMessage>(`/projects/${encodeURIComponent(id)}/chat/actions`, options, { method: "POST", body: JSON.stringify({ action, text }) }),
     recognizeDiagram: (id, image) =>
       requestDiagramRecognition(id, image, options),
   };

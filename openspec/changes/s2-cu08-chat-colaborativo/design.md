@@ -67,3 +67,11 @@ Frontend, acciones explícitas de CU-2P-04/05/06 dentro del chat, tarjetas de pr
 ## Migration Plan
 
 Migración aditiva `add_project_chat_messages` con enum, tabla, FK, índices y CHECK. En Railway la aplica `prisma migrate deploy` al arrancar. Rollback: retirar el módulo y la migración aditiva.
+
+## Incremento 2 (decisiones)
+
+- **Acciones en el chat:** `POST /projects/:id/chat/actions` con `{ action: "RECOMMENDATION" | "PROPOSAL", text }` (1..500, sin propiedades extra). `RECOMMENDATION` usa `MentorService.recommend` (CU-2P-05, sin cambios) y publica un `MENTOR` legible (Problema, Alternativas, Razón, Limitaciones), sin `confidence`, revisión ni estado. `PROPOSAL` exige `requireEdit` antes de escribir y usa `MentorProposalCreationService.create` (CU-2P-06, sin cambios; `MentorProposalsModule` lo exporta): publica un `PROPOSAL` con el diff determinista y `proposalId`, o un `NOTICE` con el mensaje público del error. La misma tarea asíncrona (THINKING → resultado → IDLE) sirve para la mención y las acciones, con un único mapeo de errores.
+- **Tarjeta de propuesta:** el estado se lee de la proyección pública de CU-2P-07 (`GET /mentor/history/proposals`, `requireView`), así que todos los miembros lo ven. Aplicar y Rechazar (solo OWNER y EDITOR) llaman a las rutas existentes de CU-2P-06; el diagrama cambia solo por el ACK autoritativo `project.operation.accepted`, que además refresca la tarjeta (su `operationId` es el id de la propuesta). Un rechazo no se difunde por la sala: los demás ven el estado nuevo al refrescar.
+- **Análisis UML (CU-2P-04):** se conserva como herramienta plegable dentro del panel del chat, no como mensaje: depende de la selección del lienzo y su resultado es estructurado (hechos, conflictos, diagnósticos).
+- **Historial anterior (CU-2P-07):** la sección existente se muestra dentro del panel, con su propio despliegue.
+- **Frontend:** `ProjectChatPanel` sustituye al panel Mentor cuando la página le pasa la conexión del chat (el panel antiguo sigue disponible sin ella). La página reenvía al panel los eventos `project.chat.message` y `project.chat.mentor` del proyecto abierto, la reconexión del socket (el panel recarga la última página) y los ACK aceptados. Los mensajes se deduplican por id y se muestran como texto, nunca como HTML.

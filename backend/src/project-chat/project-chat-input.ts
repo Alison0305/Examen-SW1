@@ -1,4 +1,7 @@
 import {
+  PROJECT_CHAT_ACTION_TEXT_MAX_LENGTH,
+  PROJECT_CHAT_ACTIONS,
+  type ProjectChatAction,
   PROJECT_CHAT_BODY_MAX_LENGTH,
   PROJECT_CHAT_DEFAULT_LIMIT,
   PROJECT_CHAT_MAX_LIMIT,
@@ -31,6 +34,17 @@ export function parseProjectChatBody(raw: unknown): Readonly<{ ok: true; body: s
   const body = raw.body.trim();
   if (!body || body.length > PROJECT_CHAT_BODY_MAX_LENGTH) return invalid;
   return { ok: true, body };
+}
+
+// POST /chat/actions body: exactly `{ action, text }`, action in the allow-list, text 1..500 after trimming.
+export function parseProjectChatAction(raw: unknown): Readonly<{ ok: true; action: ProjectChatAction; text: string }> | Readonly<{ ok: false; error: ProjectChatError }> {
+  const invalid = { ok: false as const, error: { code: "INVALID_ACTION" as const, message: `La acción debe ser ${PROJECT_CHAT_ACTIONS.join(" o ")}, con un texto de 1 a ${PROJECT_CHAT_ACTION_TEXT_MAX_LENGTH} caracteres.` } };
+  if (!isRecord(raw)) return invalid;
+  if (Object.keys(raw).sort().join(",") !== "action,text") return invalid;
+  if (!(PROJECT_CHAT_ACTIONS as readonly unknown[]).includes(raw.action) || typeof raw.text !== "string") return invalid;
+  const text = raw.text.trim();
+  if (!text || text.length > PROJECT_CHAT_ACTION_TEXT_MAX_LENGTH) return invalid;
+  return { ok: true, action: raw.action as ProjectChatAction, text };
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

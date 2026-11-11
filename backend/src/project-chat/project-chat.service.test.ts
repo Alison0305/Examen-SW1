@@ -1,7 +1,8 @@
 import { BadRequestException, ForbiddenException, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
 import { describe, expect, it, vi } from "vitest";
 import type { ProjectChatBroadcaster, ProjectChatMentorState, ProjectChatPublicMessage } from "../realtime/project-chat-broadcaster";
-import { PROJECT_CHAT_NOTICES, type ProjectChatCursor, type ProjectChatMentor, type ProjectChatStore, type StoredProjectChatMessage } from "./project-chat.contracts";
+import { MentorProposalGenerationUnavailableError } from "../mentor-proposals/local-qwen-mentor-proposal-intent.provider";
+import { PROJECT_CHAT_NOTICES, type ProjectChatCursor, type ProjectChatMentor, type ProjectChatProposalResult, type ProjectChatProposals, type ProjectChatStore, type StoredProjectChatMessage } from "./project-chat.contracts";
 import { ProjectChatService } from "./project-chat.service";
 
 const PROJECT = "00000000-0000-4000-8000-0000000000f1";
@@ -9,7 +10,8 @@ const OTHER_PROJECT = "00000000-0000-4000-8000-0000000000f2";
 const ANA = { id: "00000000-0000-4000-8000-0000000000b1", email: "ana@example.test" };
 const VIEWER = { id: "00000000-0000-4000-8000-0000000000b3", email: "viewer@example.test" };
 const OUTSIDER = { id: "00000000-0000-4000-8000-0000000000b4", email: "outsider@example.test" };
-const PUBLIC_KEYS = ["author", "body", "createdAt", "id", "kind", "proposalId", "replyToId"];
+const PROPOSAL_ID = "00000000-0000-4000-8000-0000000000d1";
+const PUBLIC_KEYS =["author", "body", "createdAt", "id", "kind", "proposalId", "replyToId"];
 
 // In-memory store with the same keyset semantics as PrismaProjectChatStore.
 function memoryStore() {
@@ -42,13 +44,24 @@ function setup(mentorBehaviour: (question: string) => Promise<{ answer: string }
       return userId === VIEWER.id ? ("VIEWER" as const) : ("EDITOR" as const);
     }),
   };
-  const mentor: ProjectChatMentor & { query: ReturnType<typeof vi.fn> } = { query: vi.fn((_projectId: string, _user: unknown, question: string) => mentorBehaviour(question)) };
+  (access as Record<string, unknown>).requireEdit = vi.fn(async (projectId: string, userId: string) => {
+    const role = await access.requireView(projectId, userId);
+    if (role === "VIEWER") throw new ForbiddenException();
+    return role;
+  });
+  const mentor = {
+    query: vi.fn((_projectId: string, _user: unknown, question: string) => mentorBehaviour(question)),
+    recommend: vi.fn(async () => ({ problem: "Cliente no tiene contacto.", alternatives: ["Agregar teléfono a Cliente."], rationale: "Cliente existe.", limitations: "No valida formato.", needsClarification: false, requiresUmlChange: true })),
+  } satisfies ProjectChatMentor;
+  const proposals = {
+    create: vi.fn(async (): Promise<ProjectChatProposalResult> => ({ ok: true, proposal: { id: PROPOSAL_ID, summary: [{ kind: "added", label: "Cliente.ID: integer" }] } })),
+  } satisfies ProjectChatProposals;
   let tick = 0;
   const clock = () => new Date(Date.UTC(2026, 10, 11, 12, 0, tick++));
   let id = 0;
   const ids = () => `00000000-0000-4000-8000-${String(++id).padStart(12, "0")}`;
-  const service = new ProjectChatService(access as never, store, broadcaster, mentor, clock, ids);
-  return { service, store, rows, events, access, mentor };
+  const service = new ProjectChatService(access as never, store, broadcaster, mentor, proposals, clock, ids);
+  return { service, store, rows, events, access: access as typeof access & { requireEdit: ReturnType<typeof vi.fn> }, mentor, proposals };
 }
 
 describe("ProjectChatService.post", () => {
@@ -201,5 +214,68 @@ describe("ProjectChatService.list", () => {
     const { service, store } = setup();
     await expect(service.list(PROJECT, OUTSIDER, {})).rejects.toBeInstanceOf(NotFoundException);
     expect(store.list).not.toHaveBeenCalled();
+  });
+});
+
+const kinds = (events: readonly { type: string; message?: { kind: string }; state?: string }[]) => events.map((event) => (event.type === "message" ? event.message!.kind : event.state));
+
+describe("ProjectChatService.postAction", () => {
+  it("RECOMMENDATION: cualquier miembro, mensaje humano con prefijo y respuesta MENTOR legible sin campos internos", async () => {
+    const { service, events, mentor } = setup();
+
+    const result = await service.postAction(PROJECT, VIEWER, { action: "RECOMMENDATION", text: "¿Conviene agregar teléfono a Cliente?" });
+    if (!result.ok) throw new Error("se esperaba una acción aceptada");
+    await result.mentorReply;
+
+    expect(result.message).toMatchObject({ kind: "USER", author: { email: VIEWER.email }, body: "Recomendación técnica: ¿Conviene agregar teléfono a Cliente?" });
+    expect(mentor.recommend).toHaveBeenCalledExactlyOnceWith(PROJECT, VIEWER, { question: "¿Conviene agregar teléfono a Cliente?" });
+    expect(kinds(events)).toEqual(["USER", "THINKING", "MENTOR", "IDLE"]);
+    const reply = events[2]!.type === "message" ? events[2]!.message : undefined;
+    expect(reply?.body).toBe("Problema:\nCliente no tiene contacto.\n\nAlternativas:\n- Agregar teléfono a Cliente.\n\nRazón:\nCliente existe.\n\nLimitaciones:\nNo valida formato.\n\nImplica un cambio UML: puedes pedir «Proponer cambio UML».");
+    expect(reply?.body).not.toMatch(/confidence|projectRevision|READ_ONLY|\{/);
+  });
+
+  it("PROPOSAL: OWNER o EDITOR crean una propuesta PENDING que se publica como tarjeta PROPOSAL con el diff", async () => {
+    const { service, events, proposals } = setup();
+
+    const result = await service.postAction(PROJECT, ANA, { action: "PROPOSAL", text: "A la clase Cliente, agrégame un atributo ID de tipo integer" });
+    if (!result.ok) throw new Error("se esperaba una acción aceptada");
+    await result.mentorReply;
+
+    expect(proposals.create).toHaveBeenCalledExactlyOnceWith(PROJECT, ANA, "A la clase Cliente, agrégame un atributo ID de tipo integer");
+    expect(kinds(events)).toEqual(["USER", "THINKING", "PROPOSAL", "IDLE"]);
+    expect(events[2]).toMatchObject({ message: { kind: "PROPOSAL", author: null, body: "+ Cliente.ID: integer", proposalId: PROPOSAL_ID, replyToId: result.message.id } });
+  });
+
+  it("PROPOSAL: un VIEWER recibe 403 antes de escribir nada", async () => {
+    const { service, store, events, proposals } = setup();
+    await expect(service.postAction(PROJECT, VIEWER, { action: "PROPOSAL", text: "agrega ID a Cliente" })).rejects.toBeInstanceOf(ForbiddenException);
+    expect(store.create).not.toHaveBeenCalled();
+    expect(events).toEqual([]);
+    expect(proposals.create).not.toHaveBeenCalled();
+  });
+
+  it("PROPOSAL rechazada por CU-2P-06 o IA no disponible: aviso seguro, sin tarjeta", async () => {
+    const rejected = setup();
+    rejected.proposals.create.mockResolvedValueOnce({ ok: false, error: { code: "ELEMENT_NOT_FOUND", message: "La clase indicada no existe en el modelo UML vigente." } });
+    const first = await rejected.service.postAction(PROJECT, ANA, { action: "PROPOSAL", text: "agrega ID a Proveedor" });
+    if (first.ok) await first.mentorReply;
+    expect(rejected.events[2]).toMatchObject({ message: { kind: "NOTICE", body: "No se pudo crear la propuesta UML: La clase indicada no existe en el modelo UML vigente.", proposalId: null } });
+
+    const unavailable = setup();
+    unavailable.proposals.create.mockRejectedValueOnce(new MentorProposalGenerationUnavailableError());
+    const second = await unavailable.service.postAction(PROJECT, ANA, { action: "PROPOSAL", text: "agrega ID a Cliente" });
+    if (second.ok) await second.mentorReply;
+    expect(kinds(unavailable.events)).toEqual(["USER", "THINKING", "NOTICE", "IDLE"]);
+    expect(unavailable.events[2]).toMatchObject({ message: { body: PROJECT_CHAT_NOTICES.MENTOR_UNAVAILABLE } });
+  });
+
+  it("valida estrictamente la acción y autoriza antes", async () => {
+    const { service, store } = setup();
+    for (const raw of [null, {}, { action: "QUERY", text: "hola" }, { action: "PROPOSAL" }, { action: "RECOMMENDATION", text: "" }, { action: "RECOMMENDATION", text: "a".repeat(501) }, { action: "RECOMMENDATION", text: "hola", proposalId: PROPOSAL_ID }]) {
+      expect(await service.postAction(PROJECT, ANA, raw)).toMatchObject({ ok: false, error: { code: "INVALID_ACTION" } });
+    }
+    await expect(service.postAction(PROJECT, OUTSIDER, { action: "RECOMMENDATION", text: "hola" })).rejects.toBeInstanceOf(NotFoundException);
+    expect(store.create).not.toHaveBeenCalled();
   });
 });

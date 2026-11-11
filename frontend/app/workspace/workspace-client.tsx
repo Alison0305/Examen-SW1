@@ -82,6 +82,7 @@ import {
 import type { ProjectPresence } from "./realtime-client";
 import type { MentorQueryResponse, MentorRecommendationResponse, UmlAnalysisFocus, UmlAnalysisResponse } from "../auth/api";
 import { MentorPanel, type MentorPanelHistory } from "./mentor-panel";
+import { ProjectChatPanel, type ProjectChatConnection } from "./project-chat-panel";
 import type { MentorProposalActions } from "./mentor-proposal-section";
 import { describeSelection } from "./uml-analysis-section";
 
@@ -150,6 +151,9 @@ export type WorkspaceClientProps = {
   mentorProposals?: MentorProposalActions;
   // CU-2P-07: shared project history (shown inside the Mentor panel; the section owns its own state).
   mentorHistory?: MentorPanelHistory;
+  // CU-2P-08: when given, the shared project chat replaces the Mentor panel. Recommendations and proposals become chat
+  // actions, the UML analysis and the previous history stay as tools inside it.
+  projectChat?: ProjectChatConnection;
   collaboration?: {
     connection:
       | "connecting"
@@ -184,6 +188,7 @@ export function WorkspaceClient({
   onMentorRecommendation,
   mentorProposals,
   mentorHistory,
+  projectChat,
   collaboration,
 }: Readonly<WorkspaceClientProps>) {
   useEffect(() => {
@@ -212,6 +217,7 @@ export function WorkspaceClient({
         onMentorRecommendation={onMentorRecommendation}
         mentorProposals={mentorProposals}
         mentorHistory={mentorHistory}
+        projectChat={projectChat}
         collaboration={collaboration}
       />
     </ReactFlowProvider>
@@ -234,6 +240,7 @@ function WorkspaceContent({
   onMentorRecommendation,
   mentorProposals,
   mentorHistory,
+  projectChat,
   collaboration,
 }: Readonly<WorkspaceClientProps>) {
   const store = useWorkspaceStore();
@@ -452,7 +459,8 @@ function WorkspaceContent({
                   })}
               </Box>
             </Card>
-            {projectName && onMentorQuery && <MentorPanel projectName={projectName} onQuery={onMentorQuery} onRecommend={onMentorRecommendation} proposals={readOnly ? undefined : mentorProposals} history={mentorHistory} analysis={onUmlAnalysis ? { selection: describeSelection(store.document, store.selection), onAnalyze: onUmlAnalysis } : undefined} />}
+            {projectName && projectChat && <ProjectChatPanel projectName={projectName} connection={projectChat} tools={{ analysis: onUmlAnalysis ? { selection: describeSelection(store.document, store.selection), onAnalyze: onUmlAnalysis } : undefined, history: mentorHistory ? { onLoad: mentorHistory.onLoad, onLoadProposals: mentorHistory.onLoadProposals } : undefined }} />}
+            {projectName && !projectChat && onMentorQuery && <MentorPanel projectName={projectName} onQuery={onMentorQuery} onRecommend={onMentorRecommendation} proposals={readOnly ? undefined : mentorProposals} history={mentorHistory} analysis={onUmlAnalysis ? { selection: describeSelection(store.document, store.selection), onAnalyze: onUmlAnalysis } : undefined} />}
           </Stack>
         </Box>
         {compact ? (

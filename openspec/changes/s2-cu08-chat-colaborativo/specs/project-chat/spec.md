@@ -54,3 +54,18 @@ The public message and the realtime payload SHALL NOT include user ids, access r
 #### Scenario: Public shape
 - **WHEN** a message is returned by the API or broadcast
 - **THEN** its keys SHALL be exactly `id`, `kind`, `author`, `body`, `replyToId`, `proposalId` and `createdAt`
+
+### Requirement: Explicit Mentor actions in the chat
+The system SHALL let members start the CU-2P-05 technical recommendation and the CU-2P-06 UML proposal from the chat with `POST /projects/:id/chat/actions` and `{ action, text }` (text 1..500). Any member SHALL be able to request a recommendation; only OWNER and EDITOR SHALL be able to request a proposal, and a VIEWER SHALL receive 403 before anything is written. The human request SHALL be published at once; the result SHALL be published by the server as a `MENTOR` message (readable recommendation without internal fields) or a `PROPOSAL` message (the deterministic diff and the proposal id), or as a safe `NOTICE` when it fails. A client SHALL never be able to publish a Mentor answer or a proposal card itself, and creating a proposal SHALL NOT modify the model.
+
+#### Scenario: Proposal from the chat
+- **WHEN** an EDITOR requests the proposal «A la clase Cliente, agrégame un atributo ID de tipo integer»
+- **THEN** the room SHALL see the request and then one `PROPOSAL` message with `+ Cliente.ID: integer` and its proposal id, the proposal SHALL be `PENDING` and the diagram SHALL be unchanged until an editor applies it through the CU-2P-06 apply route
+
+#### Scenario: Viewer requests a proposal
+- **WHEN** a VIEWER requests a proposal
+- **THEN** the system SHALL respond 403 and SHALL NOT write any message or create any proposal
+
+#### Scenario: Recommendation from the chat
+- **WHEN** any member requests a technical recommendation
+- **THEN** the room SHALL see the request and one `MENTOR` message with problem, alternatives, rationale and limitations, without confidence, revision or status fields

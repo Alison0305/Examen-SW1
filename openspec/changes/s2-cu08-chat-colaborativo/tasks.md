@@ -9,9 +9,9 @@
 
 ## 2. Incremento 2: frontend
 
-- [ ] 2.1 Panel de chat en el workspace en lugar del panel Mentor: línea de tiempo, envío, `@mentor`, estado del Mentor y tiempo real.
-- [ ] 2.2 Acciones explícitas de CU-2P-04/05/06 dentro del chat y tarjetas de propuesta (solo OWNER y EDITOR proponen y aplican).
-- [ ] 2.3 «Historial anterior» plegable (CU-2P-07) y pruebas de interfaz.
+- [x] 2.1 Panel de chat en el workspace en lugar del panel Mentor: línea de tiempo, envío, `@mentor`, estado del Mentor y tiempo real (`ProjectChatPanel`, eventos reenviados por la página, recarga al reconectar, deduplicación por id, texto sin HTML).
+- [x] 2.2 Acciones explícitas en el chat: `POST /chat/actions` para recomendación (CU-2P-05) y propuesta (CU-2P-06, solo OWNER y EDITOR, 403 a VIEWER) publicadas por el servidor; tarjetas de propuesta con estado público y Aplicar/Rechazar. El análisis UML (CU-2P-04) queda como herramienta plegable del panel (ver design.md).
+- [x] 2.3 «Historial anterior» (CU-2P-07) dentro del panel y pruebas: panel 13, página 10 (las 9 pruebas de CU-2P-06 adaptadas al chat y el filtrado por proyecto), backend del chat 41. Gates del 2026-11-11: frontend 379/379, build, `tsc` y ESLint; backend sin integraciones 889/889, `tsc` y ESLint.
 
 ## 3. Incremento 3: verificación y cierre
 
