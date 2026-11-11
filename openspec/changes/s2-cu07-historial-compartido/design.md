@@ -91,7 +91,7 @@ Orden de UUID (medido): Prisma genera `UuidFilter` con `lt` para `id @db.Uuid`, 
 - Los errores del reader se propagan; nunca se convierten en una página vacía.
 - No hay lógica de roles en el servicio: OWNER, EDITOR y VIEWER los decide `requireView`.
 
-`MentorHistoryModule` importa `AuthModule` y `ProjectsPersistenceModule` (exporta el `ProjectAccessService` compartido) y usa el `PrismaService` del `PrismaModule` global. Registra `MentorHistoryController`, `PrismaMentorHistoryReader`, `MENTOR_HISTORY_READER` con `useExisting` y el servicio. No importa `AssistantModule`. Está registrado en `AppModule`.
+`MentorHistoryModule` importa `AuthModule` y `ProjectsPersistenceModule` (exporta el `ProjectAccessService` compartido) y usa el `PrismaService` del `PrismaModule` global. Registra `MentorHistoryController`, `PrismaMentorHistoryReader`, `MENTOR_HISTORY_READER` con `useExisting` y el servicio. Desde la tarea 8.1 importa también `MentorProposalsModule` y registra `MentorHistoryProposalsService` (ver «Propuestas de CU-2P-06» e «Independiente del modelo local»). No importa `AssistantModule` directamente. Está registrado en `AppModule`.
 
 `AuthModule` es necesario (medido en la fase 4): `JwtAuthGuard` necesita `JwtService` y `AuthService` en el ámbito del módulo del controlador, y `ProjectsPersistenceModule` importa `AuthModule` sin reexportarlo. Sin esa importación Nest falla con «can't resolve dependencies of the JwtAuthGuard». Es el mismo patrón de `MentorModule` y `MentorAnalysisModule`. Durante la fase 3, sin controlador, no hacía falta.
 

@@ -8,7 +8,8 @@
 - CU-2P-02 de `feat/s2-cu02-identidad-mentor` está completado y aceptado; OpenSpec archivado en `openspec/changes/archive/2026-11-09-s2-cu02-identidad-mentor/`. La identidad Mentor proviene del JWT, `ProjectAccessService.requireView` mantiene la autorización y el recorder recibe identidad segura. Anti-suplantación verificada; userId, email y rol siguen fuera del prompt Qwen.
 - CU-2P-03 Memoria contextual completado, aceptado e integrado en `main` (PR #10). Detalle en la sección CU-2P-03.
 - CU-2P-04 Análisis UML está integrado en `main` (PR #12); su OpenSpec `openspec/changes/s2-cu04-analisis-uml/` sigue sin archivar. Detalle en la sección CU-2P-04.
-- Segundo parcial: CU-2P-06 completado en `feat/s2-cu06-aplicar-propuestas-uml` (sin push de los últimos commits), con la prueba con dos navegadores aprobada; queda push, PR con `Closes #6`, merge y archivo. Detalle en la sección CU-2P-06.
+- CU-2P-06 completado e integrado en `main` mediante el PR #15 (merge `b73a5f6`); su OpenSpec `openspec/changes/s2-cu06-aplicar-propuestas-uml/` sigue sin archivar. Detalle en la sección CU-2P-06.
+- **CU activo: CU-2P-07** (issue #7) en `feat/s2-cu07-historial-compartido`, completado y con el smoke test multiusuario aprobado; OpenSpec `openspec/changes/s2-cu07-historial-compartido/` con todo cerrado salvo la 7.3. Sin push. Detalle en la sección CU-2P-07.
 
 ## Entorno
 
@@ -62,15 +63,38 @@ Defectos externos detectados durante CU-2P-04 (no corregidos aquí):
 - Generación: `LocalQwenMentorProposalIntentProvider` sobre el `ASSISTANT_LOCAL_MODEL` compartido. No cambiar el prompt, el schema, la validación literal ni el reintento sin repetir la prueba real: Qwen3-1.7B inventaba `"*"` si veía `multiplicity` y quitaba la tilde de «teléfono» sin el ejemplo del prompt.
 - Datos de prueba en la base local: usuarios `cu06-manual-*` y `cu06-acceptance-*@example.test` con sus proyectos; se pueden borrar por id.
 
-## Para CU-2P-07
+## CU-2P-07 - Historial compartido
 
-- Reutilizar `MentorProposalHistoryService.list(projectId, userId, limit)` (exportado por `MentorProposalsModule`; `requireView`, así que OWNER, EDITOR y VIEWER pueden leer; límite 1..50; más reciente primero) y su `MentorProposalHistoryProjection`: `proposalId`, `status` (`PENDING`, `APPLIED`, `REJECTED`), `operation` por nombre, `summary` (diff), `baseRevision`, `createdAt`, `resolvedAt?` y `resultingRevision?` (solo `APPLIED`). Una propuesta `PENDING` cuya `baseRevision` difiere de la revisión actual está obsoleta.
-- No usar directamente `MENTOR_PROPOSAL_STORE`, la tabla `MentorProposal` ni `StoredMentorProposal` para la vista: incluyen el comando persistido, identificadores UML, autor, resolutor e instrucción.
-- CU-07 no debe leer command JSON interno como contrato público.
-- CU-07 debe apoyarse en la proyección/contrato preparado por CU-06.
-- La proyección no incluye autor ni instrucción; añadirlos es una decisión de CU-2P-07 (hoy CU-2P-06 no los expone).
-- La rama `feat/s2-cu07-historial-compartido` se creó sobre un `main` anterior a CU-2P-06: integrar con cuidado después del merge de CU-2P-06, sin cherry-picks entre ramas.
+Detalle completo en `docs/puds/use-cases/CU-2P-07-historial-compartido.md`. La rama ya integra CU-2P-06 (merge `e67bbe6`).
+
+- **Dos fuentes separadas**, nunca mezcladas en un único orden ni en un feed global:
+  - **Interacciones.** `MentorInteraction` (escrita solo por `MentorService`: consultas de CU-2P-01 y recomendaciones de CU-2P-05) → `PrismaMentorHistoryReader` (puerto `MENTOR_HISTORY_READER`) → `MentorHistoryService.list(projectId, userId, rawQuery)` (`requireView` → `parseMentorHistoryQuery` → reader) → `GET /projects/:id/mentor/history?limit&cursor&q`.
+  - **Propuestas UML.** `MentorProposalHistoryService.list(projectId, userId, limit)` de CU-2P-06 (exportado por `MentorProposalsModule`, que `MentorHistoryModule` importa) → `MentorHistoryProposalsService` → `GET /projects/:id/mentor/history/proposals?limit` → `{ items }` con la `MentorProposalHistoryProjection` tal cual.
+- **Paginación y cursor** (solo interacciones): keyset `occurredAt DESC, id DESC`, `limit + 1` filas y cursor opaco `base64url({ v: 1, t, i })`, sin firmar (toda lectura sigue autorizada por proyecto). Sin offset. Una búsqueda nueva empieza sin cursor. Las propuestas no tienen cursor: CU-2P-06 solo admite `limit` 1..50.
+- **Contratos públicos** (los únicos que deben consumirse):
+  - interacción `{ id, author: { email }, question, answer, occurredAt }` y página `{ items, nextCursor }`;
+  - propuesta `{ proposalId, status, operation, summary, baseRevision, createdAt, resolvedAt?, resultingRevision? }` y lista `{ items }`;
+  - errores 400 `{ statusCode, error, code, reason?, message }` (`INVALID_LIMIT`, `INVALID_CURSOR`, `INVALID_SEARCH`, `UNKNOWN_PARAMETER`).
+  - En el frontend: `getMentorHistory` y `getMentorProposalHistory` en `frontend/app/auth/api.ts`.
+- **Qué NO leer directamente:**
+  - la tabla `MentorProposal`, `StoredMentorProposal`, `MENTOR_PROPOSAL_STORE` / `MENTOR_PROPOSAL_HISTORY_STORE` ni el `command` JSON, porque contienen ids UML, autor, resolutor e instrucción (un test estructural lo impide en `mentor-history`);
+  - las columnas `userId`, `accessRole`, `projectRevision` y `grounded` de `MentorInteraction`;
+  - el JSON crudo de una recomendación, que siempre pasa por `mentor-history-recommendation.ts`.
+- **Recomendaciones de CU-2P-05:** el mapper estricto solo reconoce las nueve claves exactas de `MentorRecommendationResponse` y las presenta como «Problema / Alternativas / Razón / Limitaciones». Si CU-2P-05 cambia su contrato, falla la prueba de tipos y hay que revisar el mapper.
+- **Sin realtime en CU-2P-07.** El refresco es local:
+  - `MentorPanel` incrementa `interactionVersion` tras una consulta correcta o una recomendación con `needsClarification = false` (las aclaraciones no se registran);
+  - `MentorHistorySection` recarga las interacciones si está abierta, o al reabrirla si ya estaba cargada;
+  - las propuestas se cargan al abrir, con «Actualizar» y al cambiar de proyecto (`key={projectKey}`); `interactionVersion` no las recarga;
+  - lo que hacen otros integrantes aparece al pulsar «Actualizar».
+- **Modelo local:** el historial funciona sin `ASSISTANT_MODEL_PATH` y nunca invoca el modelo. `AssistantModule` queda en el grafo de forma indirecta a través de `MentorProposalsModule`; sin ruta configurada, el modelo es `undefined`.
+- **Pruebas de integración:** leen `backend/.env`, dejan `ASSISTANT_MODEL_PATH=""` antes de compilar el módulo y limpian sus fixtures por id o e-mail.
+- **Limitaciones conocidas:**
+  - sin realtime;
+  - la búsqueda opera sobre el JSON guardado de las recomendaciones;
+  - las propuestas solo muestran las 20 más recientes, sin autor ni instrucción;
+  - los diagnósticos de consulta, las aclaraciones y los análisis de CU-2P-04 no se registran;
+  - una consulta de diagnóstico no registrada provoca una relectura innecesaria.
 
 ## Siguiente Acción
 
-CU-2P-06: push de la rama, PR con `Closes #6`, merge y archivo del OpenSpec. Después, CU-2P-07 integra la proyección de propuestas según la sección «Para CU-2P-07».
+CU-2P-07 (tarea 7.3): push de `feat/s2-cu07-historial-compartido`, PR con `Closes #7` (el texto está preparado), revisión del compañero, merge a `main` y archivo del OpenSpec `s2-cu07-historial-compartido`. Después, archivar el OpenSpec de CU-2P-06.

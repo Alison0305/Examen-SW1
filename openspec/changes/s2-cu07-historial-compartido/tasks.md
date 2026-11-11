@@ -43,8 +43,8 @@
 
 ## 7. Documentación y smoke test
 
-- [ ] 7.1 Crear `docs/puds/use-cases/CU-2P-07-historial-compartido.md` y actualizar STATUS y HANDOFF con la implementación real.
-- [ ] 7.2 Ejecutar lint, typecheck y suites; smoke test con dos usuarios del mismo proyecto y un tercero sin acceso.
+- [x] 7.1 Crear `docs/puds/use-cases/CU-2P-07-historial-compartido.md` y actualizar STATUS y HANDOFF con la implementación real. Hecho el 2026-11-11: PUDS con alcance, flujo, API, implementación, errores, pruebas y limitaciones; STATUS con CU-2P-07 completado; HANDOFF con las dos fuentes, los contratos públicos, lo que no debe leerse y el refresco local.
+- [x] 7.2 Ejecutar lint, typecheck y suites; smoke test con dos usuarios del mismo proyecto y un tercero sin acceso. Gates del 2026-11-11 sobre `72f414c`: backend 975 correctas y 3 omitidas (Vosk real), con `src/mentor-history` 251/251; frontend 348/348 y build; `tsc` y ESLint correctos en ambos; OpenSpec strict y diff-check correctos. Smoke test manual aprobado por el usuario el 2026-11-11: dos integrantes del mismo proyecto ven el historial compartido y un tercero sin acceso no lo ve.
 - [ ] 7.3 Revisión del compañero, PR con `Closes #7`, aceptación y archivo del OpenSpec.
 
 ## 8. Integración con CU-2P-06
