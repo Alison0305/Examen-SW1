@@ -38,12 +38,12 @@
 
 ## 7. Generación estructurada
 
-- [ ] 7.1 Resolver de forma determinista la forma inequívoca del criterio de aceptación ("Agrega el atributo X de tipo T a C") sin invocar Qwen. No implementado en la Fase 7: la decisión vigente es que toda instrucción pase por Qwen y nunca derivar comandos de texto libre de forma heurística; queda pendiente de decisión explícita (implementarla como ruta estricta previa al modelo o retirarla).
+- 7.1 Retirada (no implementada): resolver con un parser determinista la forma del criterio de aceptación ("Agrega el atributo X de tipo T a C") sin invocar Qwen. Sustituida por la generación estructurada con Qwen local y validación estricta de la tarea 7.2: toda instrucción pasa por el modelo y nunca se derivan comandos UML de texto libre de forma heurística.
 - [x] 7.2 Generar el intent con Qwen local (`ASSISTANT_LOCAL_MODEL` compartido, `generateStructured`) mediante schema cerrado (`MENTOR_PROPOSAL_INTENT_SCHEMA`, variantes `oneOf` y salida `UNSUPPORTED`), extracción `parseSingleJsonObject` del motor existente y validación estricta, con contexto solo por nombres de clase (`LocalQwenMentorProposalIntentProvider`); `MentorProposalCreationService` (`requireEdit` → proyecto → modelo → resolver → vista previa → `buildNewMentorProposal` → `store.create`) y `POST /projects/:projectId/mentor/proposals` (201, `CreateMentorProposalDto`, 422 por código, 503 seguro). Verificado: AI-01 a AI-15 con un doble determinista del modelo (parser, proveedor, servicio y HTTP con el módulo real), DI del módulo con un único modelo compartido y PostgreSQL real (8 pruebas: creación OWNER/EDITOR sin cambios de revisión, documento ni recibos; aplicación posterior con el UUID del servidor; rechazos sin filas; VIEWER, externo e inexistente sin invocar el modelo). Sin prueba con el GGUF real en esta fase.
 
 ## 8. Frontend
 
-- [ ] 8.1 Añadir el cliente API y la sección de propuesta con diff, diagnósticos, Aplicar, Rechazar y Cancelar (sin petición), guarda contra doble clic y ocultación para VIEWER; verificar con pruebas de UI.
+- [x] 8.1 Añadir el cliente API y la sección de propuesta con diff, diagnósticos, Aplicar, Rechazar y Cancelar (sin petición), guarda contra doble clic y ocultación para VIEWER; verificar con pruebas de UI. Hecho: `createMentorProposal`, `getMentorProposal`, `applyMentorProposal` y `rejectMentorProposal` en `frontend/app/auth/api.ts` (apply/reject sin cuerpo; `ApiError` conserva `code` y diagnósticos públicos), botón explícito «Proponer cambio UML» en `MentorPanel` (solo con edición) y `MentorProposalCard` (`mentor-proposal-section.tsx`). El diagrama solo cambia por el ACK realtime `project.operation.accepted`; sin conexión se ofrece «Recargar versión». Verificado con 34 pruebas nuevas (UI-01 a UI-15: 20 del panel, 6 del cliente API y 8 de la página con realtime simulado).
 
 ## 9. Integración con CU-2P-05
 

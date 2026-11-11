@@ -232,6 +232,15 @@ La salida se valida otra vez con `parseMentorProposalIntent` como dato no confia
 
 La tarea 7.1 (resolver la forma del criterio de aceptación sin Qwen) no se implementa en esta fase: contradice la decisión de que la intención la genere el modelo local y de no derivar comandos de texto libre de forma heurística. Queda pendiente de decisión explícita.
 
+### Frontend (Fase 8)
+
+- Cliente: `createMentorProposal`, `getMentorProposal`, `applyMentorProposal` y `rejectMentorProposal` en el cliente central (`frontend/app/auth/api.ts`). Crear envía solo `{ instruction }`; apply y reject no envían cuerpo. `ApiError` conserva de forma aditiva `code` y los diagnósticos públicos (`code`, `severity`, `message`) del cuerpo de error.
+- Entrada: botón explícito «Proponer cambio UML» en `MentorPanel`, sobre la misma entrada de texto que Consultar y Recomendación técnica. Solo ese botón usa el endpoint de propuestas; las consultas y recomendaciones de CU-2P-01/05 no cambian ni se convierten en propuestas. La página pasa las acciones solo si el rol no es VIEWER (también tras un cambio de acceso en vivo).
+- Estado local del panel (`useMentorProposalFlow`), sin Zustand: `idle` (con error de creación), `creating` y `ready` (propuesta, acción en curso `applying`/`rejecting`, marca de obsolescencia y error). Un `ref` impide envíos dobles.
+- `MentorProposalCard` muestra operación, clase, atributo, tipo, multiplicidad, diff (`+ Cliente.teléfono: string`), diagnósticos, revisión base y estado, con Cancelar (o Cerrar), Rechazar y Aplicar. No muestra identificadores, comando, recibos, prompts ni JSON.
+- Cancelar solo oculta la tarjeta (sin petición; la propuesta sigue `PENDING`). Rechazar llama a reject y deja Aplicar deshabilitado. `STALE_PROPOSAL` muestra «La propuesta fue creada sobre una versión anterior del diagrama. Genera una nueva propuesta antes de aplicarla.» y deshabilita Aplicar sin reintentar. `PROPOSAL_ALREADY_APPLIED`/`PROPOSAL_REJECTED` releen el detalle para mostrar el estado real. Los demás códigos y los estados 400/403/404/503 se traducen a textos fijos; nunca se muestra el mensaje crudo, una traza o JSON.
+- Una sola fuente de actualización del diagrama: la respuesta HTTP de apply solo actualiza la tarjeta. El backend difunde el ACK aceptado (`operationId` = id de la propuesta) a la sala y el manejador existente `project.operation.accepted` de la página lo aplica una vez, deduplicado por `operationId`, igual que una operación de otro editor (que no necesita conocer la propuesta). Sin conexión realtime no llega ACK: se activa el aviso existente «Recargar versión» en lugar de parchear el documento.
+
 ### Relación con CU-2P-05
 
 CU-2P-05 permanece `READ_ONLY` y sin cambios. La integración futura mostrará "Generar propuesta" solo cuando `requiresUmlChange === true && needsClarification === false`, y CU-06 generará su propia intención estructurada desde la instrucción; nunca convierte `alternatives[]` en comandos. La generación (Fase 7) reutilizará `parseSingleJsonObject` y un schema cerrado propio, con validador estricto equivalente a `parseRecommendation`.
