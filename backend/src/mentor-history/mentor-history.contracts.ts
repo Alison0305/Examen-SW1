@@ -1,3 +1,5 @@
+import type { MentorProposalHistoryProjection } from "../mentor-proposals/mentor-proposal.contracts";
+
 // CU-2P-07: contracts of the shared, project-scoped Mentor history.
 // The history reads the same `MentorInteraction` table that CU-2P-03 writes (single source of truth), but it is a
 // different use case from the Mentor memory: newest first, paginated, with author, full text and no Qwen.
@@ -61,8 +63,22 @@ export type MentorHistoryPage = Readonly<{
 // HTTP by the controller). Missing access is not a result: requireView throws its existing NotFoundException.
 export type MentorHistoryListResult = Readonly<{ ok: true; page: MentorHistoryPage }> | Readonly<{ ok: false; error: MentorHistoryQueryError }>;
 
-// CU-2P-06 has no proposal model yet: no proposal state is exposed here. When CU-2P-06 provides its source of truth,
-// the item gains its state from there; CU-2P-07 does not invent fields, tables or placeholder values for it.
+// ---------------------------------------------------------------------------------------------
+// UML proposals (task 8.1): `GET /projects/:id/mentor/history/proposals?limit=`
+//
+// CU-2P-06 owns the proposals and their public read model: MentorProposalHistoryService (requireView, newest first,
+// limit 1..50, default 20) and MentorProposalHistoryProjection. CU-2P-07 serves that projection unchanged, as a set
+// separate from the interactions: no cursor, no search, never mixed into their keyset pagination, and interaction
+// items gain no proposal fields. No Prisma reads, store or copy of the projection here.
+
+export type MentorProposalHistoryList = Readonly<{ items: readonly MentorProposalHistoryProjection[] }>;
+
+// Only these two codes apply to the proposal query; same 400 body as the interaction query.
+export type MentorProposalHistoryQueryError = Extract<MentorHistoryQueryError, Readonly<{ code: "INVALID_LIMIT" | "UNKNOWN_PARAMETER" }>>;
+
+export type MentorProposalHistoryQueryParse = Readonly<{ ok: true; limit: number }> | Readonly<{ ok: false; error: MentorProposalHistoryQueryError }>;
+
+export type MentorProposalHistoryListResult = Readonly<{ ok: true; list: MentorProposalHistoryList }> | Readonly<{ ok: false; error: MentorProposalHistoryQueryError }>;
 
 // ---------------------------------------------------------------------------------------------
 // Persistence port (implemented by PrismaMentorHistoryReader)

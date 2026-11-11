@@ -286,9 +286,11 @@ describe("GET /projects/:id/mentor/history (HTTP real, JWT real, sin base de dat
 
   // ------------------------------------------------------------------ sin Qwen
 
-  it("funciona sin ASSISTANT_MODEL_PATH y sin el modelo local en el grafo", async () => {
+  // Since task 8.1 AssistantModule is reachable through MentorProposalsModule; the reconciled requirement is that the
+  // history works without a configured model and never creates or calls one.
+  it("funciona sin ASSISTANT_MODEL_PATH: el modelo local no se crea (undefined)", async () => {
     expect(process.env.ASSISTANT_MODEL_PATH).toBeUndefined();
-    expect(() => app.get(ASSISTANT_LOCAL_MODEL, { strict: false })).toThrow();
+    expect(app.get(ASSISTANT_LOCAL_MODEL, { strict: false })).toBeUndefined();
 
     await get(historyOf(PROJECT.A), tokens.OWNER).expect(200);
   });

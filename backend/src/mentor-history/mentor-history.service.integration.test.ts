@@ -13,7 +13,8 @@ import { PrismaMentorHistoryReader } from "./prisma-mentor-history.reader";
 // development PostgreSQL. The only change to the graph is a pass-through around MENTOR_HISTORY_READER that records
 // each call before running the real PrismaMentorHistoryReader, so "the reader was not called" is observable.
 // Fixtures use their own ids (prefix d7035…) and e-mails, and are removed by id only. No local model is involved:
-// ASSISTANT_MODEL_PATH is removed once the module is built (Prisma Client reloads .env when it is constructed).
+// ASSISTANT_MODEL_PATH is blank while the module is built and removed afterwards (Prisma Client reloads .env when it
+// is constructed).
 
 const uuid = (tail: string) => `d7035000-0000-4000-8000-${tail.padStart(12, "0")}`;
 const USER = { OWNER: uuid("a1"), EDITOR: uuid("a2"), VIEWER: uuid("a3"), OUTSIDER: uuid("a4") } as const;
@@ -37,6 +38,9 @@ describe("MentorHistoryService con ProjectAccessService y PostgreSQL reales", ()
 
   beforeAll(async () => {
     process.loadEnvFile(process.cwd().endsWith("backend") ? ".env" : "backend/.env");
+    // Blank before compiling: since task 8.1 AssistantModule is reachable through MentorProposalsModule, so the graph
+    // must be built without a configured model (Prisma's .env reload does not override an existing variable).
+    process.env.ASSISTANT_MODEL_PATH = "";
 
     module = await Test.createTestingModule({ imports: [PrismaModule, MentorHistoryModule] })
       .overrideProvider(MENTOR_HISTORY_READER).useFactory({
@@ -139,9 +143,11 @@ describe("MentorHistoryService con ProjectAccessService y PostgreSQL reales", ()
     expect(second).toEqual({ ok: true, page: { items: [sharedPage.items[1]], nextCursor: null } });
   });
 
-  it("funciona sin ASSISTANT_MODEL_PATH y sin el modelo local en el grafo", async () => {
+  // Since task 8.1 AssistantModule is reachable through MentorProposalsModule; the reconciled requirement is that the
+  // history works without a configured model and never creates or calls one.
+  it("funciona sin ASSISTANT_MODEL_PATH: el modelo local no se crea (undefined)", async () => {
     expect(process.env.ASSISTANT_MODEL_PATH).toBeUndefined();
-    expect(() => module.get(ASSISTANT_LOCAL_MODEL, { strict: false })).toThrow();
+    expect(module.get(ASSISTANT_LOCAL_MODEL, { strict: false })).toBeUndefined();
     await expect(service.list(PROJECT.SHARED, USER.VIEWER, {})).resolves.toEqual({ ok: true, page: sharedPage });
     expect(process.env.ASSISTANT_MODEL_PATH).toBeUndefined();
   });

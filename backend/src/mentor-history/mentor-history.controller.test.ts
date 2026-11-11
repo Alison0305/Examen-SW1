@@ -1,8 +1,9 @@
 import { BadRequestException, HttpException, NotFoundException } from "@nestjs/common";
 import { describe, expect, it, vi } from "vitest";
 import type { AuthenticatedRequest } from "../auth/auth.types";
-import type { MentorHistoryListResult, MentorHistoryPage, MentorHistoryQueryError } from "./mentor-history.contracts";
+import type { MentorHistoryListResult, MentorHistoryPage, MentorHistoryQueryError, MentorProposalHistoryList, MentorProposalHistoryListResult } from "./mentor-history.contracts";
 import { MentorHistoryController } from "./mentor-history.controller";
+import type { MentorHistoryProposalsService } from "./mentor-history-proposals.service";
 import type { MentorHistoryService } from "./mentor-history.service";
 
 // CU-2P-07, fase 4: MentorHistoryController in isolation. The service is a double; the controller must only pass the
@@ -21,7 +22,7 @@ function controllerWith(behaviour: MentorHistoryListResult | Error) {
     if (behaviour instanceof Error) throw behaviour;
     return behaviour;
   });
-  return { controller: new MentorHistoryController({ list } as unknown as MentorHistoryService), list };
+  return { controller: new MentorHistoryController({ list } as unknown as MentorHistoryService, {} as unknown as MentorHistoryProposalsService), list };
 }
 
 const authenticated = (id = USER_ID) => ({ authenticatedUser: { id, email: "viewer@example.test" } }) as unknown as AuthenticatedRequest;
@@ -93,5 +94,69 @@ describe("MentorHistoryController (unitario)", () => {
 
     expect(thrown).toBe(failure);
     expect(thrown).not.toBeInstanceOf(HttpException);
+  });
+});
+
+// Task 8.1: GET :id/mentor/history/proposals. The proposals service is a double; the controller must behave exactly
+// like the interaction route: trusted ids, raw query, unwrapped list, query error → 400, everything else untouched.
+const PROPOSALS: MentorProposalHistoryList = {
+  items: [{ proposalId: "d7035000-0000-4000-8000-0000000000d1", status: "PENDING", operation: { kind: "ADD_ATTRIBUTE", target: { className: "Cliente" }, change: { attributeName: "teléfono", attributeType: "string" } }, summary: [{ kind: "added", element: "attribute", label: "Cliente.teléfono: string" }], baseRevision: 4, createdAt: "2026-11-10T09:00:00.000Z" }],
+};
+
+function proposalControllerWith(behaviour: MentorProposalHistoryListResult | Error) {
+  const history = vi.fn();
+  const list = vi.fn(async (...args: Parameters<MentorHistoryProposalsService["list"]>) => {
+    void args;
+    if (behaviour instanceof Error) throw behaviour;
+    return behaviour;
+  });
+  return { controller: new MentorHistoryController({ list: history } as unknown as MentorHistoryService, { list } as unknown as MentorHistoryProposalsService), list, history };
+}
+
+describe("MentorHistoryController.listProposals (unitario, tarea 8.1)", () => {
+  it("devuelve solo { items } con la proyección de CU-2P-06 tal cual, sin envoltorio ni cursor, y no toca el historial de interacciones", async () => {
+    const { controller, history } = proposalControllerWith({ ok: true, list: PROPOSALS });
+
+    const response = await controller.listProposals(authenticated(), PROJECT_ID, {});
+
+    expect(response).toBe(PROPOSALS);
+    expect(Object.keys(response)).toEqual(["items"]);
+    expect(history).not.toHaveBeenCalled();
+  });
+
+  it("pasa el projectId de la ruta, el userId del JWT y la query cruda sin reinterpretarla", async () => {
+    const { controller, list } = proposalControllerWith({ ok: true, list: PROPOSALS });
+    const rawQuery = { limit: "5", userId: "suplantado" };
+
+    await controller.listProposals(authenticated(), PROJECT_ID, rawQuery);
+
+    expect(list).toHaveBeenCalledExactlyOnceWith(PROJECT_ID, USER_ID, rawQuery);
+    expect(list.mock.calls[0]![2]).toBe(rawQuery);
+  });
+
+  it("sin authenticatedUser responde 404 sin llamar al servicio", async () => {
+    const { controller, list } = proposalControllerWith({ ok: true, list: PROPOSALS });
+
+    await expect(controller.listProposals({} as AuthenticatedRequest, PROJECT_ID, {})).rejects.toBeInstanceOf(NotFoundException);
+    expect(list).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { code: "INVALID_LIMIT", message: "limit debe ser un entero entre 1 y 50." },
+    { code: "UNKNOWN_PARAMETER", message: "Parámetros no admitidos: cursor." },
+  ] as const)("con ok:false $code lanza la misma BadRequestException que el historial de interacciones", async (error) => {
+    const { controller } = proposalControllerWith({ ok: false, error });
+
+    const thrown = await controller.listProposals(authenticated(), PROJECT_ID, {}).catch((caught: unknown) => caught);
+
+    expect(thrown).toBeInstanceOf(BadRequestException);
+    expect((thrown as BadRequestException).getResponse()).toEqual({ statusCode: 400, error: "Bad Request", code: error.code, message: error.message });
+  });
+
+  it("propaga la NotFoundException de requireView y los errores inesperados sin transformarlos", async () => {
+    const notFound = new NotFoundException();
+    await expect(proposalControllerWith(notFound).controller.listProposals(authenticated(), PROJECT_ID, {})).rejects.toBe(notFound);
+    const failure = new Error("fallo de infraestructura");
+    await expect(proposalControllerWith(failure).controller.listProposals(authenticated(), PROJECT_ID, {})).rejects.toBe(failure);
   });
 });

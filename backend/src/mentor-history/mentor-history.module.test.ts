@@ -8,8 +8,11 @@ import { PrismaModule } from "../prisma/prisma.module";
 import { PrismaService } from "../prisma/prisma.service";
 import { ProjectAccessService } from "../projects/project-access.service";
 import { ProjectsPersistenceModule } from "../projects/projects-persistence.module";
+import { MentorProposalHistoryService } from "../mentor-proposals/mentor-proposal-history.service";
+import { MentorProposalsModule } from "../mentor-proposals/mentor-proposals.module";
 import { MENTOR_HISTORY_READER } from "./mentor-history.contracts";
 import { MentorHistoryController } from "./mentor-history.controller";
+import { MentorHistoryProposalsService } from "./mentor-history-proposals.service";
 import { MentorHistoryModule } from "./mentor-history.module";
 import { MentorHistoryService } from "./mentor-history.service";
 import { PrismaMentorHistoryReader } from "./prisma-mentor-history.reader";
@@ -67,13 +70,15 @@ describe("MentorHistoryModule: wiring", () => {
     expect(prisma).toEqual({ marker: "prisma-unico" });
   });
 
-  it("declara solo lo necesario: AuthModule y ProjectsPersistenceModule, un controlador, un reader, el puerto y el servicio", () => {
+  it("declara solo lo necesario: AuthModule, ProjectsPersistenceModule y MentorProposalsModule, un controlador, un reader, el puerto y los dos servicios", () => {
     const imports = Reflect.getMetadata("imports", MentorHistoryModule) as unknown[];
     const providers = Reflect.getMetadata("providers", MentorHistoryModule) as unknown[];
 
-    expect(imports).toEqual([AuthModule, ProjectsPersistenceModule]);
+    expect(imports).toEqual([AuthModule, ProjectsPersistenceModule, MentorProposalsModule]);
     expect(imports).not.toContain(AssistantModule);
-    expect(providers).toEqual([PrismaMentorHistoryReader, { provide: MENTOR_HISTORY_READER, useExisting: PrismaMentorHistoryReader }, MentorHistoryService]);
+    expect(providers).toEqual([PrismaMentorHistoryReader, { provide: MENTOR_HISTORY_READER, useExisting: PrismaMentorHistoryReader }, MentorHistoryService, MentorHistoryProposalsService]);
+    // No proposal store, Prisma store or proposal service of its own: those stay in CU-2P-06.
+    expect(providers).not.toContain(MentorProposalHistoryService);
     expect(Reflect.getMetadata("controllers", MentorHistoryModule)).toEqual([MentorHistoryController]);
   });
 
@@ -87,18 +92,30 @@ describe("MentorHistoryModule: wiring", () => {
   });
 
   it("sin AuthModule el grafo no compila: JwtAuthGuard no encuentra JwtService", async () => {
-    @Module({ imports: [ProjectsPersistenceModule], controllers: [MentorHistoryController], providers: [PrismaMentorHistoryReader, { provide: MENTOR_HISTORY_READER, useExisting: PrismaMentorHistoryReader }, MentorHistoryService] })
+    @Module({ imports: [ProjectsPersistenceModule, MentorProposalsModule], controllers: [MentorHistoryController], providers: [PrismaMentorHistoryReader, { provide: MENTOR_HISTORY_READER, useExisting: PrismaMentorHistoryReader }, MentorHistoryService, MentorHistoryProposalsService] })
     class WithoutAuthModule {}
 
     await expect(Test.createTestingModule({ imports: [PrismaModule, WithoutAuthModule] }).overrideProvider(PrismaService).useValue({}).compile()).rejects.toThrow(/JwtAuthGuard/);
   });
 
-  it("compila sin ASSISTANT_MODEL_PATH y el modelo local no forma parte de su grafo", async () => {
+  // Requirement 9 as reconciled in fase 0: AssistantModule is reachable through MentorProposalsModule (task 8.1), but
+  // without ASSISTANT_MODEL_PATH no model is created and the history never needs one.
+  it("compila sin ASSISTANT_MODEL_PATH: el modelo local alcanzable a través de MentorProposalsModule es undefined", async () => {
     vi.stubEnv("ASSISTANT_MODEL_PATH", undefined);
     const module = await compile();
 
     expect(module.get(MentorHistoryService, { strict: false })).toBeInstanceOf(MentorHistoryService);
-    expect(() => module.get(ASSISTANT_LOCAL_MODEL, { strict: false })).toThrow();
-    expect(() => module.select(AssistantModule)).toThrow();
+    expect(module.get(MentorHistoryProposalsService, { strict: false })).toBeInstanceOf(MentorHistoryProposalsService);
+    expect(module.get(ASSISTANT_LOCAL_MODEL, { strict: false })).toBeUndefined();
+  });
+
+  it("reutiliza la única instancia de MentorProposalHistoryService exportada por MentorProposalsModule y el ProjectAccessService compartido", async () => {
+    const module = await compile();
+    const service = module.get(MentorHistoryProposalsService, { strict: false });
+    const shared = module.select(MentorProposalsModule).get(MentorProposalHistoryService);
+    const internalsOf = service as unknown as { access: unknown; proposals: unknown };
+
+    expect(internalsOf.proposals).toBe(shared);
+    expect(internalsOf.access).toBe(module.select(ProjectsPersistenceModule).get(ProjectAccessService));
   });
 });

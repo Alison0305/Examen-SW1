@@ -88,4 +88,18 @@ describe("independencia del módulo", () => {
     expect(files).toEqual(expect.arrayContaining([...PURE_FILES, "prisma-mentor-history.reader.ts", "mentor-history.service.ts", "mentor-history.module.ts"]));
     for (const file of files) expect(readFileSync(join(__dirname, file), "utf8"), file).not.toMatch(/from "(\.\.\/assistant|\.\.\/mentor-analysis|\.\.\/mentor\/|\.\.\/vision|\.\.\/speech|node-llama-cpp|@huggingface)/);
   });
+
+  // Task 8.1: proposals are read only through CU-2P-06's public read entry point, never through its stores or Prisma.
+  it("de CU-2P-06 solo se usan su módulo, MentorProposalHistoryService y sus contratos; nunca el store, Prisma ni la generación", () => {
+    const files = readdirSync(__dirname).filter((name) => name.endsWith(".ts") && !name.endsWith(".test.ts"));
+    const allowed = new Set(["../mentor-proposals/mentor-proposals.module", "../mentor-proposals/mentor-proposal-history.service", "../mentor-proposals/mentor-proposal.contracts"]);
+    const used = new Set<string>();
+    for (const file of files) {
+      const source = readFileSync(join(__dirname, file), "utf8");
+      for (const match of source.matchAll(/from "(\.\.\/mentor-proposals\/[^"]+)"/g)) used.add(match[1]!);
+      expect(source, file).not.toMatch(/mentorProposal\.|MENTOR_PROPOSAL_(HISTORY_)?STORE|PrismaMentorProposalStore|toMentorProposalHistoryProjection/);
+    }
+    expect([...used].filter((path) => !allowed.has(path))).toEqual([]);
+    expect(used).toEqual(allowed);
+  });
 });

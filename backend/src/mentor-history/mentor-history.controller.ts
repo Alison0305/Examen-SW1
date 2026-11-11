@@ -1,7 +1,8 @@
 import { BadRequestException, Controller, Get, Inject, NotFoundException, Param, ParseUUIDPipe, Query, Req, UseGuards } from "@nestjs/common";
 import type { AuthenticatedRequest } from "../auth/auth.types";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
-import type { MentorHistoryPage, MentorHistoryQueryError } from "./mentor-history.contracts";
+import type { MentorHistoryPage, MentorHistoryQueryError, MentorProposalHistoryList } from "./mentor-history.contracts";
+import { MentorHistoryProposalsService } from "./mentor-history-proposals.service";
 import { MentorHistoryService } from "./mentor-history.service";
 
 // CU-2P-07, fase 4: HTTP entry point of the shared Mentor history. Same conventions as MentorController (CU-2P-01) and
@@ -32,7 +33,10 @@ export function toMentorHistoryBadRequest(error: MentorHistoryQueryError): BadRe
 @Controller("projects")
 @UseGuards(JwtAuthGuard)
 export class MentorHistoryController {
-  constructor(@Inject(MentorHistoryService) private readonly history: MentorHistoryService) {}
+  constructor(
+    @Inject(MentorHistoryService) private readonly history: MentorHistoryService,
+    @Inject(MentorHistoryProposalsService) private readonly proposalHistory: MentorHistoryProposalsService,
+  ) {}
 
   @Get(":id/mentor/history")
   async list(@Req() request: AuthenticatedRequest, @Param("id", new ParseUUIDPipe()) projectId: string, @Query() rawQuery: unknown): Promise<MentorHistoryPage> {
@@ -43,5 +47,16 @@ export class MentorHistoryController {
     const result = await this.history.list(projectId, authenticatedUser.id, rawQuery);
     if (!result.ok) throw toMentorHistoryBadRequest(result.error);
     return result.page;
+  }
+
+  // Task 8.1: the project's UML proposals (CU-2P-06 projection), a set separate from the interactions above: only
+  // `limit`, no cursor. Same guard, UUID pipe, 404 policy and 400 body as the interaction history.
+  @Get(":id/mentor/history/proposals")
+  async listProposals(@Req() request: AuthenticatedRequest, @Param("id", new ParseUUIDPipe()) projectId: string, @Query() rawQuery: unknown): Promise<MentorProposalHistoryList> {
+    const authenticatedUser = request.authenticatedUser;
+    if (!authenticatedUser) throw new NotFoundException();
+    const result = await this.proposalHistory.list(projectId, authenticatedUser.id, rawQuery);
+    if (!result.ok) throw toMentorHistoryBadRequest(result.error);
+    return result.list;
   }
 }

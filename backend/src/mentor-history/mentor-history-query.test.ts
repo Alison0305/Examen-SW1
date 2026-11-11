@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { encodeHistoryCursor } from "./mentor-history-cursor";
 import { MENTOR_HISTORY_DEFAULT_LIMIT, MENTOR_HISTORY_MAX_LIMIT } from "./mentor-history.contracts";
-import { parseMentorHistoryQuery } from "./mentor-history-query";
+import { parseMentorHistoryQuery, parseMentorProposalHistoryQuery } from "./mentor-history-query";
+import { MENTOR_PROPOSAL_HISTORY_DEFAULT_LIMIT, MENTOR_PROPOSAL_HISTORY_MAX_LIMIT } from "../mentor-proposals/mentor-proposal.contracts";
 
 const ID = "6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b";
 const AT = new Date("2026-11-10T10:30:00.123Z");
@@ -79,5 +80,48 @@ describe("parseMentorHistoryQuery: cursor y parámetros", () => {
     const input = Object.freeze({ limit: "7", q: " uml " });
     expect(parseMentorHistoryQuery(input)).toEqual(parseMentorHistoryQuery(input));
     expect(input).toEqual({ limit: "7", q: " uml " });
+  });
+});
+
+// Task 8.1: query of GET /projects/:id/mentor/history/proposals. Only `limit`, with CU-2P-06's range and default.
+describe("parseMentorProposalHistoryQuery", () => {
+  const proposalErrorCode = (raw: unknown) => {
+    const result = parseMentorProposalHistoryQuery(raw);
+    return result.ok ? undefined : result.error.code;
+  };
+
+  it("usa el rango y el valor por defecto de CU-2P-06 (20 y 1..50), no una copia", () => {
+    expect([MENTOR_PROPOSAL_HISTORY_DEFAULT_LIMIT, MENTOR_PROPOSAL_HISTORY_MAX_LIMIT]).toEqual([20, 50]);
+    expect(parseMentorProposalHistoryQuery({})).toEqual({ ok: true, limit: MENTOR_PROPOSAL_HISTORY_DEFAULT_LIMIT });
+  });
+
+  it.each([["1", 1], ["20", 20], ["50", 50], ["007", 7]])("limit=%s → %i", (limit, expected) => {
+    expect(parseMentorProposalHistoryQuery({ limit })).toEqual({ ok: true, limit: expected });
+  });
+
+  it.each([
+    ["0", "0"], ["51", "51"], ["no numérico", "abc"], ["decimal", "1.5"], ["negativo", "-1"], ["vacío", ""], ["con espacios", " 5"], ["exponente", "1e1"], ["muy largo", "0001"],
+    ["repetido", ["10", "20"]], ["número no textual", 5],
+  ])("limit %s → INVALID_LIMIT", (_case, limit) => {
+    expect(parseMentorProposalHistoryQuery({ limit })).toEqual({ ok: false, error: { code: "INVALID_LIMIT", message: "limit debe ser un entero entre 1 y 50." } });
+  });
+
+  it.each([["cursor", { cursor: "x" }], ["q", { q: "uml" }], ["userId", { userId: "x" }], ["status", { status: "APPLIED", limit: "5" }]])("%s no se admite (sin cursor ni búsqueda) → UNKNOWN_PARAMETER", (_name, raw) => {
+    expect(proposalErrorCode(raw)).toBe("UNKNOWN_PARAMETER");
+  });
+
+  it("varios parámetros desconocidos se nombran ordenados", () => {
+    expect(parseMentorProposalHistoryQuery({ q: "a", cursor: "b" })).toEqual({ ok: false, error: { code: "UNKNOWN_PARAMETER", message: "Parámetros no admitidos: cursor, q." } });
+  });
+
+  it.each([null, "limit=5", ["limit"], 5])("una query que no es un objeto (%j) → UNKNOWN_PARAMETER sin lanzar", (raw) => {
+    expect(() => parseMentorProposalHistoryQuery(raw)).not.toThrow();
+    expect(proposalErrorCode(raw)).toBe("UNKNOWN_PARAMETER");
+  });
+
+  it("el parser de interacciones no cambia: limit sigue aceptando cursor y q junto a limit", () => {
+    expect(parseMentorHistoryQuery({ limit: "50" })).toEqual({ ok: true, query: { limit: 50 } });
+    expect(parseMentorHistoryQuery({ limit: "51" })).toEqual({ ok: false, error: { code: "INVALID_LIMIT", message: "limit debe ser un entero entre 1 y 50." } });
+    expect(parseMentorHistoryQuery({})).toEqual({ ok: true, query: { limit: MENTOR_HISTORY_DEFAULT_LIMIT } });
   });
 });
