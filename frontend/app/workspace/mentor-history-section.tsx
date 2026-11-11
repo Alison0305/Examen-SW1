@@ -61,7 +61,8 @@ export function MentorHistorySection({
   debounceMs = MENTOR_HISTORY_SEARCH_DEBOUNCE_MS,
 }: Readonly<{
   onLoad: MentorHistoryLoader;
-  // Incremented by the panel after each successful Mentor query (CU-2P-03 records it).
+  // Incremented by the panel after each successful Mentor query (CU-2P-03 records it) and each recorded technical
+  // recommendation (CU-2P-05).
   refreshKey?: number;
   debounceMs?: number;
 }>) {

@@ -23,7 +23,8 @@ export function MentorPanel({ projectName, onQuery, onRecommend, analysis, propo
   const [error, setError] = useState<string | null>(null);
   const [loadingOperation, setLoadingOperation] = useState<"query" | "recommendation" | null>(null);
   const activeRequest = useRef(false);
-  // Bumped after each successful query, so an open (or already loaded) history picks up the new interaction.
+  // Bumped after each successful query and each recorded recommendation, so an open (or already loaded) history picks
+  // up the new interaction. Local invalidation only: no realtime, no polling.
   const [interactionVersion, setInteractionVersion] = useState(0);
   const proposalFlow = useMentorProposalFlow(proposals);
   const trimmed = question.trim();
@@ -57,8 +58,12 @@ export function MentorPanel({ projectName, onQuery, onRecommend, analysis, propo
     setResult(null);
     const asked = trimmed;
     try {
-      setRecommendation(await recommendRequest(asked));
+      const response = await recommendRequest(asked);
+      setRecommendation(response);
       setRecommendationQuestion(asked);
+      // CU-2P-05 records every recommendation it returns with needsClarification = false; a clarification
+      // (needsClarification = true) is returned without being recorded, so there is nothing new in the history.
+      if (!response.needsClarification) setInteractionVersion((version) => version + 1);
     } catch {
       setError("No fue posible solicitar una recomendación técnica. Intenta nuevamente.");
     } finally {

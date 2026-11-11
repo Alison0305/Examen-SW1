@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiError, type MentorHistoryItem, type MentorHistoryPage, type MentorHistoryParams } from "../auth/api";
+import { ApiError, type MentorHistoryItem, type MentorHistoryPage, type MentorHistoryParams, type MentorProposalResponse, type MentorRecommendationResponse } from "../auth/api";
 import { AppProviders } from "../providers";
 import { formatHistoryDate, MentorHistorySection } from "./mentor-history-section";
 import { MentorPanel } from "./mentor-panel";
@@ -391,5 +391,195 @@ describe("MentorPanel con historial (CU-2P-07)", () => {
   it("sin la prop history el panel es exactamente el de CU-2P-01/04", () => {
     render(<AppProviders><MentorPanel projectName="CRM" onQuery={onQuery()} /></AppProviders>);
     expect(screen.queryByText("Historial del proyecto")).not.toBeInTheDocument();
+  });
+});
+
+// CU-2P-07, task 9.2: a technical recommendation recorded by CU-2P-05 refreshes the history exactly like a query, through
+// the same interactionVersion → refreshKey invalidation (local only: no realtime, no polling).
+describe("MentorPanel: refresco del historial tras una recomendación técnica (CU-2P-07, tarea 9.2)", () => {
+  const onQuery = () => vi.fn().mockResolvedValue({ answer: "Cliente tiene nombre.", grounded: true, projectRevision: 3 });
+  const QUESTION = "¿Conviene agregar teléfono a Cliente?";
+  const RECORDED: MentorRecommendationResponse = {
+    status: "READ_ONLY",
+    problem: "Cliente no tiene un medio de contacto.",
+    alternatives: ["Agregar un atributo teléfono a Cliente."],
+    rationale: "Cliente existe en el modelo vigente.",
+    limitations: "No se valida el formato.",
+    confidence: 0.75,
+    needsClarification: false,
+    requiresUmlChange: true,
+    projectRevision: 4,
+  };
+  // CU-2P-05 returns a clarification without recording it.
+  const CLARIFICATION: MentorRecommendationResponse = { ...RECORDED, problem: "No hay contexto de pagos.", alternatives: [], requiresUmlChange: false, needsClarification: true, confidence: 1 };
+  // What the history endpoint serves for the recorded recommendation since task 9.1.
+  const READABLE = "Problema:\nCliente no tiene un medio de contacto.\n\nAlternativas:\n- Agregar un atributo teléfono a Cliente.\n\nRazón:\nCliente existe en el modelo vigente.\n\nLimitaciones:\nNo se valida el formato.";
+  // Server double: from the second read on, the recorded recommendation is the newest item.
+  const historyServer = () => {
+    let calls = 0;
+    return vi.fn<Loader>(async () => page(++calls > 1 ? [item(2, { question: QUESTION, answer: READABLE }), item(1)] : [item(1)]));
+  };
+  const ask = (value: string) => fireEvent.change(screen.getByLabelText("Consulta"), { target: { value } });
+  const requestRecommendation = () => fireEvent.click(screen.getByRole("button", { name: "Recomendación técnica" }));
+  const settle = () => act(async () => undefined);
+  const openHistory = async (onLoad: ReturnType<typeof historyServer>) => {
+    open();
+    await screen.findByText("Pregunta 1");
+    expect(onLoad).toHaveBeenCalledTimes(1);
+  };
+
+  it("REF-01: una consulta correcta sigue refrescando el historial exactamente una vez", async () => {
+    const onLoad = historyServer();
+    render(<AppProviders><MentorPanel projectName="CRM" onQuery={onQuery()} onRecommend={vi.fn()} history={{ projectKey: "p1", onLoad }} /></AppProviders>);
+    await openHistory(onLoad);
+
+    ask("Describe Cliente");
+    fireEvent.click(screen.getByRole("button", { name: "Consultar" }));
+    expect(await screen.findByText("Cliente tiene nombre.")).toBeInTheDocument();
+    await waitFor(() => expect(onLoad).toHaveBeenCalledTimes(2));
+    await settle();
+
+    expect(onLoad).toHaveBeenCalledTimes(2);
+  });
+
+  it("REF-02 a REF-04: una recomendación registrada refresca una vez, vuelve a leer el historial abierto y la muestra legible", async () => {
+    const onLoad = historyServer();
+    const onRecommend = vi.fn().mockResolvedValue(RECORDED);
+    render(<AppProviders><MentorPanel projectName="CRM" onQuery={onQuery()} onRecommend={onRecommend} history={{ projectKey: "p1", onLoad }} /></AppProviders>);
+    await openHistory(onLoad);
+
+    ask(QUESTION);
+    requestRecommendation();
+
+    // The recommendation is still shown in the panel as before.
+    expect(await screen.findByText("Recomendación técnica (solo lectura)")).toBeInTheDocument();
+    await waitFor(() => expect(onLoad).toHaveBeenCalledTimes(2));
+    expect(onLoad).toHaveBeenLastCalledWith({});
+    const list = await screen.findByRole("list", { name: "Interacciones del Mentor" });
+    await within(list).findByText(QUESTION);
+    const [newest, previous] = screen.getAllByTestId("mentor-history-item");
+    expect(within(newest).getByText(QUESTION)).toBeInTheDocument();
+    expect(within(previous).getByText("Pregunta 1")).toBeInTheDocument();
+    fireEvent.click(within(newest).getByRole("button", { name: "Ver respuesta" }));
+    expect(screen.getByText((_content, element) => element?.id === "mentor-history-answer-d7035000-0000-4000-8000-000000000002" && element.textContent === READABLE)).toBeInTheDocument();
+    await settle();
+    expect(onLoad).toHaveBeenCalledTimes(2);
+  });
+
+  it("REF-05: una recomendación fallida no refresca y conserva el error y el historial actuales", async () => {
+    const onLoad = historyServer();
+    render(<AppProviders><MentorPanel projectName="CRM" onQuery={onQuery()} onRecommend={vi.fn().mockRejectedValue(new ApiError(503, "x"))} history={{ projectKey: "p1", onLoad }} /></AppProviders>);
+    await openHistory(onLoad);
+
+    ask(QUESTION);
+    requestRecommendation();
+
+    expect(await screen.findByText("No fue posible solicitar una recomendación técnica. Intenta nuevamente.")).toBeInTheDocument();
+    await settle();
+    expect(onLoad).toHaveBeenCalledTimes(1);
+    expect(shownQuestions()).toEqual(["Pregunta 1"]);
+  });
+
+  it("REF-06: una aclaración (needsClarification, no registrada por CU-2P-05) se muestra pero no refresca", async () => {
+    const onLoad = historyServer();
+    render(<AppProviders><MentorPanel projectName="CRM" onQuery={onQuery()} onRecommend={vi.fn().mockResolvedValue(CLARIFICATION)} history={{ projectKey: "p1", onLoad }} /></AppProviders>);
+    await openHistory(onLoad);
+
+    ask("¿Cómo integro pagos?");
+    requestRecommendation();
+
+    expect(await screen.findByText("Se necesita aclaración:", { exact: false })).toBeInTheDocument();
+    await settle();
+    expect(onLoad).toHaveBeenCalledTimes(1);
+  });
+
+  it("REF-07: un doble clic durante una recomendación lenta produce una sola petición y un solo refresco", async () => {
+    const onLoad = historyServer();
+    const pending = deferred<MentorRecommendationResponse>();
+    const onRecommend = vi.fn().mockReturnValue(pending.promise);
+    render(<AppProviders><MentorPanel projectName="CRM" onQuery={onQuery()} onRecommend={onRecommend} history={{ projectKey: "p1", onLoad }} /></AppProviders>);
+    await openHistory(onLoad);
+
+    ask(QUESTION);
+    const button = screen.getByRole("button", { name: "Recomendación técnica" });
+    fireEvent.click(button);
+    fireEvent.click(button);
+    await settle();
+    expect(onRecommend).toHaveBeenCalledOnce();
+    expect(onLoad).toHaveBeenCalledTimes(1);
+
+    await act(async () => pending.resolve(RECORDED));
+    await waitFor(() => expect(onLoad).toHaveBeenCalledTimes(2));
+    await settle();
+    expect(onLoad).toHaveBeenCalledTimes(2);
+  });
+
+  it("REF-08: consultar y recomendar usan el mismo interactionVersion (abierto recarga; cerrado y cargado recarga al reabrir)", async () => {
+    const onLoad = historyServer();
+    const onRecommend = vi.fn().mockResolvedValue(RECORDED);
+    render(<AppProviders><MentorPanel projectName="CRM" onQuery={onQuery()} onRecommend={onRecommend} history={{ projectKey: "p1", onLoad }} /></AppProviders>);
+    await openHistory(onLoad);
+
+    ask("Describe Cliente");
+    fireEvent.click(screen.getByRole("button", { name: "Consultar" }));
+    await waitFor(() => expect(onLoad).toHaveBeenCalledTimes(2));
+    await screen.findByText("Cliente tiene nombre.");
+    ask(QUESTION);
+    requestRecommendation();
+    await waitFor(() => expect(onLoad).toHaveBeenCalledTimes(3));
+
+    // Closed but already loaded: the same pending-refresh path as after a query.
+    close();
+    requestRecommendation();
+    await waitFor(() => expect(onRecommend).toHaveBeenCalledTimes(2));
+    await settle();
+    expect(onLoad).toHaveBeenCalledTimes(3);
+    open();
+    await waitFor(() => expect(onLoad).toHaveBeenCalledTimes(4));
+    await settle();
+    expect(onLoad).toHaveBeenCalledTimes(4);
+    for (const call of onLoad.mock.calls) expect(call).toEqual([{}]);
+  });
+
+  it("REF-09: un VIEWER (panel sin propuestas) recomienda y refresca igual, sin acciones de propuesta", async () => {
+    const onLoad = historyServer();
+    render(<AppProviders><MentorPanel projectName="CRM" onQuery={onQuery()} onRecommend={vi.fn().mockResolvedValue(RECORDED)} history={{ projectKey: "p1", onLoad }} /></AppProviders>);
+    await openHistory(onLoad);
+
+    ask(QUESTION);
+    requestRecommendation();
+
+    expect(await screen.findByText("Recomendación técnica (solo lectura)")).toBeInTheDocument();
+    await waitFor(() => expect(onLoad).toHaveBeenCalledTimes(2));
+    expect(screen.queryByRole("button", { name: "Generar propuesta UML" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Proponer cambio UML" })).not.toBeInTheDocument();
+  });
+
+  it("REF-10: el flujo CU-2P-06 no cambia y crear una propuesta no refresca el historial de interacciones", async () => {
+    const onLoad = historyServer();
+    const proposal: MentorProposalResponse = {
+      id: "d7035000-0000-4000-8000-0000000000f1",
+      status: "PENDING",
+      baseRevision: 4,
+      operation: { kind: "ADD_ATTRIBUTE", target: { className: "Cliente" }, change: { attributeName: "teléfono", attributeType: "string" } },
+      preview: { valid: true, diff: [{ kind: "added", element: "attribute", label: "Cliente.teléfono: string" }], diagnostics: [] },
+      createdAt: "2026-11-10T12:00:00.000Z",
+    };
+    const proposals = { create: vi.fn().mockResolvedValue(proposal), get: vi.fn(), apply: vi.fn(), reject: vi.fn() };
+    render(<AppProviders><MentorPanel projectName="CRM" onQuery={onQuery()} onRecommend={vi.fn().mockResolvedValue(RECORDED)} proposals={proposals} history={{ projectKey: "p1", onLoad }} /></AppProviders>);
+    await openHistory(onLoad);
+
+    ask(QUESTION);
+    requestRecommendation();
+    await waitFor(() => expect(onLoad).toHaveBeenCalledTimes(2));
+    fireEvent.click(await screen.findByRole("button", { name: "Generar propuesta UML" }));
+
+    expect(await screen.findByRole("list", { name: "Cambios propuestos" })).toBeInTheDocument();
+    expect(proposals.create).toHaveBeenCalledOnce();
+    expect(proposals.create).toHaveBeenCalledWith(QUESTION);
+    expect(proposals.apply).not.toHaveBeenCalled();
+    expect(proposals.reject).not.toHaveBeenCalled();
+    await settle();
+    expect(onLoad).toHaveBeenCalledTimes(2);
   });
 });
