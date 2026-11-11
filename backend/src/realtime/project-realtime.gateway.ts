@@ -6,6 +6,7 @@ import { AuthService } from "../auth/auth.service";
 import type { AuthenticatedUser } from "../auth/auth.types";
 import { ProjectAccessService } from "../projects/project-access.service";
 import { ProjectAccessInvalidationService, type ProjectAccessInvalidation } from "../projects/project-access-invalidation.service";
+import type { ProjectChatBroadcaster, ProjectChatMentorEvent, ProjectChatMentorState, ProjectChatMessageEvent, ProjectChatPublicMessage } from "./project-chat-broadcaster";
 import type { ProjectOperationBroadcaster } from "./project-operation-broadcaster";
 import type { ApplyProjectOperationDto, JoinProjectDto, PresenceUpdateDto, ProjectOperationAck, ProjectPresence } from "./realtime.contracts";
 import { RealtimeEvent } from "./realtime.contracts";
@@ -16,7 +17,7 @@ type PresenceRecord = ProjectPresence & { lastCursorEmissionAt: number; lastActi
 
 @WebSocketGateway({ cors: { origin: process.env.FRONTEND_ORIGIN ?? "http://localhost:3000" } })
 @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
-export class ProjectRealtimeGateway implements OnModuleInit, OnModuleDestroy, ProjectOperationBroadcaster {
+export class ProjectRealtimeGateway implements OnModuleInit, OnModuleDestroy, ProjectOperationBroadcaster, ProjectChatBroadcaster {
   @WebSocketServer() server!: Server;
   private readonly presence = new Map<string, Map<string, PresenceRecord>>();
   private unsubscribeAccessInvalidations?: () => void;
@@ -143,6 +144,17 @@ export class ProjectRealtimeGateway implements OnModuleInit, OnModuleDestroy, Pr
   // Single place where an accepted authoritative operation reaches the project's room.
   broadcastAccepted(ack: ProjectOperationAck): void {
     this.server.to(room(ack.projectId)).emit(RealtimeEvent.ACCEPTED, ack);
+  }
+
+  // CU-2P-08: the chat reaches the same project room (members join with requireView and leave when access is revoked).
+  broadcastChatMessage(projectId: string, message: ProjectChatPublicMessage): void {
+    const event: ProjectChatMessageEvent = { projectId, message };
+    this.server.to(room(projectId)).emit(RealtimeEvent.CHAT_MESSAGE, event);
+  }
+
+  broadcastChatMentorState(projectId: string, replyToId: string, state: ProjectChatMentorState): void {
+    const event: ProjectChatMentorEvent = { projectId, replyToId, state };
+    this.server.to(room(projectId)).emit(RealtimeEvent.CHAT_MENTOR, event);
   }
 
   private user(socket: AuthenticatedSocket): AuthenticatedUser {

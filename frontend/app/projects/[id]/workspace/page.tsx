@@ -26,6 +26,7 @@ import {
 import { useSession } from "../../../auth/session";
 import { WorkspaceClient } from "../../../workspace/workspace-client";
 import type { MentorProposalActions } from "../../../workspace/mentor-proposal-section";
+import type { ProjectChatConnection, ProjectChatListener } from "../../../workspace/project-chat-panel";
 import {
   invalidateWorkspaceCollaborativeHistory,
   resetWorkspaceStore,
@@ -38,6 +39,8 @@ import {
   type OperationAck,
   type OperationConflict,
   type ProjectAccessChangedEvent,
+  type ProjectChatMentorEvent,
+  type ProjectChatMessageEvent,
   type ProjectPresence,
   type ProjectRealtimeState,
 } from "../../../workspace/realtime-client";
@@ -124,6 +127,8 @@ function PersistedWorkspace() {
   const pendingOperations = useRef(
     new Map<string, { command: UmlCommand; preimage: ProjectDocument }>(),
   );
+  // CU-2P-08: the chat panel subscribes here; the socket handlers below fan the chat events out to it.
+  const chatListeners = useRef(new Set<ProjectChatListener>());
   projectRef.current = project;
   connectionRef.current = connection;
   useEffect(() => {
@@ -201,6 +206,8 @@ function PersistedWorkspace() {
       sessionStorage.getItem("examen-sw1.access-token") ?? "",
     );
     const accepted = (ack: OperationAck) => {
+      // A proposal applied from the chat arrives as an operation whose id is the proposal id: refresh its card.
+      chatListeners.current.forEach((listener) => listener.operationAccepted(ack.operationId));
       if (receivedOperations.current.has(ack.operationId)) return;
       receivedOperations.current.add(ack.operationId);
       const local = pendingOperations.current.get(ack.operationId);
@@ -298,7 +305,17 @@ function PersistedWorkspace() {
           ? [...current.filter((item) => item.userId !== update.userId), update]
           : current.filter((item) => item.userId !== update.userId),
       );
+    const chatMessage = ({ projectId, message }: ProjectChatMessageEvent) => {
+      if (projectId === project.id) chatListeners.current.forEach((listener) => listener.message(message));
+    };
+    const chatMentor = ({ projectId, replyToId, state }: ProjectChatMentorEvent) => {
+      if (projectId === project.id) chatListeners.current.forEach((listener) => listener.mentor({ replyToId, state }));
+    };
+    let connectedOnce = false;
     socket.on("connect", () => {
+      // After a reconnection the chat may have missed messages: it reloads its latest page.
+      if (connectedOnce) chatListeners.current.forEach((listener) => listener.reconnected());
+      connectedOnce = true;
       setConnection("resyncing");
       void realtime
         .join(project.id)
@@ -313,6 +330,8 @@ function PersistedWorkspace() {
     socket.on(RealtimeEvent.CONFLICT, conflict);
     socket.on(RealtimeEvent.PRESENCE_UPDATED, presenceUpdated);
     socket.on(RealtimeEvent.ACCESS_CHANGED, accessChanged);
+    socket.on(RealtimeEvent.CHAT_MESSAGE, chatMessage);
+    socket.on(RealtimeEvent.CHAT_MENTOR, chatMentor);
     return () => {
       setWorkspaceCollaborativeCommandListener();
       pendingOperations.current.clear();
@@ -439,6 +458,29 @@ function PersistedWorkspace() {
           if (connectionRef.current !== "connected") setStaleConflict(true);
         },
       };
+  // CU-2P-08: every member chats and asks the Mentor; only OWNER and EDITOR get the proposal actions.
+  const projectChat: ProjectChatConnection = {
+    projectKey: project.id,
+    load: (params) => api.getChatMessages(project.id, params),
+    send: (body) => api.postChatMessage(project.id, body),
+    action: (action, text) => api.postChatAction(project.id, action, text),
+    subscribe: (listener) => {
+      chatListeners.current.add(listener);
+      return () => {
+        chatListeners.current.delete(listener);
+      };
+    },
+    loadProposalStatuses: () => api.getMentorProposalHistory(project.id, { limit: 50 }),
+    proposals: readOnly
+      ? undefined
+      : {
+          apply: async (proposalId) => {
+            await api.applyMentorProposal(project.id, proposalId);
+            if (connectionRef.current !== "connected") setStaleConflict(true);
+          },
+          reject: (proposalId) => api.rejectMentorProposal(project.id, proposalId),
+        },
+  };
   const validBasePackage = basePackagePattern.test(basePackage.trim());
   return (
     <>
@@ -462,6 +504,7 @@ function PersistedWorkspace() {
         onMentorRecommendation={(question) => api.recommendMentor(project.id, question)}
         mentorProposals={mentorProposals}
         mentorHistory={{ projectKey: project.id, onLoad: (params) => api.getMentorHistory(project.id, params), onLoadProposals: () => api.getMentorProposalHistory(project.id) }}
+        projectChat={projectChat}
         onRecognizeImage={
           readOnly ? undefined : (image) => api.recognizeDiagram(project.id, image)
         }

@@ -30,7 +30,8 @@ import { PrismaMentorProposalStore } from "./prisma-mentor-proposal.store";
     MentorProposalCreationService,
     MentorProposalHistoryService,
   ],
-  // MentorProposalHistoryService is the read entry point prepared for CU-2P-07.
-  exports: [MentorProposalApplicationService, MENTOR_PROPOSAL_STORE, MentorProposalHistoryService],
+  // MentorProposalHistoryService is the read entry point prepared for CU-2P-07. MentorProposalCreationService is used by
+  // the CU-2P-08 chat to create PENDING proposals through the same flow (requireEdit, Qwen intent, resolver, preview).
+  exports: [MentorProposalApplicationService, MENTOR_PROPOSAL_STORE, MentorProposalHistoryService, MentorProposalCreationService],
 })
 export class MentorProposalsModule {}

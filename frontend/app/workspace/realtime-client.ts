@@ -15,7 +15,13 @@ export const RealtimeEvent = {
   PRESENCE: "project.presence",
   PRESENCE_UPDATED: "project.presence.updated",
   ACCESS_CHANGED: "project.access.changed",
+  // CU-2P-08 project chat (server → room).
+  CHAT_MESSAGE: "project.chat.message",
+  CHAT_MENTOR: "project.chat.mentor",
 } as const;
+
+export type ProjectChatMessageEvent = { projectId: string; message: import("../auth/api").ProjectChatMessage };
+export type ProjectChatMentorEvent = { projectId: string; replyToId: string; state: "THINKING" | "IDLE" };
 
 export type ProjectPresence = {
   userId: string;

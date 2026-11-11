@@ -19,6 +19,7 @@ model User {
   mentorInteractions MentorInteraction[]
   mentorProposalsAuthored MentorProposal[] @relation("MentorProposalAuthor")
   mentorProposalsResolved MentorProposal[] @relation("MentorProposalResolvedBy")
+  chatMessages ProjectChatMessage[] @relation("ProjectChatMessageAuthor")
 }
 
 model Project {
@@ -35,8 +36,38 @@ model Project {
   operationReceipts ProjectOperationReceipt[]
   mentorInteractions MentorInteraction[]
   mentorProposals MentorProposal[]
+  chatMessages ProjectChatMessage[]
 
   @@index([ownerId])
+}
+
+enum ProjectChatMessageKind {
+  USER
+  MENTOR
+  NOTICE
+  PROPOSAL
+}
+
+// CU-2P-08. A USER message has an author; MENTOR, NOTICE and PROPOSAL do not (CHECK in the migration).
+// proposalId has no foreign key: proposal state is read through CU-2P-06's public API.
+model ProjectChatMessage {
+  id             String                 @id @default(uuid()) @db.Uuid
+  projectId      String                 @db.Uuid
+  kind           ProjectChatMessageKind
+  authorUserId   String?                @db.Uuid
+  authorEmail    String?
+  body           String
+  mentionsMentor Boolean                @default(false)
+  replyToId      String?                @db.Uuid
+  proposalId     String?                @db.Uuid
+  createdAt      DateTime               @default(now())
+  project        Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  author         User?                  @relation("ProjectChatMessageAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
+  replyTo        ProjectChatMessage?    @relation("ProjectChatMessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies        ProjectChatMessage[]   @relation("ProjectChatMessageReplies")
+
+  @@index([projectId, createdAt, id])
+  @@index([authorUserId])
 }
 
 model MentorInteraction {

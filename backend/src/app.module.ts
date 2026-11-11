@@ -11,10 +11,11 @@ import { MentorModule } from "./mentor/mentor.module";
 import { MentorAnalysisModule } from "./mentor-analysis/mentor-analysis.module";
 import { MentorHistoryModule } from "./mentor-history/mentor-history.module";
 import { MentorProposalsModule } from "./mentor-proposals/mentor-proposals.module";
+import { ProjectChatModule } from "./project-chat/project-chat.module";
 import { VisionModule } from "./vision/vision.module";
 
 @Module({
-  imports: [PrismaModule, ProjectsPersistenceModule, AuthModule, RealtimeModule, AssistantModule, VisionModule, MentorModule, MentorAnalysisModule, MentorProposalsModule, MentorHistoryModule],
+  imports: [PrismaModule, ProjectsPersistenceModule, AuthModule, RealtimeModule, AssistantModule, VisionModule, MentorModule, MentorAnalysisModule, MentorProposalsModule, MentorHistoryModule, ProjectChatModule],
   controllers: [HealthController, SpeechRecognitionController],
 })
 export class AppModule {}

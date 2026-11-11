@@ -13,6 +13,9 @@ export const RealtimeEvent = {
   REJECTED: "project.operation.rejected",
   CONFLICT: "project.operation.conflict",
   RESYNCED: "project.resynced",
+  // CU-2P-08 project chat (server → room only).
+  CHAT_MESSAGE: "project.chat.message",
+  CHAT_MENTOR: "project.chat.mentor",
 } as const;
 
 export interface JoinProjectDto {
