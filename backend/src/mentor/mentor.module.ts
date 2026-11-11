@@ -23,5 +23,7 @@ import { MentorService } from "./mentor.service";
     { provide: MENTOR_INTERACTION_RECORDER, useExisting: PrismaMentorInteractionRecorder },
     { provide: MENTOR_INTERACTION_MEMORY, useExisting: PrismaMentorInteractionMemory },
   ],
+  // CU-2P-08: the project chat answers @mentor mentions through the same query flow (context, memory, recorder).
+  exports: [MentorService],
 })
 export class MentorModule {}

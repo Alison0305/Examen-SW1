@@ -82,6 +82,20 @@ describe("ProjectRealtimeGateway", () => {
     expect(roomEmit).not.toHaveBeenCalled();
   });
 
+  it("CU-2P-08: emite los mensajes del chat y el estado del Mentor solo a la sala del proyecto", () => {
+    const { instance, roomEmit } = gateway();
+    const message = { id: "66666666-6666-4666-8666-666666666666", kind: "USER" as const, author: { email: "ana@example.test" }, body: "hola", replyToId: null, proposalId: null, createdAt: "2026-11-11T12:00:00.000Z" };
+
+    instance.broadcastChatMessage(projectId, message);
+    instance.broadcastChatMentorState(projectId, message.id, "THINKING");
+
+    expect(instance.server.to).toHaveBeenCalledWith(`project:${projectId}`);
+    expect(roomEmit.mock.calls).toEqual([
+      ["project.chat.message", { projectId, message }],
+      ["project.chat.mentor", { projectId, replyToId: message.id, state: "THINKING" }],
+    ]);
+  });
+
   it("mantiene presencia efímera, inmediata y cursor coalescido sin ejecutar operaciones UML", async () => {
     vi.useFakeTimers();
     const { instance, roomEmit, operations } = gateway();

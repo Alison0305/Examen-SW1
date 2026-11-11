@@ -15,7 +15,9 @@ Implementado y con gates verdes: frontend 366/366, build, `tsc` y ESLint. Integr
 
 ### Segundo Parcial
 
-**CU activo del segundo parcial:** CU-2P-07 - Historial compartido del Mentor IA.
+**CU activo del segundo parcial:** CU-2P-08 - Chat colaborativo del proyecto con el Mentor IA.
+
+**CU-2P-08** (issue #17, rama `feat/chat-colaborativo-mentor`, OpenSpec `openspec/changes/s2-cu08-chat-colaborativo/`). Chat por proyecto, persistente y en tiempo real: OWNER, EDITOR y VIEWER escriben; el Mentor IA responde cuando se le menciona (`@mentor`) con el `MentorService.query` existente; el chat reemplazará al panel Mentor conservando las acciones de CU-2P-04/05/06. Estado: EN DESARROLLO. Incremento 1 (backend) implementado con pruebas unitarias y HTTP (backend sin integraciones 882/882); integración PostgreSQL y prueba real pendientes de un entorno de pruebas en Railway. Sin push.
 
 **CU-2P-07** (issue #7, rama `feat/s2-cu07-historial-compartido`, OpenSpec `openspec/changes/s2-cu07-historial-compartido/`, PUDS `docs/puds/use-cases/CU-2P-07-historial-compartido.md`).
 
