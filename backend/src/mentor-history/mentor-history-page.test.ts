@@ -74,7 +74,7 @@ describe("página del historial", () => {
 });
 
 describe("independencia del módulo", () => {
-  const PURE_FILES = ["mentor-history.contracts.ts", "mentor-history-cursor.ts", "mentor-history-query.ts", "mentor-history-page.ts"];
+  const PURE_FILES = ["mentor-history.contracts.ts", "mentor-history-cursor.ts", "mentor-history-query.ts", "mentor-history-page.ts", "mentor-history-recommendation.ts"];
 
   it("los contratos del historial no importan Qwen, el asistente ni infraestructura (Prisma, NestJS)", () => {
     for (const file of PURE_FILES) {

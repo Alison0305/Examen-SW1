@@ -197,4 +197,70 @@ describe("Historial compartido de extremo a extremo (MentorService.query → Men
     expect(localModel.generateStructured).not.toHaveBeenCalled();
     expect(process.env.ASSISTANT_MODEL_PATH).toBe("");
   });
+
+  // REC-13 (task 9.1): recommendations recorded by the real MentorService.recommend (CU-2P-05) are read back through
+  // CU-2P-07 as readable text. The stored row keeps the original JSON: the history never writes it back.
+  const RECOMMENDATION_DRAFT = {
+    problem: "Los datos de Cliente se guardan sin validar.",
+    alternatives: ["Validar el nombre de Cliente en el DTO del backend.", "Rechazar nombres vacíos antes de guardar."],
+    rationale: "Cliente existe en el modelo vigente y su nombre es obligatorio.",
+    limitations: "No cubre validaciones de negocio externas.",
+    confidence: 0.75,
+    needsClarification: false,
+    requiresUmlChange: false,
+  };
+  const HIDDEN_RECOMMENDATION_FIELDS = ["projectRevision", "confidence", "status", "READ_ONLY", "needsClarification", "requiresUmlChange", "0.75"];
+  const recommend = (bearer: string, question: string) => http().post(`/projects/${PROJECT.A}/mentor/recommendations`).set("Authorization", `Bearer ${bearer}`).send({ question });
+
+  it("REC-13 y REC-14: una recomendación del proveedor registrada por MentorService se lee desde PostgreSQL como texto legible, sin campos internos", async () => {
+    provider.recommend.mockResolvedValueOnce(RECOMMENDATION_DRAFT);
+    const question = "¿Cómo debería validar los datos de Cliente antes de guardarlos?";
+    const created = await recommend(token.A, question).expect(201);
+    expect(created.body).toMatchObject({ status: "READ_ONLY", projectRevision: 4, problem: RECOMMENDATION_DRAFT.problem });
+    expect(provider.recommend).toHaveBeenCalledOnce();
+
+    // The row is untouched: CU-2P-05 keeps storing its JSON.
+    const row = await prisma.mentorInteraction.findFirstOrThrow({ where: { projectId: PROJECT.A, question } });
+    expect(JSON.parse(row.answer)).toEqual({ status: "READ_ONLY", ...RECOMMENDATION_DRAFT, projectRevision: 4 });
+
+    const response = await history(PROJECT.A, token.B).expect(200);
+    const item = response.body.items[0];
+    expect(item).toEqual({
+      id: row.id,
+      author: { email: EMAIL.A },
+      question,
+      answer: [
+        "Problema:\nLos datos de Cliente se guardan sin validar.",
+        "Alternativas:\n- Validar el nombre de Cliente en el DTO del backend.\n- Rechazar nombres vacíos antes de guardar.",
+        "Razón:\nCliente existe en el modelo vigente y su nombre es obligatorio.",
+        "Limitaciones:\nNo cubre validaciones de negocio externas.",
+      ].join("\n\n"),
+      occurredAt: row.occurredAt.toISOString(),
+    });
+    expect(Object.keys(item).sort()).toEqual(PUBLIC_ITEM_KEYS);
+    for (const hidden of HIDDEN_RECOMMENDATION_FIELDS) expect(item.answer).not.toContain(hidden);
+    expect(item.answer).not.toMatch(/[{}"]/);
+    // The free queries recorded earlier keep their text answers unchanged.
+    const freeQuery = response.body.items.find((entry: { question: string }) => entry.question === QUESTION_A);
+    const freeRow = await prisma.mentorInteraction.findFirstOrThrow({ where: { projectId: PROJECT.A, question: QUESTION_A } });
+    expect(freeQuery.answer).toBe(freeRow.answer);
+  });
+
+  it("REC-13: la recomendación determinista real de CU-2P-05 (atributo ausente) también se presenta legible, sin invocar el proveedor", async () => {
+    const question = "¿Conviene agregar teléfono a Cliente?";
+    await recommend(token.B, question).expect(201);
+    expect(provider.recommend).toHaveBeenCalledOnce();
+
+    const row = await prisma.mentorInteraction.findFirstOrThrow({ where: { projectId: PROJECT.A, question } });
+    const stored = JSON.parse(row.answer) as { problem: string; alternatives: string[]; rationale: string; limitations: string; projectRevision: number };
+    expect(stored.projectRevision).toBe(4);
+
+    const item = (await history(PROJECT.A, token.A).expect(200)).body.items[0];
+    expect(item).toMatchObject({ id: row.id, author: { email: EMAIL.B }, question });
+    expect(item.answer).toBe(`Problema:\n${stored.problem}\n\nAlternativas:\n${stored.alternatives.map((alternative) => `- ${alternative}`).join("\n")}\n\nRazón:\n${stored.rationale}\n\nLimitaciones:\n${stored.limitations}`);
+    expect(item.answer).toContain("teléfono");
+    for (const hidden of HIDDEN_RECOMMENDATION_FIELDS) expect(item.answer).not.toContain(hidden);
+    expect(localModel.generateText).not.toHaveBeenCalled();
+    expect(localModel.generateStructured).not.toHaveBeenCalled();
+  });
 });
