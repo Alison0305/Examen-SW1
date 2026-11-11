@@ -20,7 +20,7 @@
 - [x] 4.1 Implementar `GET /projects/:id/mentor/history` con `JwtAuthGuard`, `ParseUUIDPipe` y `parseMentorHistoryQuery`, y mapear los errores de contrato a 400 (`{ statusCode, error, code, reason?, message }`). `MentorHistoryController` pasa la query cruda sin DTO duplicado; 404 y errores inesperados se propagan sin capturar.
 - [x] 4.2 Registrar `MentorHistoryController` en `MentorHistoryModule` (con `AuthModule`, necesario para `JwtAuthGuard`) y `MentorHistoryModule` en `AppModule`, sin importar `AssistantModule`.
 - [x] 4.3 Pruebas HTTP sin base de datos, con JWT, guard, `ParseUUIDPipe`, `ValidationPipe` global, controlador, servicio y lector reales: 200 (vacío, elementos, `limit`, cursor y búsqueda), 400 (UUID, `limit` 0/51/1.5/repetido, `q` vacío/espacios/201/repetido, cursor con `reason`, parámetros desconocidos), 401 sin servicio, 404 externo e inexistente, aislamiento, VIEWER ve a OWNER, sin campos internos, 500 genérico y sin Qwen (32 pruebas); controlador unitario (12) y wiring del módulo (6).
-- [ ] 4.4 Ejecutar contra PostgreSQL la integración HTTP con `createApp()`, usuarios reales registrados por `/auth/register` y `ProjectAccessService` real (`mentor-history.controller.integration.test.ts`, 19 pruebas, escrita en la fase 4 sin ejecutar por falta de base de datos en ese equipo).
+- [x] 4.4 Ejecutar contra PostgreSQL la integración HTTP con `createApp()`, usuarios reales registrados por `/auth/register` y `ProjectAccessService` real (`mentor-history.controller.integration.test.ts`, 19 pruebas, escrita en la fase 4 sin ejecutar por falta de base de datos en ese equipo). Ejecutada el 2026-11-10 en la PC con `backend/.env` y PostgreSQL, tras integrar CU-2P-06 (`e67bbe6`): 19/19 correctas; `src/mentor-history` completo 150/150.
 
 ## 5. Pruebas multiusuario
 
@@ -47,6 +47,11 @@
 - [ ] 7.2 Ejecutar lint, typecheck y suites; smoke test con dos usuarios del mismo proyecto y un tercero sin acceso.
 - [ ] 7.3 Revisión del compañero, PR con `Closes #7`, aceptación y archivo del OpenSpec.
 
-## 8. Integración posterior con CU-2P-06
+## 8. Integración con CU-2P-06
 
-- [ ] 8.1 Cuando CU-2P-06 exponga su modelo de propuestas, mostrar su estado real en el historial y añadir la prueba de que un usuario ajeno no accede. No se implementa antes de que exista esa fuente de verdad.
+- [ ] 8.1 Mostrar el estado público de las propuestas UML del proyecto: ruta de lectura de CU-2P-07 sobre `MentorProposalHistoryService` (sin leer `MentorProposal` ni duplicar la proyección o el servicio, y sin modificar CU-2P-06), representación pública de `MentorProposalHistoryProjection` (operación, estado, diff, revisión base, revisión resultante y fechas) y subconjunto «Propuestas UML» en la sección de historial del frontend, separado de la paginación de interacciones. Pruebas: `PENDING`, `APPLIED` y `REJECTED`; OWNER, EDITOR y VIEWER con acceso; usuario ajeno y proyecto inexistente con 404 sin leer; proyecto sin propuestas; ausencia de comando, identificadores UML, recibos y datos internos; y lectura sin modelo local.
+
+## 9. Integración con CU-2P-05
+
+- [ ] 9.1 Presentar las recomendaciones técnicas registradas como texto legible con un mapper estricto en la lectura del historial (problema, alternativas, razón y limitaciones; sin `projectRevision`, `confidence`, `status` ni JSON), sin columna de tipo, migración ni cambios en CU-2P-05; las demás respuestas sin cambios.
+- [ ] 9.2 Refrescar el historial tras una recomendación técnica correcta, igual que tras una consulta, sin tiempo real.

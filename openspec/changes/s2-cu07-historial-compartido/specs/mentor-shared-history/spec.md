@@ -101,15 +101,81 @@ Cada elemento del historial SHALL contener únicamente `id`, `author.email`, `qu
 - **THEN** el elemento devuelto SHALL contener solo los cinco campos públicos
 
 ### Requirement: Independencia del modelo local
-Consultar el historial SHALL NOT requerir ni invocar el modelo local, y el módulo de historial SHALL NOT importar `AssistantModule`.
+La lectura del historial compartido SHALL funcionar sin un modelo local configurado y SHALL NOT invocar el modelo local para consultar o presentar el historial.
 
 #### Scenario: Sin Qwen configurado
 - **WHEN** `ASSISTANT_MODEL_PATH` no está configurado y un integrante consulta el historial
 - **THEN** el sistema SHALL responder 200 con las interacciones persistidas
 
-### Requirement: Estado de propuestas diferido a CU-2P-06
-El sistema SHALL NOT inventar campos, tablas ni valores de estado de propuestas. Cuando CU-2P-06 proporcione su fuente de verdad, el historial SHALL mostrar el estado real (pendiente, aplicada o rechazada) leído de ella; hasta entonces el resto del historial SHALL funcionar sin esa integración.
+#### Scenario: Propuestas sin Qwen configurado
+- **WHEN** `ASSISTANT_MODEL_PATH` no está configurado y un integrante consulta las propuestas UML del proyecto
+- **THEN** el sistema SHALL responder con su estado público sin error de disponibilidad del modelo
 
-#### Scenario: CU-2P-06 aún no integrado
-- **WHEN** se consulta el historial antes de que exista el modelo de propuestas de CU-2P-06
-- **THEN** los elementos SHALL contener solo los campos públicos definidos y SHALL NOT incluir ningún estado de propuesta
+#### Scenario: La lectura no genera inferencias
+- **WHEN** hay un modelo local configurado y un integrante consulta o pagina el historial, busca en él o consulta las propuestas
+- **THEN** el modelo local SHALL NOT recibir ninguna solicitud de generación
+
+### Requirement: Estado público de las propuestas UML
+El sistema SHALL presentar a los integrantes autorizados el estado público de las propuestas UML del proyecto, leído exclusivamente mediante `MentorProposalHistoryService` y `MentorProposalHistoryProjection`, como un conjunto separado de las interacciones, y SHALL NOT exponer el comando persistido, identificadores UML internos, recibos, prompts ni datos de Prisma.
+
+#### Scenario: Integrantes autorizados
+- **WHEN** el propietario, un EDITOR o un VIEWER del proyecto consulta sus propuestas UML
+- **THEN** el sistema SHALL devolver las propuestas del proyecto, más recientes primero, cada una con su operación por nombre, estado (`PENDING`, `APPLIED` o `REJECTED`), diff, revisión base y fecha de creación
+
+#### Scenario: Separadas de las interacciones
+- **WHEN** el proyecto tiene interacciones del Mentor y propuestas UML
+- **THEN** las propuestas SHALL presentarse como un conjunto propio y SHALL NOT alterar los elementos, el orden ni el `nextCursor` de la paginación de interacciones
+
+#### Scenario: Propuesta pendiente
+- **WHEN** el proyecto tiene una propuesta `PENDING` que agrega `teléfono: string` a `Cliente`
+- **THEN** el historial de propuestas SHALL mostrarla con estado `PENDING`, la operación y el diff `Cliente.teléfono: string` y su revisión base, sin fecha de resolución ni revisión resultante
+
+#### Scenario: Propuesta aplicada
+- **WHEN** una propuesta del proyecto fue aplicada y produjo la revisión 11
+- **THEN** el historial de propuestas SHALL mostrarla con estado `APPLIED`, su fecha de resolución y la revisión resultante 11
+
+#### Scenario: Propuesta rechazada
+- **WHEN** una propuesta del proyecto fue rechazada
+- **THEN** el historial de propuestas SHALL mostrarla con estado `REJECTED` y su fecha de resolución, sin revisión resultante
+
+#### Scenario: Sin datos internos
+- **WHEN** se consulta el historial de propuestas
+- **THEN** ninguna propuesta SHALL incluir el comando persistido, identificadores de clase o atributo, el autor, el resolutor, la instrucción, recibos, prompts ni datos de Prisma
+
+#### Scenario: Usuario sin acceso
+- **WHEN** un usuario autenticado sin acceso al proyecto, o un proyecto inexistente, consulta el historial de propuestas
+- **THEN** el sistema SHALL responder 404 sin leer ni revelar propuestas
+
+#### Scenario: Proyecto sin propuestas
+- **WHEN** un integrante autorizado consulta las propuestas de un proyecto que no tiene ninguna
+- **THEN** el sistema SHALL responder con una lista vacía y no con un error
+
+### Requirement: Recomendaciones técnicas registradas
+Una recomendación técnica de CU-2P-05 registrada en el historial SHALL mostrarse como texto legible construido solo con su contenido funcional público (problema, alternativas, razón y limitaciones). El elemento SHALL respetar el mismo DTO público del historial y SHALL NOT mostrar JSON bruto ni exponer `projectRevision`, `confidence` ni `status`.
+
+#### Scenario: Recomendación registrada
+- **WHEN** el proyecto tiene una recomendación técnica registrada por CU-2P-05 y un integrante autorizado consulta el historial
+- **THEN** su respuesta SHALL mostrar el problema, las alternativas, la razón y las limitaciones como texto legible, y SHALL NOT contener JSON, `projectRevision`, `confidence` ni `status`
+
+#### Scenario: Mismo DTO público
+- **WHEN** el historial contiene consultas libres y recomendaciones técnicas
+- **THEN** cada elemento SHALL contener solo `id`, `author.email`, `question`, `answer` y `occurredAt`
+
+#### Scenario: Consulta libre sin cambios
+- **WHEN** el historial contiene la respuesta en texto de una consulta libre
+- **THEN** esa respuesta SHALL mostrarse tal como se registró
+
+### Requirement: Actualización tras una interacción propia
+Tras una interacción propia registrada correctamente en el panel Mentor, sea una consulta libre o una recomendación técnica, la interfaz SHALL refrescar el historial mediante una recarga local. El sistema SHALL NOT requerir tiempo real para el historial.
+
+#### Scenario: Después de una consulta
+- **WHEN** el usuario completa una consulta al Mentor y el historial está abierto
+- **THEN** la interfaz SHALL recargar el historial y mostrar la nueva interacción
+
+#### Scenario: Después de una recomendación técnica
+- **WHEN** el usuario obtiene una recomendación técnica registrada y el historial está abierto
+- **THEN** la interfaz SHALL recargar el historial y mostrar la nueva interacción
+
+#### Scenario: Interacción de otro integrante
+- **WHEN** otro integrante registra una interacción mientras el historial está abierto
+- **THEN** la interfaz SHALL mostrarla al actualizar o al volver a abrir el historial, sin requerir tiempo real

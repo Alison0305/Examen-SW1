@@ -3,7 +3,8 @@
 - CU-2P-01 registra cada consulta completada de `POST /projects/:id/mentor/query` mediante `MentorInteractionRecorder`.
 - CU-2P-02 deriva la identidad del JWT y autoriza con `ProjectAccessService.requireView`.
 - CU-2P-03 persiste las interacciones en `MentorInteraction` (`id`, `projectId`, `userId`, `authorEmail`, `accessRole`, `occurredAt`, `projectRevision`, `question`, `answer`, `grounded`, `createdAt`) con índice `(projectId, occurredAt, id)`, FK a `Project` en cascada y a `User` restringida. Su lector `PrismaMentorInteractionMemory.recent` devuelve las 6 interacciones más recientes, recortadas y en orden cronológico, para el prompt de Qwen.
-- Solo `MentorService.query` escribe interacciones. Las respuestas de diagnóstico (`INSUFFICIENT_CONTEXT`, `ELEMENT_NOT_FOUND`), los 503 y los análisis de CU-2P-04 no se registran.
+- Solo `MentorService` escribe interacciones: las consultas libres de CU-2P-01 (respuesta en texto) y las recomendaciones técnicas de CU-2P-05 (la respuesta completa serializada como JSON en `answer`, incluidos `status`, `confidence` y `projectRevision`). No hay columna de tipo. Las respuestas de diagnóstico (`INSUFFICIENT_CONTEXT`, `ELEMENT_NOT_FOUND`), las aclaraciones de CU-2P-05, los 503 y los análisis de CU-2P-04 no se registran.
+- CU-2P-06 guarda sus propuestas en una tabla propia (`MentorProposal`) y expone para CU-2P-07 `MentorProposalHistoryService` (`requireView`, límite 1..50, más reciente primero, sin cursor) con la proyección pública `MentorProposalHistoryProjection` (`proposalId`, `status`, `operation`, `summary`, `baseRevision`, `createdAt`, `resolvedAt?`, `resultingRevision?`). No hay vínculo entre una propuesta y una interacción.
 - El repositorio no tiene ninguna convención previa de paginación ni de parámetros `@Query`.
 
 ## Goals / Non-Goals
@@ -18,9 +19,9 @@
 **Non-Goals:**
 
 - Editar, borrar o limpiar el historial; tiempo real; resúmenes o búsqueda con IA; búsqueda semántica.
-- Registrar los análisis de CU-2P-04 o las recomendaciones de CU-2P-05 (si CU-2P-05 usa el mismo recorder, sus interacciones aparecerán sin cambios en CU-2P-07).
-- Estado de propuestas antes de que CU-2P-06 exista.
-- Cambiar el esquema Prisma o la memoria de CU-2P-03.
+- Registrar los análisis de CU-2P-04 o cambiar cómo CU-2P-05 registra sus recomendaciones.
+- Un feed único que mezcle interacciones y propuestas, o leer la tabla de propuestas directamente.
+- Cambiar CU-2P-06, el esquema Prisma o la memoria de CU-2P-03.
 
 ## Decisions
 
@@ -28,9 +29,9 @@
 
 El historial lee `MentorInteraction` (única fuente de verdad), pero no reutiliza `recent()`: la memoria tiene un tope fijo, recorta texto, omite el autor, no pagina y devuelve orden cronológico para el prompt. El historial define su propio puerto `MentorHistoryReader` (`MENTOR_HISTORY_READER`).
 
-### Módulo independiente de Qwen
+### Independiente del modelo local
 
-`backend/src/mentor-history/` no importa `AssistantModule`, `mentor-analysis`, `node-llama-cpp` ni el proveedor del Mentor. La ruta es JWT → `requireView` → PostgreSQL → DTO. Una prueba de contrato verifica que sus fuentes no importan esos módulos.
+La lectura del historial funciona sin modelo local configurado y nunca lo invoca. La ruta de interacciones es JWT → `requireView` → PostgreSQL → DTO, y las fuentes de `backend/src/mentor-history/` no importan `mentor-analysis`, `node-llama-cpp` ni el proveedor del Mentor. Para leer las propuestas, CU-2P-07 puede necesitar importar `MentorProposalsModule`, el único que exporta `MentorProposalHistoryService`, que a su vez importa `AssistantModule`. Se acepta: sin `ASSISTANT_MODEL_PATH` el modelo es `undefined`, no se carga nada, y en la aplicación es la misma instancia única. Lo que se exige y se prueba es el comportamiento (responder sin modelo y no generar inferencias), no la estructura de módulos.
 
 ### Contrato HTTP
 
@@ -144,7 +145,7 @@ Decisiones de la fase 6:
 - **Búsqueda.** Se envía al servidor como `q`, recortada, con una espera de 400 ms y sin dependencias nuevas. Un texto vacío o en blanco vuelve al historial sin filtro y nunca envía `q=""`. Cada búsqueda nueva empieza en la primera página y descarta el cursor anterior, que es la regla de la fase 2.
 - **«Cargar más»** envía el cursor y la búsqueda actuales, añade al final en el orden del servidor y omite los `id` ya mostrados. Si falla, conserva lo ya cargado y permite reintentar. Desaparece cuando `nextCursor` es `null`.
 - **«Actualizar»** recarga la primera página sin cursor, con la misma búsqueda, y reemplaza la lista.
-- **Refresco tras una consulta.** `MentorPanel` incrementa `interactionVersion` después de cada consulta correcta. La sección recarga si está abierta, queda marcada para recargar al reabrirse si ya se había cargado, y no hace nada si nunca se abrió. Una consulta fallida (503) no refresca, y el historial sigue visible: no depende de Qwen.
+- **Refresco tras una interacción propia.** `MentorPanel` incrementa `interactionVersion` después de cada interacción registrada correctamente. La sección recarga si está abierta, queda marcada para recargar al reabrirse si ya se había cargado, y no hace nada si nunca se abrió. Una interacción fallida (503) no refresca, y el historial sigue visible: no depende de Qwen. Implementado en la fase 6 para la consulta libre; la recomendación técnica de CU-2P-05, que también se registra, se añade en la tarea 9.2. Sin tiempo real: las interacciones de otros integrantes aparecen al actualizar o al reabrir.
 - **Carreras.** Un contador de peticiones descarta cualquier respuesta que no sea la última: una búsqueda anterior lenta, una actualización o un «Cargar más» adelantado por una búsqueda nueva.
 - **Cambio de proyecto.** La sección se monta con `key={projectKey}`. El estado se reinicia, incluida la búsqueda; la sección vuelve a estar cerrada; y una respuesta tardía del proyecto anterior se ignora, porque pertenece a una instancia ya desmontada.
 - **Errores** con mensajes seguros, sin el detalle técnico del servidor:
@@ -158,12 +159,21 @@ Decisiones de la fase 6:
 
 - **Fecha** con `Intl.DateTimeFormat("es", { dateStyle: "medium", timeStyle: "short" })`. El ISO original se conserva en `<time dateTime>`.
 - **Texto plano.** Pregunta y respuesta se renderizan como texto de React (`pre-wrap`), sin `dangerouslySetInnerHTML`.
-- **Solo el DTO público.** La interfaz usa `id`, `author.email`, `question`, `answer` y `occurredAt`. No hay estado de propuestas: depende de CU-2P-06.
+- **Solo el DTO público.** La interfaz de interacciones usa `id`, `author.email`, `question`, `answer` y `occurredAt`. Las propuestas se muestran aparte (ver «Propuestas de CU-2P-06»).
 - **Compatibilidad verificada.** El parser de query de Fastify (`fast-querystring`) decodifica la salida de `URLSearchParams`: `+` como espacio, `%2B` como `+` y el cursor base64url intacto. No hizo falta ningún cambio en el backend.
 
-### Estado de propuestas (CU-2P-06)
+### Recomendaciones registradas (CU-2P-05)
 
-CU-2P-06 todavía no existe y no hay modelo de propuestas. CU-2P-07 no añade campos, tablas, valores ficticios ni columnas temporales. Cuando CU-2P-06 exponga su fuente de verdad, el historial incorporará su estado leyendo de ella; hasta entonces el criterio de aceptación de propuestas queda documentado como pendiente de esa integración y no bloquea el resto del CU.
+CU-2P-05 guarda cada recomendación como el JSON completo de `MentorRecommendationResponse` en `answer`. Mostrarlo tal cual expondría `projectRevision`, `confidence` y `status` y mostraría JSON bruto. Decisión: un mapper estricto en la lectura del historial reconoce una `answer` con la forma exacta de una recomendación y la convierte en texto legible solo con problema, alternativas, razón y limitaciones; cualquier otra respuesta se devuelve sin cambios. El DTO público no cambia (sigue teniendo cinco campos). Sin columna de tipo, sin migración y sin cambios en CU-2P-05.
+
+### Propuestas de CU-2P-06
+
+Composición en dos fuentes separadas, sin feed global:
+
+- Interacciones: `MentorInteraction`, con la paginación keyset y la búsqueda actuales, sin cambios.
+- Propuestas: `MentorProposalHistoryService` y `MentorProposalHistoryProjection` de CU-2P-06, consumidos tal cual. CU-2P-07 no lee la tabla `MentorProposal` ni `StoredMentorProposal`, no duplica la proyección ni el servicio, no crea otro store y no modifica CU-2P-06.
+
+Por qué no un feed único: las dos tablas no comparten una clave de orden ni un cursor (el servicio de CU-2P-06 solo admite `limit`), y un keyset global exigiría cambiar CU-2P-06 o leer Prisma directamente. No hay vínculo entre una propuesta y una interacción. La interfaz muestra ambas fuentes dentro de la sección de historial como subconjuntos separados. Autorización igual que el resto del historial (`requireView`: OWNER, EDITOR y VIEWER; 404 sin acceso o proyecto inexistente).
 
 ## Risks / Trade-offs
 
@@ -172,6 +182,8 @@ CU-2P-06 todavía no existe y no hay modelo de propuestas. CU-2P-07 no añade ca
 - El email del autor queda visible para VIEWER, que hoy no puede listar miembros → decisión aceptada; no se expone ningún otro dato del usuario.
 - Primer uso de parámetros `@Query` en el repositorio → el parser propio evita depender de que `DtoValidationPipe` maneje objetos de query; el comportamiento real de Fastify con parámetros repetidos se midió y está cubierto por pruebas HTTP.
 - Si el recorder falla, la consulta del Mentor falla aunque Qwen haya respondido → comportamiento existente de CU-2P-01/03, fuera de alcance.
+- La búsqueda `q` opera sobre el texto guardado: en una recomendación es su JSON, así que términos como `problem` coinciden con todas ellas → limitación aceptada para no cambiar CU-2P-05 ni el esquema.
+- La lista de propuestas no tiene cursor porque el servicio de CU-2P-06 solo admite `limit` (máximo 50) → se muestran las más recientes.
 
 ## Migration Plan
 

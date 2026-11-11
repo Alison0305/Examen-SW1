@@ -9,7 +9,9 @@ CU-2P-03 persiste cada consulta completada del Mentor en `MentorInteraction`, pe
 - Búsqueda básica `q` (1–200 caracteres tras recortar), sin distinguir mayúsculas, sobre pregunta y respuesta y siempre dentro del proyecto.
 - DTO público con `id`, `author.email`, `question`, `answer` y `occurredAt`; nunca `userId`, `accessRole`, `projectRevision`, `grounded`, prompts ni datos técnicos.
 - Sección de historial en el panel Mentor IA con búsqueda, detalle desplegable y carga de más elementos.
-- El estado de propuestas (pendiente, aplicada, rechazada) se integra cuando CU-2P-06 aporte su fuente de verdad; CU-2P-07 no lo inventa.
+- Recomendaciones técnicas de CU-2P-05 registradas: se muestran como texto legible, sin JSON ni campos internos.
+- Estado público de las propuestas UML de CU-2P-06 (pendiente, aplicada, rechazada) leído de `MentorProposalHistoryService`, como un conjunto separado de las interacciones.
+- Refresco local del historial tras una interacción propia (consulta o recomendación), sin tiempo real.
 
 ## Capabilities
 
@@ -21,7 +23,7 @@ CU-2P-03 persiste cada consulta completada del Mentor en `MentorInteraction`, pe
 
 ## Impact
 
-- Backend: módulo nuevo `backend/src/mentor-history/` (contratos, cursor, consulta, lector Prisma, servicio y controlador). No importa `AssistantModule`: el historial funciona sin `ASSISTANT_MODEL_PATH`.
+- Backend: módulo nuevo `backend/src/mentor-history/` (contratos, cursor, consulta, lector Prisma, servicio y controlador). El historial funciona sin `ASSISTANT_MODEL_PATH` y nunca invoca el modelo local. Reutiliza `MentorProposalHistoryService` de CU-2P-06 sin modificarlo.
 - Persistencia: reutiliza `MentorInteraction` y su índice `(projectId, occurredAt, id)`. Sin migración Prisma.
 - Frontend: sección de historial en `MentorPanel` y cliente HTTP en `frontend/app/auth/api.ts`.
 - Pruebas: unitarias de contrato, integración PostgreSQL de paginación y aislamiento, HTTP de permisos y privacidad, y frontend.
