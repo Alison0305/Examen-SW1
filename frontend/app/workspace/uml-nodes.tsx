@@ -53,12 +53,29 @@ function UmlClassifierNode({
           </Typography>
         )}
         {/* Attribute rows arrive already in UML notation (react-flow-adapters); literals as they are. */}
-        {rows.map((row, index) => (
-          <Typography key={`${index}-${row}`} variant="caption" sx={{ fontFamily: "monospace" }}>
-            {row}
-          </Typography>
-        ))}
+        {rows.map((row, index) => {
+          const primaryKey = data.kind === "class" && data.primaryKeys?.[index] === true;
+          return (
+            <Typography
+              key={`${index}-${row}`}
+              variant="caption"
+              aria-label={primaryKey ? `${row} (llave primaria)` : undefined}
+              sx={{ fontFamily: "monospace", ...(primaryKey ? { fontWeight: 700, textDecoration: "underline" } : {}) }}
+            >
+              {row}
+            </Typography>
+          );
+        })}
       </Stack>
+      {data.kind === "class" && data.primaryKeyIssue && (
+        <Typography
+          role="note"
+          variant="caption"
+          sx={{ display: "block", borderTop: "1px solid", borderColor: "warning.light", bgcolor: "#fff7ed",color: "warning.dark", px: 1.25, py: 0.5 }}
+        >
+          {data.primaryKeyIssue === "missing" ? "⚠ Sin llave primaria" : "⚠ Varias llaves primarias"}
+        </Typography>
+      )}
       <Handle type="source" position={Position.Right} />
     </Box>
   );

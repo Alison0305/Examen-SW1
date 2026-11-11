@@ -1,4 +1,4 @@
-import { validateCanonicalUmlModel, type CanonicalUmlModel, type UmlAttribute, type UmlClass, type UmlRelationship } from "@examen-sw1/uml-core";
+import { isPrimaryKeyAttribute, validateCanonicalUmlModel, type CanonicalUmlModel, type UmlAttribute, type UmlClass, type UmlRelationship } from "@examen-sw1/uml-core";
 import type { RelationalCardinality, RelationalColumn, RelationalDiagnostic, RelationalForeignKey, RelationalLifecycle, RelationalModel, RelationalRelation, RelationalTable, RelationalType, RelationalUniqueConstraint, SourceReference } from "./model.js";
 
 const sqlReserved = new Set(["select", "table", "user", "order", "group", "where"]);
@@ -94,7 +94,7 @@ function mapAttribute(attribute: UmlAttribute, path: string, enumById: Map<strin
     addDiagnostic(diagnostics, "error", "REL_UNSUPPORTED_TYPE", "El atributo no tiene un tipo relacional soportado.", path, attribute.id);
     return undefined;
   }
-  const identifier = attribute.generationMetadata?.identifier ?? attribute.name === "id";
+  const identifier = isPrimaryKeyAttribute(attribute);
   return { source: source(attribute.id, path), name: snake(attribute.name), type, nullable: !identifier && attribute.generationMetadata?.required !== true, identifier, unique: attribute.generationMetadata?.unique === true, enumName: enumEntry?.name, searchable: attribute.generationMetadata?.searchable === true, sortable: attribute.generationMetadata?.sortable === true, defaultSort: attribute.generationMetadata?.defaultSort?.toUpperCase() as "ASC" | "DESC" | undefined };
 }
 

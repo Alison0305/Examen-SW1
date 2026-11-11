@@ -4,6 +4,7 @@ import {
   UmlCommandBus,
   adaptUmlTextProposal,
   createProjectDocument,
+  isPrimaryKeyAttribute,
   validateProjectDocument,
   type CommandResult,
   type Diagnostic,
@@ -57,6 +58,7 @@ interface WorkspaceState {
     multiplicity: string,
   ) => CommandResult;
   removeAttribute: (classId: Uuid, attributeId: Uuid) => CommandResult;
+  setPrimaryKey: (classId: Uuid, attributeId: Uuid) => CommandResult;
   deleteSelectedClass: () => void;
   updateEnumeration: (enumerationId: Uuid, name: string, visibility: UmlVisibility) => void;
   addEnumerationLiteral: (enumerationId: Uuid, literal: string) => void;
@@ -225,6 +227,15 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     });
   },
   removeAttribute: (classId, attributeId) => applyCommand(set, { type: "RemoveAttribute", classId, attributeId }),
+  setPrimaryKey: (classId, attributeId) => {
+    // The chosen attribute gets an explicit `identifier: true`; any other attribute that currently counts as primary
+    // key (explicit flag or the `id` naming convention) gets an explicit `false`, so the class keeps exactly one.
+    const umlClass = get().document.uml.classes.find((entry) => entry.id === classId);
+    const identifiers = (umlClass?.attributes ?? [])
+      .filter((attribute) => attribute.id === attributeId || isPrimaryKeyAttribute(attribute))
+      .map((attribute) => ({ attributeId: attribute.id, identifier: attribute.id === attributeId }));
+    return applyCommand(set, { type: "SetAttributeIdentifiers", classId, identifiers });
+  },
   deleteSelectedClass: () => {
     const selection = get().selection;
     if (selection?.kind !== "class") {
@@ -464,6 +475,14 @@ function inverseCommand(command: UmlCommand, document: ProjectDocument): UmlComm
       if (!attribute) return undefined;
       const updates = Object.fromEntries(Object.keys(command.updates).map((key) => [key, structuredClone(attribute[key as keyof typeof attribute])])) as typeof command.updates;
       return { type: "UpdateAttribute", classId: command.classId, attributeId: command.attributeId, updates };
+    }
+    case "SetAttributeIdentifiers": {
+      const attributes = document.uml.classes.find((entry) => entry.id === command.classId)?.attributes ?? [];
+      const identifiers = command.identifiers.map((entry) => {
+        const previous = attributes.find((attribute) => attribute.id === entry.attributeId)?.generationMetadata?.identifier;
+        return typeof previous === "boolean" ? { attributeId: entry.attributeId, identifier: previous } : { attributeId: entry.attributeId };
+      });
+      return { type: "SetAttributeIdentifiers", classId: command.classId, identifiers };
     }
     case "CreateEnumeration": return command.enumerationId ? { type: "DeleteEnumeration", enumerationId: command.enumerationId } : undefined;
     case "RenameEnumeration": {

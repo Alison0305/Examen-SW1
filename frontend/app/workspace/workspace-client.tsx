@@ -43,6 +43,8 @@ import {
 import { useEffect, useId, useRef, useState } from "react";
 import {
   enumerationReferenceType,
+  isPrimaryKeyAttribute,
+  primaryKeyStatus,
   type Diagnostic,
   type Multiplicity,
   type ProjectDocument,
@@ -1174,6 +1176,7 @@ function ClassInspector({ classId }: Readonly<{ classId: string }>) {
     addAttribute,
     updateAttribute,
     removeAttribute,
+    setPrimaryKey,
     deleteSelectedClass,
   } = useWorkspaceStore();
   const umlClass = document.uml.classes.find(
@@ -1209,6 +1212,7 @@ function ClassInspector({ classId }: Readonly<{ classId: string }>) {
   if (!umlClass) {
     return null;
   }
+  const keyStatus = primaryKeyStatus(document.uml, umlClass);
 
   return (
     <Stack spacing={2}>
@@ -1243,6 +1247,15 @@ function ClassInspector({ classId }: Readonly<{ classId: string }>) {
       </Stack>
       <Divider />
       <Typography variant="subtitle2">Atributos</Typography>
+      {keyStatus.kind === "missing" && (
+        <Alert severity="warning">
+          La clase no tiene llave primaria. Marca un atributo con «Hacer PK» o agrega uno llamado id; sin ella no se
+          puede generar el código.
+        </Alert>
+      )}
+      {keyStatus.kind === "multiple" && (
+        <Alert severity="warning">La clase tiene varias llaves primarias. Elige una con «Hacer PK».</Alert>
+      )}
       <Button
         variant="outlined"
         onClick={() => {
@@ -1300,6 +1313,19 @@ function ClassInspector({ classId }: Readonly<{ classId: string }>) {
               <Typography variant="body2" sx={{ flexGrow: 1 }}>
                 {formatAttributeLabel(attribute, document.uml)}
               </Typography>
+              {isPrimaryKeyAttribute(attribute) ? (
+                <Tooltip title="Llave primaria: la usa el generador de código como identificador de la tabla">
+                  <Chip size="small" color="primary" label="PK" aria-label={`${attribute.name} es la llave primaria`} />
+                </Tooltip>
+              ) : (
+                <Button
+                  size="small"
+                  aria-label={`Marcar ${attribute.name} como llave primaria`}
+                  onClick={() => setPrimaryKey(classId, attribute.id)}
+                >
+                  Hacer PK
+                </Button>
+              )}
               <Button
                 size="small"
                 variant="outlined"

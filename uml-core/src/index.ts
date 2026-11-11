@@ -23,6 +23,7 @@ export type {
   RestoreDeletionSnapshotCommand,
   RenameClassCommand,
   RenameEnumerationCommand,
+  SetAttributeIdentifiersCommand,
   UpdateClassVisibilityCommand,
   UpdateEnumerationVisibilityCommand,
   UpdateRelationshipNameCommand,
@@ -91,6 +92,8 @@ export {
 } from "./model.js";
 
 export { validateCanonicalUmlModel, validateProjectDocument } from "./validation.js";
+
+export { isPrimaryKeyAttribute, primaryKeyStatus, type PrimaryKeyStatus } from "./primary-key.js";
 
 export { UmlCommandBus } from "./commands/command-bus.js";
 export { UmlCommandExecutor } from "./commands/executor.js";

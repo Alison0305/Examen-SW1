@@ -1,5 +1,5 @@
 import { applyNodeChanges, type Edge, type Node, type NodeChange } from "@xyflow/react";
-import type { ProjectDocument, UmlClass, UmlEnumeration, UmlRelationship, UmlVisibility } from "@examen-sw1/uml-core";
+import { isPrimaryKeyAttribute, primaryKeyStatus, type ProjectDocument, type UmlClass, type UmlEnumeration, type UmlRelationship, type UmlVisibility } from "@examen-sw1/uml-core";
 import { formatAttributeSignature, formatMultiplicity } from "./workspace-utils";
 import { calculateUmlEdgeRoute, type UmlEdgeRoute } from "./uml-edge-routing";
 
@@ -9,6 +9,10 @@ export interface UmlNodeData extends Record<string, unknown> {
   label: string;
   visibility: UmlVisibility;
   attributes?: string[];
+  // Parallel to `attributes`: true for the attribute the generators use as primary key.
+  primaryKeys?: boolean[];
+  // Set when the class is mapped to a table but has no primary key, or more than one.
+  primaryKeyIssue?: "missing" | "multiple";
   literals?: string[];
 }
 
@@ -30,6 +34,8 @@ export function toReactFlowNodes(document: ProjectDocument, selectedId?: string,
 
   const classNodes = document.uml.classes.map((umlClass, index): UmlReactFlowNode => {
     const entry = layout.get(umlClass.id);
+    const primaryKeys = umlClass.attributes.map(isPrimaryKeyAttribute);
+    const keyStatus = primaryKeyStatus(document.uml, umlClass);
     return {
       id: umlClass.id,
       type: "umlClass",
@@ -39,8 +45,11 @@ export function toReactFlowNodes(document: ProjectDocument, selectedId?: string,
         selected: selectedId === umlClass.id,
         label: umlClass.name,
         visibility: umlClass.visibility,
-        // Already formatted with the UML notation; reference types resolved by name.
-        attributes: umlClass.attributes.map((attribute) => formatAttributeSignature(attribute, document.uml)),
+        // Already formatted with the UML notation; reference types resolved by name. The primary key carries the UML
+        // `{id}` property.
+        attributes: umlClass.attributes.map((attribute, index) => `${formatAttributeSignature(attribute, document.uml)}${primaryKeys[index] ? " {id}" : ""}`),
+        primaryKeys,
+        primaryKeyIssue: keyStatus.kind === "missing" || keyStatus.kind === "multiple" ? keyStatus.kind : undefined,
       },
       selected: selectedId === umlClass.id,
       draggable: !readOnly,

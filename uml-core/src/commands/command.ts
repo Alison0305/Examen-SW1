@@ -71,6 +71,15 @@ export interface UpdateAttributeCommand {
   };
 }
 
+// Sets or clears the explicit `generationMetadata.identifier` flag of several attributes of one class in a single,
+// undoable step (choosing the primary key touches the old and the new one). An entry without `identifier` removes the
+// flag, so the attribute falls back to the naming convention (`id`). The shape stays valid after a JSON round trip.
+export interface SetAttributeIdentifiersCommand {
+  type: "SetAttributeIdentifiers";
+  classId: Uuid;
+  identifiers: { attributeId: Uuid; identifier?: boolean }[];
+}
+
 export interface RemoveAttributeCommand {
   type: "RemoveAttribute";
   classId: Uuid;
@@ -216,6 +225,7 @@ export type UmlCommand =
   | DeleteClassCommand
   | AddAttributeCommand
   | UpdateAttributeCommand
+  | SetAttributeIdentifiersCommand
   | RemoveAttributeCommand
   | CreateEnumerationCommand
   | RenameEnumerationCommand

@@ -117,6 +117,22 @@ export class UmlCommandExecutor {
         }
         return this.validateCandidate(document, candidate);
       }
+      case "SetAttributeIdentifiers": {
+        const candidate = cloneDocument(document);
+        const missing = command.identifiers.filter((entry) => !findAttribute(candidate.uml, command.classId, entry.attributeId));
+        if (missing.length > 0 || command.identifiers.length === 0) {
+          return rejected(document, (missing.length > 0 ? missing.map((entry) => entry.attributeId) : [command.classId]).map((id) => unknownReference(id, "classes.attributes", "El atributo a marcar como llave primaria no existe.")));
+        }
+        for (const entry of command.identifiers) {
+          const attribute = findAttribute(candidate.uml, command.classId, entry.attributeId)!;
+          const metadata = { ...attribute.generationMetadata };
+          if (typeof entry.identifier === "boolean") metadata.identifier = entry.identifier;
+          else delete metadata.identifier;
+          if (Object.keys(metadata).length > 0) attribute.generationMetadata = metadata;
+          else delete attribute.generationMetadata;
+        }
+        return this.validateCandidate(document, candidate);
+      }
       case "RemoveAttribute": {
         const candidate = cloneDocument(document);
         const umlClass = findClass(candidate.uml, command.classId);

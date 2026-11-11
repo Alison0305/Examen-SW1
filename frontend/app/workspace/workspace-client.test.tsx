@@ -474,7 +474,7 @@ describe("Workspace UML manual", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Agregar atributo" }));
     fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
-    expect(screen.getAllByText("- id: integer").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("- id: integer {id}").length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole("button", { name: "Editar" }));
     fireEvent.change(screen.getByLabelText("Nombre de atributo"), { target: { value: "codigo" } });
@@ -522,7 +522,8 @@ describe("Workspace UML manual", () => {
     changeSelect("Tipo de atributo", "string");
     fireEvent.click(screen.getByRole("button", { name: "Guardar" }));
 
-    expect(screen.getByTestId("attribute-list").querySelectorAll("button")).toHaveLength(4);
+    expect(screen.getByTestId("attribute-list").querySelectorAll("button")).toHaveLength(5);
+    expect(screen.getByRole("button", { name: "Marcar nombre como llave primaria" })).toBeInTheDocument();
     expect(screen.getByText("id: integer")).toBeInTheDocument();
     expect(screen.getByText("nombre: string")).toBeInTheDocument();
     expect(screen.queryByText("Nuevo atributo")).not.toBeInTheDocument();
