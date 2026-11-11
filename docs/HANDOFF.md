@@ -95,6 +95,17 @@ Detalle completo en `docs/puds/use-cases/CU-2P-07-historial-compartido.md`. La r
   - los diagnósticos de consulta, las aclaraciones y los análisis de CU-2P-04 no se registran;
   - una consulta de diagnóstico no registrada provoca una relectura innecesaria.
 
+## CU-2P-08 - Chat colaborativo
+
+Detalle en `docs/puds/use-cases/CU-2P-08-chat-colaborativo.md`; rama `feat/chat-colaborativo-mentor`, issue #17.
+
+- **Fuente de verdad:** tabla `ProjectChatMessage` (migración `20261111180000_add_project_chat_messages`). Solo los mensajes `USER` tienen autor (CHECK); `MENTOR`, `NOTICE` y `PROPOSAL` los escribe solo el servidor.
+- **Rutas:** `POST /projects/:id/chat/messages`, `POST /projects/:id/chat/actions` (`RECOMMENDATION` para cualquier miembro, `PROPOSAL` solo OWNER y EDITOR) y `GET /projects/:id/chat/messages` (keyset con cursor).
+- **Tiempo real:** eventos `project.chat.message` y `project.chat.mentor` en la sala existente, emitidos por el gateway mediante `PROJECT_CHAT_BROADCASTER`.
+- **IA:** reutiliza `MentorService.query` y `recommend` y `MentorProposalCreationService.create` sin cambios; respuestas asíncronas con avisos seguros. No cambiar prompts sin repetir las pruebas reales.
+- **Frontend:** `ProjectChatPanel` reemplaza al panel Mentor cuando la página le pasa la conexión; el panel antiguo sigue disponible sin ella. El estado de las tarjetas viene de `GET /mentor/history/proposals`.
+- **Entorno de pruebas:** Railway, entorno «Prueba» del proyecto `giving-learning` (dominios `backend-prueba-…` y `frontend-prueba-…`), desplegado con `railway up --service <servicio> --environment Prueba` desde la rama. La CLI de Railway está instalada y vinculada en la PC del trabajo. Eliminar o apagar el entorno cuando no se use, porque cobra por consumo.
+
 ## Siguiente Acción
 
-CU-2P-07 (tarea 7.3): push de `feat/s2-cu07-historial-compartido`, PR con `Closes #7` (el texto está preparado), revisión del compañero, merge a `main` y archivo del OpenSpec `s2-cu07-historial-compartido`. Después, archivar el OpenSpec de CU-2P-06.
+CU-2P-08: ejecutar la integración PostgreSQL (tarea 1.6) en un equipo con base de datos, push de `feat/chat-colaborativo-mentor`, PR con `Closes #17`, revisión, merge a `main` y despliegue en producción (la migración se aplica sola al arrancar). Pendientes de cierre propio: archivar los OpenSpec de CU-2P-07 y CU-2P-06, y validar y cerrar CU-2P-04.

@@ -15,5 +15,5 @@
 
 ## 3. Incremento 3: verificación y cierre
 
-- [ ] 3.1 Entorno de pruebas en Railway: varios navegadores, VIEWER, IA real.
-- [ ] 3.2 PUDS, STATUS y HANDOFF; gates completos; PR con `Closes #17`.
+- [x] 3.1 Entorno de pruebas en Railway: varios navegadores, VIEWER, IA real. Hecho el 2026-11-11 en el entorno «Prueba» (copia de producción con base de datos, volumen y dominios propios), desplegado con `railway up` desde la rama (commit `e4db071`): migración aplicada, Qwen cargado con 8 hilos. El usuario aprobó mensajes en tiempo real entre dos navegadores, `@mentor`, recomendación, propuesta con tarjeta, aplicación con un único atributo en ambos diagramas, persistencia tras recargar y restricciones de VIEWER.
+- [ ] 3.2 PUDS, STATUS y HANDOFF; gates completos; PR con `Closes #17`. Documentación hecha (PUDS `CU-2P-08-chat-colaborativo.md`, STATUS y HANDOFF); pendientes la integración PostgreSQL (1.6), el PR, la revisión y el merge.
