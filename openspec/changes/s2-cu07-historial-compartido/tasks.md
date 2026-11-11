@@ -24,7 +24,7 @@
 
 ## 5. Pruebas multiusuario
 
-- [ ] 5.1 Integración: A consulta y B (EDITOR o VIEWER) ve la interacción con A como autor; un tercero sin acceso recibe 404; otro proyecto no ve Q1/Q2.
+- [x] 5.1 Integración: A consulta y B (EDITOR o VIEWER) ve la interacción con A como autor; un tercero sin acceso recibe 404; otro proyecto no ve Q1/Q2. Hecho en `mentor-history.e2e.integration.test.ts` (6 pruebas, PostgreSQL real, 2026-11-10): `AppModule` completo con JWT real, `POST /mentor/query` → `MentorService.query` y recorder reales → `GET /mentor/history`, con un proveedor del Mentor determinista y sin modelo local. A (OWNER) crea exactamente una interacción; B (EDITOR) la ve con autor, pregunta, respuesta y fecha y solo el DTO público; el orden con dos autores es el esperado; C (ajeno) y un proyecto inexistente reciben el mismo 404 sin ejecutar el reader; el proyecto B no ve nada de A y A recibe 404 en B; ninguna lectura invoca el modelo local ni el proveedor. Fixtures propios eliminados (0 usuarios, 0 proyectos y 0 interacciones).
 
 ## 6. Frontend
 
