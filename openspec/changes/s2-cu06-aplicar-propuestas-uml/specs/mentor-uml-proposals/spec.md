@@ -1,23 +1,26 @@
 ## ADDED Requirements
 
 ### Requirement: Structured and validatable UML proposal (RF-18)
-The system SHALL accept from the assistant only a structured proposal intent belonging to a closed allow-list of operations. In this version the allow-list SHALL contain only `ADD_ATTRIBUTE`. The intent SHALL reference model elements by name and SHALL NOT contain identifiers. The server SHALL resolve the intent against the authoritative project document into exactly one `UmlCommand`, assigning every identifier itself, and SHALL reject an intent that cannot be resolved without falling back to defaults.
+The system SHALL accept from the assistant only a structured UML proposal intent with a known, closed structure, and SHALL validate and resolve it against the authoritative project document before it can be executed.
 
 #### Scenario: Structured ADD_ATTRIBUTE proposal
 - **WHEN** a user with edit access requests "Agrega el atributo teléfono de tipo String a Cliente" and the class `Cliente` exists in the authoritative document
 - **THEN** the system SHALL create a `PENDING` proposal whose operation is `ADD_ATTRIBUTE` targeting `Cliente`, with the attribute name preserved as requested after trimming (`teléfono`, without transliteration) and the type resolved to the canonical primitive `string`, and SHALL NOT modify the project
+- **AND** the server SHALL resolve the intent against the authoritative project document into exactly one `UmlCommand`, assigning every identifier itself
 
 #### Scenario: Operation outside the allow-list
-- **WHEN** the generated intent declares an operation other than `ADD_ATTRIBUTE`
+- **WHEN** the generated intent declares an operation outside the closed allow-list of operations, which in this version SHALL contain only `ADD_ATTRIBUTE`
 - **THEN** the system SHALL reject it with `UNSUPPORTED_OPERATION`, SHALL NOT persist a proposal and SHALL NOT modify the project
 
 #### Scenario: The assistant does not provide identifiers
 - **WHEN** a generated intent contains identifier fields or extra fields
 - **THEN** the system SHALL reject it as `INVALID_PROPOSAL`; class and attribute identifiers SHALL come only from server resolution and server generation
+- **AND** a valid intent SHALL reference model elements by name and SHALL NOT contain identifiers
 
 #### Scenario: Server resolves the real element
 - **WHEN** the intent names a class that does not exist in the authoritative document
 - **THEN** the system SHALL reject it with `ELEMENT_NOT_FOUND` and SHALL NOT create the class or guess another one
+- **AND** any intent that cannot be resolved SHALL be rejected without falling back to defaults
 
 #### Scenario: Invalid attribute type
 - **WHEN** the intent declares an attribute type that is neither a supported primitive after normalization nor an explicitly supported reference
@@ -74,11 +77,13 @@ The system SHALL NOT modify the model when a proposal is created, previewed, clo
 - **THEN** applying it SHALL fail with `STALE_PROPOSAL` (HTTP 409), SHALL NOT be regenerated or rebased automatically, SHALL NOT modify the model and the proposal SHALL remain `PENDING`
 
 ### Requirement: Execution through existing commands and recorded result (RF-21)
-The system SHALL apply a confirmed proposal only through `ProjectOperationService.apply` with `operationId` equal to the proposal identifier, the persisted project, the persisted base revision and the persisted command. It SHALL NOT write the project document directly. A successful application SHALL produce exactly one new revision, SHALL mark the proposal `APPLIED` with its resolution time, resolver and resulting revision, and SHALL be observable by connected collaborators like a normal editor operation. An explicit rejection SHALL mark the proposal `REJECTED` without modifying the model. `APPLIED` and `REJECTED` SHALL be terminal.
+The system SHALL execute a confirmed proposal only through the existing project operation mechanism (`ProjectOperationService.apply`) and SHALL record the result of its resolution on the persisted proposal.
 
 #### Scenario: Apply uses the existing mechanism
 - **WHEN** a valid `PENDING` proposal is applied
 - **THEN** the change SHALL be executed by `ProjectOperationService.apply` with the existing edit authorization, per-project queue, revision control and operation receipt
+- **AND** the call SHALL use `operationId` equal to the proposal identifier, the persisted project, the persisted base revision and the persisted command, and the system SHALL NOT write the project document directly
+- **AND** the change SHALL be observable by connected collaborators like a normal editor operation
 
 #### Scenario: Exactly one valid revision
 - **WHEN** an `ADD_ATTRIBUTE` proposal is applied at revision N
@@ -95,6 +100,7 @@ The system SHALL apply a confirmed proposal only through `ProjectOperationServic
 #### Scenario: REJECTED does not modify UML
 - **WHEN** an OWNER or EDITOR rejects a `PENDING` proposal
 - **THEN** the proposal SHALL become `REJECTED` with `resolvedAt` and the resolving user, the model and revision SHALL remain unchanged, and a later apply SHALL fail with `PROPOSAL_REJECTED` (HTTP 409)
+- **AND** `APPLIED` and `REJECTED` SHALL be terminal
 
 #### Scenario: Another project cannot access the proposal
 - **WHEN** a proposal identifier is requested under a different project, or by a user without access to the proposal's project
