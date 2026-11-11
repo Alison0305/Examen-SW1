@@ -126,8 +126,14 @@ describe("Creación de MentorProposal con PostgreSQL", () => {
   ])("%s → %s sin filas nuevas ni cambios", async (_case, invalidOutput, code) => {
     output = invalidOutput;
     const before = await snapshot();
+    // The instruction names exactly what the output names, so each case fails for its own reason (not literal names).
+    const fields = invalidOutput as Record<string, unknown>;
+    const instruction = typeof fields.className === "string" && typeof fields.attributeName === "string" ? `Agrega el atributo ${fields.attributeName} de tipo ${String(fields.attributeType)} a ${fields.className}` : INSTRUCTION;
 
-    await expect(services().creation.create(PROJECT_ID, USERS.OWNER, INSTRUCTION)).resolves.toMatchObject({ ok: false, error: { code } });
+    const result = await services().creation.create(PROJECT_ID, USERS.OWNER, instruction);
+    expect(result).toMatchObject({ ok: false, error: { code } });
+    // The duplicate is rejected by the canonical validation in the preview, with its public diagnostic.
+    if (_case === "atributo duplicado") expect(result.ok ? [] : result.error.diagnostics).not.toHaveLength(0);
     expect(await snapshot()).toEqual(before);
   });
 

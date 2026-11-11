@@ -20,6 +20,13 @@ const USERS = new Map([OWNER, AUTHOR, EDITOR_B, VIEWER, OUTSIDER].map((user) => 
 const ROLES = new Map<string, "OWNER" | "EDITOR" | "VIEWER">([[OWNER.id, "OWNER"], [AUTHOR.id, "EDITOR"], [EDITOR_B.id, "EDITOR"], [VIEWER.id, "VIEWER"]]);
 const INSTRUCTION = "Agrega el atributo teléfono de tipo String a Cliente";
 const INTENT = { operation: "ADD_ATTRIBUTE", className: "Cliente", attributeName: "teléfono", attributeType: "String" };
+
+// The instruction a user would have written for a given model output, so each table case fails for its own reason
+// (unknown class, duplicate, type…) and not because the names are not literal substrings of the instruction.
+const instructionFor = (output: unknown): string => {
+  const fields = (typeof output === "object" && output !== null ? output : {}) as Record<string, unknown>;
+  return typeof fields.className === "string" && typeof fields.attributeName === "string" ? `Agrega el atributo ${fields.attributeName} de tipo ${String(fields.attributeType)} a ${fields.className}` : INSTRUCTION;
+};
 const route = `/projects/${PROJECT_ID}/mentor/proposals`;
 const auth = (user: { id: string }) => ({ Authorization: `Bearer ${user.id}` });
 
@@ -182,7 +189,9 @@ describe("POST /projects/:projectId/mentor/proposals", () => {
 
     it("500 caracteres tras recortar se aceptan", async () => {
       const { http } = await setup();
-      expect((await http.post(route).set(auth(OWNER)).send({ instruction: `  ${"a".repeat(500)}  ` })).status).toBe(201);
+      const instruction = `${INSTRUCTION} ${"a".repeat(500 - INSTRUCTION.length - 1)}`;
+      expect(instruction).toHaveLength(500);
+      expect((await http.post(route).set(auth(OWNER)).send({ instruction: `  ${instruction}  ` })).status).toBe(201);
     });
   });
 
@@ -197,7 +206,7 @@ describe("POST /projects/:projectId/mentor/proposals", () => {
       ["AI-15 campo adicional", { ...INTENT, reason: "x" }, "INVALID_PROPOSAL", "La propuesta no supera la validación del modelo UML."],
     ])("%s → %s", async (_case, output, code, message) => {
       const { http, db, untouched } = await setup({ output });
-      const response = await http.post(route).set(auth(OWNER)).send({ instruction: INSTRUCTION });
+      const response = await http.post(route).set(auth(OWNER)).send({ instruction: instructionFor(output) });
 
       expect(response.status).toBe(422);
       expect(response.body).toEqual({ statusCode: 422, error: "Unprocessable Entity", code, message, ...(code === "INVALID_PROPOSAL" ? { diagnostics: [] } : {}) });

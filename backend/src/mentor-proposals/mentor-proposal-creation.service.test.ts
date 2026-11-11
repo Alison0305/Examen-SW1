@@ -10,6 +10,13 @@ import { PrismaMentorProposalStore } from "./prisma-mentor-proposal.store";
 
 const INSTRUCTION = "Agrega el atributo teléfono de tipo String a Cliente";
 const INTENT = { operation: "ADD_ATTRIBUTE", className: "Cliente", attributeName: "teléfono", attributeType: "String" };
+
+// The instruction a user would have written for a given model output, so each table case fails for its own reason
+// (unknown class, duplicate, type…) and not because the names are not literal substrings of the instruction.
+const instructionFor = (output: unknown): string => {
+  const fields = (typeof output === "object" && output !== null ? output : {}) as Record<string, unknown>;
+  return typeof fields.className === "string" && typeof fields.attributeName === "string" ? `Agrega el atributo ${fields.attributeName} de tipo ${String(fields.attributeType)} a ${fields.className}` : INSTRUCTION;
+};
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const ROLES = new Map<string, "OWNER" | "EDITOR" | "VIEWER">([[OWNER.id, "OWNER"], [AUTHOR.id, "EDITOR"], [EDITOR_B.id, "EDITOR"], [VIEWER.id, "VIEWER"]]);
 
@@ -134,12 +141,12 @@ describe("MentorProposalCreationService.create", () => {
       ["AI-05 falta className", { operation: "ADD_ATTRIBUTE", attributeName: "teléfono", attributeType: "String" }, "INVALID_PROPOSAL"],
       ["AI-06 clase inexistente", { ...INTENT, className: "Proveedor" }, "ELEMENT_NOT_FOUND"],
       ["AI-07 tipo desconocido", { ...INTENT, attributeType: "Dinero" }, "UNKNOWN_TYPE"],
-      ["multiplicidad inválida", { ...INTENT, multiplicity: "muchos" }, "INVALID_PROPOSAL"],
+      ["multiplicidad generada (v1 no la admite en la intención generada)", { ...INTENT, multiplicity: "0..1" }, "INVALID_PROPOSAL"],
       ["AI-15 campo adicional", { ...INTENT, status: "APPLIED" }, "INVALID_PROPOSAL"],
     ])("%s → %s", async (_case, output, code) => {
       const { service, db, store, untouched } = setup(output);
 
-      await expect(service.create(PROJECT_ID, OWNER, INSTRUCTION)).resolves.toMatchObject({ ok: false, error: { code } });
+      await expect(service.create(PROJECT_ID, OWNER, instructionFor(output))).resolves.toMatchObject({ ok: false, error: { code } });
       expect(store.create).not.toHaveBeenCalled();
       expect(db.proposals).toHaveLength(0);
       untouched();
