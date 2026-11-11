@@ -203,7 +203,7 @@ model MentorProposal {
 
 | Código | HTTP | Caso |
 |---|---|---|
-| `INVALID_PROPOSAL` | 422 | Intent mal formado (incluida una salida del modelo que no es un único objeto JSON), campos extra o identificadores, multiplicidad inválida, candidato rechazado por validación canónica |
+| `INVALID_PROPOSAL` | 422 | Intent mal formado (incluida una salida del modelo que no es un único objeto JSON), campos extra o identificadores, multiplicidad inválida, nombre no literal tras el reintento (diagnóstico `NON_LITERAL_NAME`), candidato rechazado por validación canónica |
 | `UNSUPPORTED_OPERATION` | 422 | Operación fuera de la allow-list |
 | `ELEMENT_NOT_FOUND` | 422 | Clase destino ausente o ambigua |
 | `UNKNOWN_TYPE` | 422 | Tipo no resoluble |
@@ -261,6 +261,15 @@ Medición con Qwen3-1.7B-Q8_0 (2026-11-10):
 - Un ejemplo con otro nombre acentuado («dirección» en `Empresa`) no bastó: «teléfono» siguió saliendo como «telefono» en ambos intentos (3 de 3), aunque «género» se conservó.
 - Con el ejemplo anterior, el caso literal pasa 3 de 3 al primer intento y el comportamiento generaliza: «teléfono» en `Proveedor`, «código» y «género» se conservan; `email` y `saldo` (`Decimal` → `number`) no se alteran y «Elimina la clase Cliente» sigue respondiendo `UNSUPPORTED`. Como el ejemplo coincide con el criterio de aceptación, la validación literal sigue siendo la garantía: cualquier nombre alterado continúa rechazándose.
 - Por HTTP, 3 proyectos limpios: 201 `PENDING`, `attributeName` «teléfono», sin multiplicidad, diff `Cliente.teléfono: string`, revisión 1 y 0 recibos tras crear. Aplicar uno: 200 `APPLIED`, `resultingRevision` 2, un único ACK con operationId = id de la propuesta, revisión 1 → 2, un recibo y exactamente un atributo `teléfono: string`.
+
+### Clase sin distinguir mayúsculas y diagnóstico de nombre no literal (Fase 12)
+
+Hallazgo en la prueba con navegadores: «Agrega el atributo telefono de tipo string a cliente» respondía 422 aunque la clase `Cliente` existe. Qwen devuelve el nombre real de la clase (`Cliente`, leído de la lista de clases) y la comprobación literal, que distinguía mayúsculas, lo rechazaba en ambos intentos. Además, el cliente solo veía «La propuesta no supera la validación del modelo UML», sin el motivo.
+
+- `namesAreLiteral` compara `className` ignorando solo mayúsculas (`toLocaleLowerCase("es")`), sin plegar tildes: «cliente» acepta `Cliente`; «Clíente», «Clientes» o «Customer» siguen rechazándose. La clase debe existir y el resolver ya la busca sin distinguir mayúsculas, así que no se acepta nada que el resolver no aceptaría. `attributeName` sigue siendo estrictamente literal (mayúsculas y tildes), porque es un nombre nuevo.
+- El rechazo por nombre no literal añade el diagnóstico público `NON_LITERAL_NAME` (`code`, `severity`, `message`), que el cliente ya muestra bajo el mensaje de `INVALID_PROPOSAL`.
+- Sin cambios en schema, parser, reintento (sigue siendo uno), resolver, persistencia, API ni frontend.
+- Con el GGUF real (2026-11-10): «…telefono de tipo string a cliente» 3 de 3 con 201 `PENDING`, `Cliente.telefono: string`, sin cambios ni recibos, y aplicar una produce `APPLIED`, revisión 1 → 2, un ACK, un recibo y un único atributo. El caso literal «…teléfono de tipo String a Cliente» sigue pasando 3 de 3 con la misma aplicación.
 
 ### Prueba con el modelo real (Fase 9)
 

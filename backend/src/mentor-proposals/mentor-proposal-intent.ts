@@ -89,11 +89,17 @@ export function parseMentorProposalIntent(output: unknown): MentorProposalIntent
 }
 
 /**
- * Deterministic fidelity check: the proposed class and attribute names must appear verbatim (exact, case- and
- * accent-sensitive substring) in the user's instruction. It extracts or infers nothing from the instruction and never
- * repairs a name; it only rejects a model that corrected, transliterated, translated or normalized it ("teléfono" →
- * "telefono"). The type is not checked: the resolver normalizes types against the uml-core synonym table.
+ * Deterministic fidelity check. It extracts or infers nothing from the instruction and never repairs a name; it only
+ * rejects a model that corrected, transliterated, translated or normalized one ("teléfono" → "telefono").
+ *
+ * - attributeName (a new name) must appear verbatim: exact, case- and accent-sensitive substring.
+ * - className (an existing class, resolved by the server ignoring case) must appear ignoring only letter case, still
+ *   accent-sensitive: a user who writes "cliente" for the class `Cliente` gets `className: "Cliente"` from the model
+ *   (it reads the real name from the class list), which is accepted; "Clíente" or "Customer" are not.
+ *
+ * The type is not checked: the resolver normalizes types against the uml-core synonym table.
  */
 export function namesAreLiteral(instruction: string, intent: Pick<MentorProposalIntent, "className" | "attributeName">): boolean {
-  return instruction.includes(intent.className) && instruction.includes(intent.attributeName);
+  const lowerCase = (value: string) => value.toLocaleLowerCase("es");
+  return lowerCase(instruction).includes(lowerCase(intent.className)) && instruction.includes(intent.attributeName);
 }

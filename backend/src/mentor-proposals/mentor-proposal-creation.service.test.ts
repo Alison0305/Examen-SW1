@@ -222,3 +222,15 @@ describe("MentorProposalCreationService: nombres no literales", () => {
     untouched();
   });
 });
+
+describe("MentorProposalCreationService: clase escrita en minúsculas", () => {
+  it("«…a cliente» crea la propuesta PENDING sobre la clase real `Cliente`, sin cambios en el modelo", async () => {
+    const { service, db, model, untouched } = setup({ operation: "ADD_ATTRIBUTE", className: "Cliente", attributeName: "telefono", attributeType: "String" });
+    const result = await service.create(PROJECT_ID, OWNER, "Agrega el atributo telefono de tipo string a cliente");
+
+    expect(result).toMatchObject({ ok: true, proposal: { status: "PENDING", operation: { target: { className: "Cliente" }, change: { attributeName: "telefono", attributeType: "string" } }, summary: [{ kind: "added", element: "attribute", label: "Cliente.telefono: string" }] } });
+    expect(model.generateStructured).toHaveBeenCalledOnce();
+    expect(db.proposals).toHaveLength(1);
+    untouched();
+  });
+});

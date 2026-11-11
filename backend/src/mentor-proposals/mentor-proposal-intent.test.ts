@@ -106,9 +106,17 @@ describe("namesAreLiteral: preservación literal de nombres", () => {
     expect(namesAreLiteral(INSTRUCTION, { className: "Cliente", attributeName: "teléfono" })).toBe(true);
   });
 
+  it("la clase (existente, resuelta sin distinguir mayúsculas) se compara ignorando solo mayúsculas", () => {
+    // The user writes "cliente"; the model answers with the real class name from the class list.
+    expect(namesAreLiteral("Agrega el atributo telefono de tipo string a cliente", { className: "Cliente", attributeName: "telefono" })).toBe(true);
+    expect(namesAreLiteral(INSTRUCTION, { className: "cliente", attributeName: "teléfono" })).toBe(true);
+    expect(namesAreLiteral("Agrega el atributo nota a ÁREA", { className: "Área", attributeName: "nota" })).toBe(true);
+  });
+
   it.each([
     ["sin tilde", { className: "Cliente", attributeName: "telefono" }],
-    ["clase en minúsculas", { className: "cliente", attributeName: "teléfono" }],
+    ["clase con tilde añadida", { className: "Clíente", attributeName: "teléfono" }],
+    ["clase en plural", { className: "Clientes", attributeName: "teléfono" }],
     ["clase traducida", { className: "Customer", attributeName: "teléfono" }],
     ["atributo normalizado", { className: "Cliente", attributeName: "Teléfono" }],
     ["atributo traducido", { className: "Cliente", attributeName: "phone" }],

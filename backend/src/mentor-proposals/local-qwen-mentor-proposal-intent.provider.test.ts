@@ -11,6 +11,7 @@ import {
   MENTOR_PROPOSAL_MAX_TOKENS,
   MENTOR_PROPOSAL_SYSTEM_PROMPT,
   MentorProposalGenerationUnavailableError,
+  NON_LITERAL_NAME_DIAGNOSTIC,
 } from "./local-qwen-mentor-proposal-intent.provider";
 import { MENTOR_PROPOSAL_INTENT_SCHEMA, namesAreLiteral, parseMentorProposalIntent } from "./mentor-proposal-intent";
 
@@ -119,7 +120,8 @@ describe("LocalQwenMentorProposalIntentProvider: preservación literal y un úni
     const model = sequenceModel(WITHOUT_ACCENT);
     const result = await new LocalQwenMentorProposalIntentProvider(model).generate(REQUEST);
 
-    expect(result).toEqual({ ok: false, error: { code: "INVALID_PROPOSAL", message: "El asistente cambió el nombre de la clase o del atributo indicado en la instrucción.", diagnostics: [] } });
+    expect(result).toEqual({ ok: false, error: { code: "INVALID_PROPOSAL", message: "El asistente cambió el nombre de la clase o del atributo indicado en la instrucción.", diagnostics: [NON_LITERAL_NAME_DIAGNOSTIC] } });
+    expect(NON_LITERAL_NAME_DIAGNOSTIC).toEqual({ code: "NON_LITERAL_NAME", severity: "error", message: expect.stringContaining("cambió el nombre de la clase o del atributo") });
     expect(JSON.stringify(result)).not.toContain("teléfono");
   });
 
@@ -143,7 +145,7 @@ describe("LocalQwenMentorProposalIntentProvider: preservación literal y un úni
   });
 
   it.each([
-    ["en minúsculas", "cliente"],
+    ["con tilde añadida", "Clíente"],
     ["traducida", "Customer"],
   ])("4: una clase alterada (%s) sigue el mismo control", async (_case, className) => {
     const retried = sequenceModel({ ...VALID, className }, VALID);
@@ -224,5 +226,24 @@ describe("prompt con ejemplo acentuado (few-shot)", () => {
     for (const [request] of model.generateStructured.mock.calls) expect(request.systemPrompt).toBe(MENTOR_PROPOSAL_SYSTEM_PROMPT);
     // The example lives only in the prompt: it never becomes the answer.
     expect(JSON.stringify(result)).not.toContain("teléfono");
+  });
+});
+
+describe("LocalQwenMentorProposalIntentProvider: clase escrita en minúsculas", () => {
+  it("«…a cliente» con la clase `Cliente`: la respuesta del modelo con `Cliente` se acepta al primer intento", async () => {
+    const request = { instruction: "Agrega el atributo telefono de tipo string a cliente", classNames: ["Cliente"] };
+    const output = { operation: "ADD_ATTRIBUTE", className: "Cliente", attributeName: "telefono", attributeType: "String" };
+    const model = sequenceModel(output);
+
+    await expect(new LocalQwenMentorProposalIntentProvider(model).generate(request)).resolves.toEqual({ ok: true, intent: output });
+    expect(model.generateStructured).toHaveBeenCalledOnce();
+  });
+
+  it("el atributo sigue siendo estrictamente literal aunque la clase se compare sin mayúsculas", async () => {
+    const request = { instruction: "Agrega el atributo telefono de tipo string a cliente", classNames: ["Cliente"] };
+    const model = sequenceModel({ operation: "ADD_ATTRIBUTE", className: "Cliente", attributeName: "Telefono", attributeType: "String" });
+
+    await expect(new LocalQwenMentorProposalIntentProvider(model).generate(request)).resolves.toMatchObject({ ok: false, error: { code: "INVALID_PROPOSAL", diagnostics: [NON_LITERAL_NAME_DIAGNOSTIC] } });
+    expect(model.generateStructured).toHaveBeenCalledTimes(2);
   });
 });

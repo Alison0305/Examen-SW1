@@ -242,3 +242,30 @@ describe("POST /projects/:projectId/mentor/proposals", () => {
     });
   });
 });
+
+describe("POST /projects/:projectId/mentor/proposals: nombre no literal", () => {
+  it("422 INVALID_PROPOSAL con el diagnóstico público NON_LITERAL_NAME, sin propuesta ni cambios", async () => {
+    const { http, db, untouched } = await setup({ output: { ...INTENT, attributeName: "telefono" } });
+    const response = await http.post(route).set(auth(OWNER)).send({ instruction: INSTRUCTION });
+
+    expect(response.status).toBe(422);
+    expect(response.body).toEqual({
+      statusCode: 422,
+      error: "Unprocessable Entity",
+      code: "INVALID_PROPOSAL",
+      message: "La propuesta no supera la validación del modelo UML.",
+      diagnostics: [{ code: "NON_LITERAL_NAME", severity: "error", message: expect.stringContaining("cambió el nombre de la clase o del atributo") }],
+    });
+    expect(db.proposals).toHaveLength(0);
+    untouched();
+  });
+
+  it("«…a cliente» en minúsculas responde 201 sobre la clase `Cliente`", async () => {
+    const { http, db } = await setup({ output: { ...INTENT, attributeName: "telefono" } });
+    const response = await http.post(route).set(auth(OWNER)).send({ instruction: "Agrega el atributo telefono de tipo string a cliente" });
+
+    expect(response.status).toBe(201);
+    expect(response.body).toMatchObject({ status: "PENDING", operation: { target: { className: "Cliente" }, change: { attributeName: "telefono" } }, preview: { diff: [{ label: "Cliente.telefono: string" }] } });
+    expect(db.proposals).toHaveLength(1);
+  });
+});

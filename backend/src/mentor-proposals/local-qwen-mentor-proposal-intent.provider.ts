@@ -61,7 +61,14 @@ export function buildMentorProposalUserPrompt(request: MentorProposalIntentReque
   return `Clases existentes en el modelo: ${JSON.stringify(names)}\nInstrucción: ${request.instruction}${correction ? `\n${correction}` : ""}`;
 }
 
-const NOT_LITERAL_ERROR = { code: "INVALID_PROPOSAL", message: "El asistente cambió el nombre de la clase o del atributo indicado en la instrucción.", diagnostics: [] } as const;
+// Public diagnostic (code, severity, message only) so the client can say why, instead of a generic UML validation text.
+export const NON_LITERAL_NAME_DIAGNOSTIC = {
+  code: "NON_LITERAL_NAME",
+  severity: "error",
+  message: "El asistente cambió el nombre de la clase o del atributo. Escribe la clase como aparece en el diagrama y el atributo exactamente como lo quieres, e inténtalo de nuevo.",
+} as const;
+
+const NOT_LITERAL_ERROR = { code: "INVALID_PROPOSAL", message: "El asistente cambió el nombre de la clase o del atributo indicado en la instrucción.", diagnostics: [NON_LITERAL_NAME_DIAGNOSTIC] } as const;
 
 type Attempt = Readonly<{ kind: "done"; result: MentorProposalIntentParse }> | Readonly<{ kind: "not-literal" }>;
 
