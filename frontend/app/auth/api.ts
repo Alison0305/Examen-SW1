@@ -99,6 +99,30 @@ export type MentorRecommendationResponse = {
   requiresUmlChange: boolean;
   projectRevision: number;
 };
+// CU-2P-06: public contract of the mentor proposal endpoints (backend MentorProposalResponse). It never carries the
+// persisted command, internal class/attribute ids, the instruction, the author, receipts or model output.
+export type MentorProposalStatus = "PENDING" | "APPLIED" | "REJECTED";
+export type MentorProposalDiffLine = {
+  kind: "added" | "removed" | "changed";
+  element: "class" | "attribute" | "relationship" | "enumeration";
+  label: string;
+};
+export type MentorProposalDiagnostic = { code: string; severity: "error" | "warning"; message: string };
+export type MentorProposalOperation = {
+  kind: "ADD_ATTRIBUTE";
+  target: { className: string };
+  change: { attributeName: string; attributeType: string; multiplicity?: string };
+};
+export type MentorProposalResponse = {
+  id: string;
+  status: MentorProposalStatus;
+  baseRevision: number;
+  operation: MentorProposalOperation;
+  preview: { valid: boolean; diff: MentorProposalDiffLine[]; diagnostics: MentorProposalDiagnostic[] };
+  createdAt: string;
+  resolvedAt?: string;
+  resultingRevision?: number;
+};
 export type VisionRecognition = {
   proposal: import("@examen-sw1/uml-core").UmlImportProposal;
   image: { width: number; height: number };
@@ -148,16 +172,34 @@ export type ApiClient = {
   queryMentor(id: string, question: string): Promise<MentorQueryResponse>;
   analyzeUml(id: string, focus: UmlAnalysisFocus): Promise<UmlAnalysisResponse>;
   recommendMentor(id: string, question: string): Promise<MentorRecommendationResponse>;
+  createMentorProposal(id: string, instruction: string): Promise<MentorProposalResponse>;
+  getMentorProposal(id: string, proposalId: string): Promise<MentorProposalResponse>;
+  applyMentorProposal(id: string, proposalId: string): Promise<MentorProposalResponse>;
+  rejectMentorProposal(id: string, proposalId: string): Promise<MentorProposalResponse>;
   recognizeDiagram(id: string, image: Blob): Promise<VisionRecognition>;
 };
 
+// `code` and `diagnostics` are present only when the backend sends a stable domain error body
+// ({ statusCode, error, code, message, diagnostics? }), e.g. STALE_PROPOSAL or INVALID_PROPOSAL.
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
     message: string,
+    public readonly code?: string,
+    public readonly diagnostics: readonly MentorProposalDiagnostic[] = [],
   ) {
     super(message);
   }
+}
+
+// Keeps only well-formed public diagnostics (code, severity, message); anything else in the body is ignored.
+function publicDiagnostics(value: unknown): MentorProposalDiagnostic[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item: unknown) => {
+    if (typeof item !== "object" || item === null) return [];
+    const { code, severity, message } = item as Record<string, unknown>;
+    return typeof code === "string" && typeof message === "string" && (severity === "error" || severity === "warning") ? [{ code, severity, message }] : [];
+  });
 }
 
 type ApiClientOptions = {
@@ -205,6 +247,8 @@ async function request<T>(
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as {
       message?: string | string[];
+      code?: unknown;
+      diagnostics?: unknown;
     } | null;
     const message = Array.isArray(body?.message)
       ? body.message.join(" ")
@@ -212,6 +256,8 @@ async function request<T>(
     throw new ApiError(
       response.status,
       message ?? "No fue posible completar la solicitud.",
+      typeof body?.code === "string" ? body.code : undefined,
+      publicDiagnostics(body?.diagnostics),
     );
   }
   return response.status === 204
@@ -482,6 +528,19 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
         body: JSON.stringify({ focus: focus.kind === "model" ? { kind: "model" } : { kind: focus.kind, id: focus.id } }),
       }),
     recommendMentor: (id, question) => requestMentorRecommendation(id, question, options),
+    // CU-2P-06: the client sends only the instruction; apply and reject send no body at all, so operation, command,
+    // base revision and UML ids are always decided by the server from the persisted proposal.
+    createMentorProposal: (id, instruction) =>
+      request<MentorProposalResponse>(`/projects/${encodeURIComponent(id)}/mentor/proposals`, options, {
+        method: "POST",
+        body: JSON.stringify({ instruction }),
+      }),
+    getMentorProposal: (id, proposalId) =>
+      request<MentorProposalResponse>(`/projects/${encodeURIComponent(id)}/mentor/proposals/${encodeURIComponent(proposalId)}`, options),
+    applyMentorProposal: (id, proposalId) =>
+      request<MentorProposalResponse>(`/projects/${encodeURIComponent(id)}/mentor/proposals/${encodeURIComponent(proposalId)}/apply`, options, { method: "POST" }),
+    rejectMentorProposal: (id, proposalId) =>
+      request<MentorProposalResponse>(`/projects/${encodeURIComponent(id)}/mentor/proposals/${encodeURIComponent(proposalId)}/reject`, options, { method: "POST" }),
     recognizeDiagram: (id, image) =>
       requestDiagramRecognition(id, image, options),
   };

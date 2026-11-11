@@ -6,7 +6,8 @@ import { AuthService } from "../auth/auth.service";
 import type { AuthenticatedUser } from "../auth/auth.types";
 import { ProjectAccessService } from "../projects/project-access.service";
 import { ProjectAccessInvalidationService, type ProjectAccessInvalidation } from "../projects/project-access-invalidation.service";
-import type { ApplyProjectOperationDto, JoinProjectDto, PresenceUpdateDto, ProjectPresence } from "./realtime.contracts";
+import type { ProjectOperationBroadcaster } from "./project-operation-broadcaster";
+import type { ApplyProjectOperationDto, JoinProjectDto, PresenceUpdateDto, ProjectOperationAck, ProjectPresence } from "./realtime.contracts";
 import { RealtimeEvent } from "./realtime.contracts";
 import { ProjectOperationService } from "./project-operation.service";
 
@@ -15,7 +16,7 @@ type PresenceRecord = ProjectPresence & { lastCursorEmissionAt: number; lastActi
 
 @WebSocketGateway({ cors: { origin: process.env.FRONTEND_ORIGIN ?? "http://localhost:3000" } })
 @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
-export class ProjectRealtimeGateway implements OnModuleInit, OnModuleDestroy {
+export class ProjectRealtimeGateway implements OnModuleInit, OnModuleDestroy, ProjectOperationBroadcaster {
   @WebSocketServer() server!: Server;
   private readonly presence = new Map<string, Map<string, PresenceRecord>>();
   private unsubscribeAccessInvalidations?: () => void;
@@ -134,9 +135,14 @@ export class ProjectRealtimeGateway implements OnModuleInit, OnModuleDestroy {
       const event = "code" in result && result.code === "STALE_REVISION" ? RealtimeEvent.CONFLICT
         : "code" in result && result.code === "INVALID_OPERATION" ? RealtimeEvent.REJECTED
         : RealtimeEvent.ACCEPTED;
-      if (event === RealtimeEvent.ACCEPTED) this.server.to(room(dto.projectId)).emit(event, result);
+      if (event === RealtimeEvent.ACCEPTED) this.broadcastAccepted(result as ProjectOperationAck);
       return result;
     } catch { return { operationId: dto.operationId, projectId: dto.projectId, code: "FORBIDDEN", diagnostics: [] }; }
+  }
+
+  // Single place where an accepted authoritative operation reaches the project's room.
+  broadcastAccepted(ack: ProjectOperationAck): void {
+    this.server.to(room(ack.projectId)).emit(RealtimeEvent.ACCEPTED, ack);
   }
 
   private user(socket: AuthenticatedSocket): AuthenticatedUser {
