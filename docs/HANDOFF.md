@@ -8,7 +8,7 @@
 - CU-2P-02 de `feat/s2-cu02-identidad-mentor` está completado y aceptado; OpenSpec archivado en `openspec/changes/archive/2026-11-09-s2-cu02-identidad-mentor/`. La identidad Mentor proviene del JWT, `ProjectAccessService.requireView` mantiene la autorización y el recorder recibe identidad segura. Anti-suplantación verificada; userId, email y rol siguen fuera del prompt Qwen.
 - CU-2P-03 Memoria contextual completado, aceptado e integrado en `main` (PR #10). Detalle en la sección CU-2P-03.
 - CU-2P-04 Análisis UML está integrado en `main` (PR #12); su OpenSpec `openspec/changes/s2-cu04-analisis-uml/` sigue sin archivar. Detalle en la sección CU-2P-04.
-- Segundo parcial, CU activo: CU-2P-06 en `feat/s2-cu06-aplicar-propuestas-uml` (sin push de los últimos commits). Implementación terminada; pendiente confirmar la prueba visual con dos navegadores (tarea 10.1), PR con `Closes #6`, aceptación y archivo. Detalle en la sección CU-2P-06.
+- Segundo parcial: CU-2P-06 completado en `feat/s2-cu06-aplicar-propuestas-uml` (sin push de los últimos commits), con la prueba con dos navegadores aprobada; queda push, PR con `Closes #6`, merge y archivo. Detalle en la sección CU-2P-06.
 
 ## Entorno
 
@@ -73,4 +73,4 @@ Defectos externos detectados durante CU-2P-04 (no corregidos aquí):
 
 ## Siguiente Acción
 
-Confirmar la prueba visual de CU-2P-06 con dos navegadores (OWNER y EDITOR en el mismo workspace: A aplica, B ve el cambio sin recargar, A no lo duplica y, tras recargar, ambos ven el mismo estado). Después: push, PR con `Closes #6`, aceptación, merge y archivo del OpenSpec.
+CU-2P-06: push de la rama, PR con `Closes #6`, merge y archivo del OpenSpec. Después, CU-2P-07 integra la proyección de propuestas según la sección «Para CU-2P-07».

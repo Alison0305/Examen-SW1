@@ -2,7 +2,7 @@
 
 ## Estado
 
-Implementación terminada en la rama `feat/s2-cu06-aplicar-propuestas-uml` (issue #6), sin fusionar. OpenSpec activo en `openspec/changes/s2-cu06-aplicar-propuestas-uml/`, válido en modo `--strict`. El caso de aceptación funciona con Qwen real, PostgreSQL y realtime. Pendiente: confirmación del usuario de la prueba visual con dos navegadores (tarea 10.1), revisión, PR con `Closes #6`, aceptación y archivo del OpenSpec después del merge a `main`.
+Completado en la rama `feat/s2-cu06-aplicar-propuestas-uml` (issue #6), sin fusionar. OpenSpec activo en `openspec/changes/s2-cu06-aplicar-propuestas-uml/`, válido en modo `--strict` y con todas sus tareas cerradas (7.1 retirada). El caso de aceptación funciona con Qwen real, PostgreSQL, realtime y dos navegadores reales. Queda la integración: PR con `Closes #6`, merge a `main` y archivo del OpenSpec.
 
 ## Objetivo Y Alcance
 
@@ -101,7 +101,7 @@ Con Qwen3-1.7B-Q8_0, PostgreSQL y clientes Socket.IO reales (2026-11-10):
 - «Agrega el atributo telefono de tipo string a cliente»: 3 de 3 con 201 sobre `Cliente`; aplicar funciona igual.
 - Cancelar: la propuesta sigue `PENDING` sin cambios ni recibos. Rechazar: `REJECTED` sin cambios, y aplicar después responde 409 `PROPOSAL_REJECTED`. `STALE_PROPOSAL`: tras otra operación no se aplica ni se ajusta `baseRevision`. Segundo apply: 409 `PROPOSAL_ALREADY_APPLIED`. Estas pruebas se hicieron antes del ejemplo acentuado, con instrucciones que indicaban la multiplicidad.
 - Dos clientes Socket.IO (OWNER y EDITOR) recibieron exactamente un `project.operation.accepted` por operación.
-- Prueba visual con dos navegadores: pendiente de confirmación del usuario.
+- Prueba visual con dos navegadores (aprobada por el usuario): sesiones distintas, OWNER en A y EDITOR en B en el mismo workspace. El UML no cambió antes de Aplicar; el cambio aplicado en A apareció una sola vez en A y en B por realtime sin recargar, sin doble mutación, y tras recargar ambos mostraron el mismo estado persistido.
 
 ## Limitaciones De V1
 
