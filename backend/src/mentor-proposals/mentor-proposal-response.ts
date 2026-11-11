@@ -1,4 +1,4 @@
-import type { MentorProposalDiagnostic, MentorProposalResponse } from "./mentor-proposal.contracts";
+import type { MentorProposalDiagnostic, MentorProposalHistoryProjection, MentorProposalResponse } from "./mentor-proposal.contracts";
 import type { StoredMentorProposal } from "./mentor-proposal-store";
 
 export const STALE_PROPOSAL_DIAGNOSTIC: MentorProposalDiagnostic = {
@@ -26,6 +26,21 @@ export function toMentorProposalResponse(proposal: StoredMentorProposal, current
       diff: proposal.summary,
       diagnostics: stale ? [...proposal.diagnostics, STALE_PROPOSAL_DIAGNOSTIC] : proposal.diagnostics,
     },
+    createdAt: proposal.createdAt.toISOString(),
+    ...(proposal.status !== "PENDING" ? { resolvedAt: proposal.resolvedAt.toISOString() } : {}),
+    ...(proposal.status === "APPLIED" ? { resultingRevision: proposal.resultingRevision } : {}),
+  };
+}
+
+// CU-2P-07 read projection, built field by field from the persisted public snapshots (operation, summary): command,
+// author, resolver, instruction and diagnostics never leak. resultingRevision only exists for APPLIED.
+export function toMentorProposalHistoryProjection(proposal: StoredMentorProposal): MentorProposalHistoryProjection {
+  return {
+    proposalId: proposal.id,
+    status: proposal.status,
+    operation: proposal.operation,
+    summary: proposal.summary,
+    baseRevision: proposal.baseRevision,
     createdAt: proposal.createdAt.toISOString(),
     ...(proposal.status !== "PENDING" ? { resolvedAt: proposal.resolvedAt.toISOString() } : {}),
     ...(proposal.status === "APPLIED" ? { resultingRevision: proposal.resultingRevision } : {}),

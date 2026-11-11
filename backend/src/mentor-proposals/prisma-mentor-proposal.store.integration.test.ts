@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { PrismaService } from "../prisma/prisma.service";
+import { toMentorProposalHistoryProjection } from "./mentor-proposal-response";
 import type { NewMentorProposal } from "./mentor-proposal-store";
 import { PrismaMentorProposalStore } from "./prisma-mentor-proposal.store";
 
@@ -160,5 +161,28 @@ describe("MentorProposal PostgreSQL persistence", () => {
 
     await prisma.project.delete({ where: { id: PROJECT_ID } });
     expect(await prisma.mentorProposal.count({ where: { id: PROPOSAL_ID } })).toBe(0);
+  });
+
+  it("DB-15 lectura por proyecto para CU-2P-07: solo ese proyecto, más reciente primero, con límite y estados reales", async () => {
+    const id = (tail: string) => `d6333333-3333-4333-8333-${tail.padStart(12, "0")}`;
+    const at = (minute: number) => new Date(`2026-11-10T12:${String(minute).padStart(2, "0")}:00.000Z`);
+    await store.create(proposal({ id: id("a1"), createdAt: at(1) }));
+    await store.create(proposal({ id: id("a2"), createdAt: at(2) }));
+    await store.create(proposal({ id: id("a3"), createdAt: at(3) }));
+    await store.create(proposal({ id: id("b1"), projectId: OTHER_PROJECT_ID, createdAt: at(4) }));
+    await store.reject({ projectId: PROJECT_ID, proposalId: id("a1"), resolvedByUserId: RESOLVER_ID, resolvedAt: RESOLVED_AT });
+    await store.markApplied({ projectId: PROJECT_ID, proposalId: id("a2"), resolvedByUserId: RESOLVER_ID, resolvedAt: RESOLVED_AT, resultingRevision: 11 });
+
+    const listed = await store.listByProject(PROJECT_ID, 50);
+    expect(listed.map((item) => [item.id, item.status])).toEqual([[id("a3"), "PENDING"], [id("a2"), "APPLIED"], [id("a1"), "REJECTED"]]);
+    expect((await store.listByProject(PROJECT_ID, 2)).map((item) => item.id)).toEqual([id("a3"), id("a2")]);
+    expect((await store.listByProject(OTHER_PROJECT_ID, 50)).map((item) => item.id)).toEqual([id("b1")]);
+    expect(await store.listByProject("no-es-un-uuid", 50)).toEqual([]);
+    await expect(store.listByProject(PROJECT_ID, 0)).rejects.toBeInstanceOf(RangeError);
+
+    const projections = listed.map(toMentorProposalHistoryProjection);
+    expect(projections.map((item) => item.resultingRevision ?? null)).toEqual([null, 11, null]);
+    expect(projections.map((item) => item.resolvedAt ?? null)).toEqual([null, RESOLVED_AT.toISOString(), RESOLVED_AT.toISOString()]);
+    expect(JSON.stringify(projections)).not.toMatch(new RegExp(`command|${CLASS_ID}|${ATTRIBUTE_ID}|${AUTHOR_ID}|${RESOLVER_ID}|instruction`));
   });
 });

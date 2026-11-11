@@ -9,6 +9,8 @@ import { ProjectRealtimeGateway } from "../realtime/project-realtime.gateway";
 import { LocalQwenMentorProposalIntentProvider, MENTOR_PROPOSAL_INTENT_GENERATOR } from "./local-qwen-mentor-proposal-intent.provider";
 import { MentorProposalApplicationService } from "./mentor-proposal-application.service";
 import { MentorProposalCreationService } from "./mentor-proposal-creation.service";
+import { MentorProposalHistoryService } from "./mentor-proposal-history.service";
+import { MENTOR_PROPOSAL_HISTORY_STORE } from "./mentor-proposal-store";
 import { MENTOR_PROPOSAL_STORE } from "./mentor-proposal-store";
 import { MentorProposalsModule } from "./mentor-proposals.module";
 import { PrismaMentorProposalStore } from "./prisma-mentor-proposal.store";
@@ -52,6 +54,18 @@ describe("MentorProposalsModule", () => {
     expect((generator as unknown as { model: unknown }).model).toBe(sharedModel);
     expect(module.select(AssistantModule).get(ASSISTANT_LOCAL_MODEL)).toBe(sharedModel);
     expect(created).toBe(1);
+    await module.close();
+  });
+
+  it("tarea 11.1: exporta MentorProposalHistoryService y su lectura usa la misma instancia del store", async () => {
+    const module = await Test.createTestingModule({ imports: [PrismaModule, MentorProposalsModule] })
+      .overrideProvider(PrismaService).useValue({})
+      .overrideProvider(ASSISTANT_LOCAL_MODEL).useFactory({ factory: () => undefined })
+      .compile();
+
+    expect(module.get(MentorProposalHistoryService)).toBeInstanceOf(MentorProposalHistoryService);
+    expect(module.get(MENTOR_PROPOSAL_HISTORY_STORE)).toBe(module.get(MENTOR_PROPOSAL_STORE));
+    expect(Reflect.getMetadata("exports", MentorProposalsModule)).toContain(MentorProposalHistoryService);
     await module.close();
   });
 });

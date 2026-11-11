@@ -10,6 +10,13 @@ import {
 import type { MentorProposalPreviewResult } from "./mentor-proposal-preview";
 
 export const MENTOR_PROPOSAL_STORE = Symbol("MENTOR_PROPOSAL_STORE");
+// Read side for CU-2P-07 (task 11.1), kept apart from the lifecycle store. Implemented by the same Prisma store.
+export const MENTOR_PROPOSAL_HISTORY_STORE = Symbol("MENTOR_PROPOSAL_HISTORY_STORE");
+
+export interface MentorProposalHistoryStore {
+  // Newest first (createdAt DESC, id DESC, the index order), at most `limit` proposals of that project only.
+  listByProject(projectId: string, limit: number): Promise<StoredMentorProposal[]>;
+}
 
 // Internal domain record (not the HTTP DTO). The status union carries the resolution invariant in the type:
 // PENDING has no resolution, REJECTED has who/when, APPLIED also has the resulting project revision.

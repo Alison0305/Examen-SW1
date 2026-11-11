@@ -107,8 +107,8 @@ describe("errores de dominio", () => {
   });
 });
 
-describe("proyección futura para CU-2P-07", () => {
-  it("solo expone estado y resumen, sin operación ni comando", () => {
-    expectTypeOf<keyof MentorProposalHistoryProjection>().toEqualTypeOf<"proposalId" | "status" | "summary" | "createdAt" | "resolvedAt">();
+describe("proyección para CU-2P-07", () => {
+  it("solo expone datos públicos por nombre: sin comando, identificadores UML, autor ni instrucción", () => {
+    expectTypeOf<keyof MentorProposalHistoryProjection>().toEqualTypeOf<"proposalId" | "status" | "operation" | "summary" | "baseRevision" | "createdAt" | "resolvedAt" | "resultingRevision">();
   });
 });

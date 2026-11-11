@@ -97,11 +97,20 @@ export type MentorProposalError = Readonly<{
   diagnostics: readonly MentorProposalDiagnostic[];
 }>;
 
-// Future read projection for CU-2P-07 (requireView). Not exposed by CU-2P-06.
+// Read projection for CU-2P-07 (task 11.1), served by MentorProposalHistoryService with requireView. Only public,
+// name-based snapshots: never the persisted command, UML ids, author or resolver ids, the instruction, receipts or
+// model output. CU-2P-06 exposes no HTTP route for it; CU-2P-07 decides how to page and present it.
 export type MentorProposalHistoryProjection = Readonly<{
   proposalId: string;
   status: MentorProposalStatus;
+  operation: MentorProposalOperation;
   summary: readonly MentorProposalDiffLine[];
+  baseRevision: number;
   createdAt: string;
   resolvedAt?: string;
+  // Only for APPLIED.
+  resultingRevision?: number;
 }>;
+
+export const MENTOR_PROPOSAL_HISTORY_DEFAULT_LIMIT = 20;
+export const MENTOR_PROPOSAL_HISTORY_MAX_LIMIT = 50;

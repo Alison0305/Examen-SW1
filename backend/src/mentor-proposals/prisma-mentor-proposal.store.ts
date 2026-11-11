@@ -2,8 +2,10 @@ import { Inject, Injectable } from "@nestjs/common";
 import type { MentorProposal as MentorProposalRow, Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { MentorProposalDataError, parseStoredMentorProposalCommand, parseStoredMentorProposalDiagnostics, parseStoredMentorProposalOperation, parseStoredMentorProposalSummary } from "./mentor-proposal-stored-json";
+import { MENTOR_PROPOSAL_HISTORY_MAX_LIMIT } from "./mentor-proposal.contracts";
 import type {
   MarkMentorProposalAppliedInput,
+  MentorProposalHistoryStore,
   MentorProposalReconciliationResult,
   MentorProposalStore,
   MentorProposalTransitionResult,
@@ -46,8 +48,16 @@ export function toStoredMentorProposal(row: MentorProposalRow): StoredMentorProp
 }
 
 @Injectable()
-export class PrismaMentorProposalStore implements MentorProposalStore {
+export class PrismaMentorProposalStore implements MentorProposalStore, MentorProposalHistoryStore {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
+
+  // Filtered by project, ordered like the (projectId, createdAt, id) index and bounded; every row is re-validated.
+  async listByProject(projectId: string, limit: number): Promise<StoredMentorProposal[]> {
+    if (!Number.isInteger(limit) || limit < 1 || limit > MENTOR_PROPOSAL_HISTORY_MAX_LIMIT) throw new RangeError(`limit must be an integer between 1 and ${MENTOR_PROPOSAL_HISTORY_MAX_LIMIT}`);
+    if (!UUID.test(projectId)) return [];
+    const rows = await this.prisma.mentorProposal.findMany({ where: { projectId }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: limit });
+    return rows.map(toStoredMentorProposal);
+  }
 
   async create(proposal: NewMentorProposal): Promise<StoredMentorProposal> {
     // Validated before writing too: invalid JSON snapshots are never persisted.
