@@ -10,6 +10,9 @@ export type VisionConfig = Readonly<{
   maxInputPixels: number;
   maxSide: number;
   minSide: number;
+  // ONNX Runtime threads for Florence-2: VISION_THREADS, else ASSISTANT_THREADS (computed from the container CPU quota
+  // by docker-entrypoint.sh), else undefined (runtime default). Both models share the same CPU quota.
+  threads: number | undefined;
 }>;
 
 const DEFAULT_TIMEOUT_MS = 60_000;
@@ -36,5 +39,6 @@ export function getVisionConfig(env: NodeJS.ProcessEnv = process.env): VisionCon
     maxInputPixels: positiveInteger(env.VISION_MAX_INPUT_PIXELS, DEFAULT_MAX_INPUT_PIXELS),
     maxSide: MAX_SIDE,
     minSide: MIN_SIDE,
+    threads: positiveInteger(env.VISION_THREADS, 0) || positiveInteger(env.ASSISTANT_THREADS, 0) || undefined,
   };
 }

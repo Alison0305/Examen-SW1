@@ -1,5 +1,7 @@
 import { existsSync } from "node:fs";
+import { availableParallelism, cpus } from "node:os";
 import { basename, dirname, join } from "node:path";
+import { Logger } from "@nestjs/common";
 import type { GrayImage, OcrLine } from "./diagram-analyzer";
 import type { OcrEngine } from "./ocr-engine";
 import { VisionError } from "./vision-errors";
@@ -18,7 +20,9 @@ const REQUIRED_FILES = ["config.json", "generation_config.json", "preprocessor_c
 const OCR_TASK = "<OCR_WITH_REGION>";
 const MAX_NEW_TOKENS = 1024;
 
-export type Florence2OcrEngineConfig = Readonly<{ modelPath: string; dtype: VisionModelDtype }>;
+// threads: ONNX Runtime intra-op threads (VISION_THREADS or ASSISTANT_THREADS); undefined keeps the runtime default,
+// one per detected core. In a container the detected cores can be the whole host while the CPU quota is far lower.
+export type Florence2OcrEngineConfig = Readonly<{ modelPath: string; dtype: VisionModelDtype; threads?: number }>;
 
 // Files the configured model folder must contain; nothing is ever downloaded at runtime.
 export function florence2ModelFiles(dtype: VisionModelDtype): string[] {
@@ -33,6 +37,7 @@ const toBox = (quad: readonly number[]) => {
 
 // Florence-2 through Transformers.js (ONNX Runtime on CPU), only for OCR with regions.
 export class Florence2OcrEngine implements OcrEngine {
+  private readonly logger = new Logger(Florence2OcrEngine.name);
   private loading: Promise<LoadedRuntime> | undefined;
 
   constructor(private readonly config: Florence2OcrEngineConfig, private readonly loadModule: () => Promise<Transformers> = () => import("@huggingface/transformers")) {}
@@ -96,8 +101,16 @@ export class Florence2OcrEngine implements OcrEngine {
     lib.env.allowLocalModels = true;
     lib.env.localModelPath = `${dirname(modelPath).replace(/\\/g, "/")}/`;
     const modelId = basename(modelPath);
+    const threads = this.config.threads;
     try {
-      const model = await lib.Florence2ForConditionalGeneration.from_pretrained(modelId, { dtype, device: "cpu", local_files_only: true });
+      const model = await lib.Florence2ForConditionalGeneration.from_pretrained(modelId, {
+        dtype,
+        device: "cpu",
+        local_files_only: true,
+        ...(threads ? { session_options: { intraOpNumThreads: threads, interOpNumThreads: 1 } } : {}),
+      });
+      // Diagnostics only (no path): cores seen by the process versus the configured threads.
+      this.logger.log(JSON.stringify({ stage: "vision:model-loaded", dtype, cpus: cpus().length, availableParallelism: availableParallelism(), configuredThreads: threads ?? null }));
       const processor = await lib.Florence2Processor.from_pretrained(modelId, { local_files_only: true }) as Florence2Processor;
       return { lib, model, processor };
     } catch {

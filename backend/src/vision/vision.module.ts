@@ -13,7 +13,7 @@ export const VISION_OCR_ENGINE = Symbol("VISION_OCR_ENGINE");
 function createOcrEngine(): QueuedOcrEngine | undefined {
   const config = getVisionConfig();
   if (!config.modelPath) return undefined;
-  return new QueuedOcrEngine(new Florence2OcrEngine({ modelPath: config.modelPath, dtype: config.dtype }), { timeoutMs: config.timeoutMs, maxQueue: config.maxQueue });
+  return new QueuedOcrEngine(new Florence2OcrEngine({ modelPath: config.modelPath, dtype: config.dtype, threads: config.threads }), { timeoutMs: config.timeoutMs, maxQueue: config.maxQueue });
 }
 
 @Module({

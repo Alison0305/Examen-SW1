@@ -135,6 +135,15 @@ describe("Florence2OcrEngine", () => {
     ]);
   });
 
+  it("con hilos configurados los pasa a ONNX Runtime (intraOpNumThreads) al cargar el modelo", async () => {
+    const { lib } = fakeTransformers("text", { "<OCR_WITH_REGION>": { labels: [], quad_boxes: [] } });
+    const engine = new Florence2OcrEngine({ modelPath: modelFolder(florence2ModelFiles("q8")), dtype: "q8", threads: 8 }, async () => lib as never);
+
+    await engine.warmup();
+
+    expect(lib.Florence2ForConditionalGeneration.from_pretrained).toHaveBeenCalledWith("Florence-2-base-ft", { dtype: "q8", device: "cpu", local_files_only: true, session_options: { intraOpNumThreads: 8, interOpNumThreads: 1 } });
+  });
+
   it("no ejecuta una inferencia ya cancelada", async () => {
     const controller = new AbortController();
     controller.abort();
