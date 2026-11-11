@@ -4,7 +4,15 @@
 
 ### Segundo Parcial
 
-**CU activo del segundo parcial:** CU-2P-06.
+**CU activo del segundo parcial:** CU-2P-06 - Revisar y aplicar una propuesta IA sobre el modelo UML.
+
+**CU-2P-06** (issue #6, rama `feat/s2-cu06-aplicar-propuestas-uml`, OpenSpec `openspec/changes/s2-cu06-aplicar-propuestas-uml/`, PUDS `docs/puds/use-cases/CU-2P-06-aplicar-propuestas-uml.md`).
+
+Estado: implementación terminada; no completado. Pendiente: confirmación del usuario de la prueba visual con dos navegadores (tarea 10.1), PR con `Closes #6`, aceptación y archivo del OpenSpec tras el merge.
+
+Implementación: RF-18 a RF-21 con `ADD_ATTRIBUTE`. Qwen local genera solo una intención estructurada (schema cerrado, sin multiplicidad ni identificadores, nombres literales con un único reintento); el servidor resuelve, previsualiza con el executor y el validador reales y persiste `MentorProposal` `PENDING` sin tocar el modelo. Aplicar usa `ProjectOperationService.apply` (recibo, idempotencia, control de revisión, reconciliación) y el ACK realtime existente; rechazar y cancelar no modifican el modelo; `STALE_PROPOSAL` impide aplicar sobre otra revisión. Panel Mentor con «Proponer cambio UML» y tarjeta de revisión; «Generar propuesta UML» desde recomendaciones CU-2P-05 que requieren cambio. Lectura `MentorProposalHistoryService` preparada para CU-2P-07.
+
+Evidencia: caso «Agrega el atributo teléfono de tipo String a Cliente» con Qwen3-1.7B-Q8_0 real 3/3 (201 `PENDING`, diff `Cliente.teléfono: string`) y aplicación con una sola revisión nueva, un recibo y un único atributo; «…a cliente» en minúscula 3/3; cancelar, rechazar, `STALE_PROPOSAL` y dos clientes Socket.IO verificados contra el backend real. Gates del 2026-11-10: backend 724 correctas y 3 omitidas (Vosk real), `mentor-proposals` 326/326, frontend 260/260 y build, `uml-core` 85/85, Prisma, `tsc`, ESLint, OpenSpec strict y diff-check correctos. Commits: `a2d99a5`…`f4e2d11` (implementación y correcciones) y `1ce8811` (lectura para CU-2P-07).
 
 **Último CU cerrado del segundo parcial:** CU-2P-05 - Solicitar recomendaciones y soluciones técnicas contextualizadas.
 

@@ -56,5 +56,5 @@
 
 ## 11. Integración CU-2P-07 y documentación
 
-- [ ] 11.1 Dejar disponible la lectura por proyecto para `MentorProposalHistoryProjection`; la integración visual se hará en CU-2P-07 tras fusionar CU-06.
-- [ ] 11.2 Crear el PUDS de CU-2P-06 y actualizar STATUS y HANDOFF con resultados reales; ejecutar typecheck, lint, tests, build, Prisma, OpenSpec strict y diff-check antes del PR con `Closes #6`.
+- [x] 11.1 Dejar disponible la lectura por proyecto para `MentorProposalHistoryProjection`; la integración visual se hará en CU-2P-07 tras fusionar CU-06. Hecho: `MentorProposalHistoryService` (`requireView`, límite 1..50) sobre `MentorProposalHistoryStore.listByProject` y `toMentorProposalHistoryProjection`, exportado por `MentorProposalsModule`, sin ruta HTTP. Verificado con 14 pruebas: PENDING, APPLIED y REJECTED, `resultingRevision` solo en APPLIED, sin comando ni datos internos, aislamiento por proyecto, orden y límite en PostgreSQL (DB-15), serialización determinista y DI.
+- [x] 11.2 Crear el PUDS de CU-2P-06 y actualizar STATUS y HANDOFF con resultados reales; ejecutar typecheck, lint, tests, build, Prisma, OpenSpec strict y diff-check antes del PR con `Closes #6`. Hecho: `docs/puds/use-cases/CU-2P-06-aplicar-propuestas-uml.md`, STATUS y HANDOFF; gates del 2026-11-10 correctos (backend 724 correctas y 3 omitidas, `mentor-proposals` 326/326, frontend 260/260 y build, `uml-core` 85/85, Prisma, `tsc`, ESLint, OpenSpec strict y diff-check). El PR, la aceptación y el archivo se hacen después, como en CU-2P-03 y CU-2P-05.

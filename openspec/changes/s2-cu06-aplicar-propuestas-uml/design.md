@@ -281,7 +281,7 @@ Contra el backend real (Qwen3-1.7B-Q8_0 por `ASSISTANT_LOCAL_MODEL`, PostgreSQL 
 
 ### Relación con CU-2P-07
 
-No se toca la rama de CU-2P-07. Se deja documentada la proyección futura `MentorProposalHistoryProjection = { proposalId, status, summary, createdAt, resolvedAt? }`, leída por proyecto con `requireView`. La integración real se hará tras fusionar CU-06.
+No se toca la rama de CU-2P-07. Lectura preparada (tarea 11.1): `MentorProposalHistoryService.list(projectId, userId, limit = 20)` aplica `requireView` (OWNER, EDITOR y VIEWER; sin acceso, el 404 existente antes de leer), valida `limit` entre 1 y 50 y lee con `MentorProposalHistoryStore.listByProject`, implementado por el mismo `PrismaMentorProposalStore` (`useExisting`): solo ese proyecto, `createdAt DESC, id DESC` como el índice y filas revalidadas. Devuelve `MentorProposalHistoryProjection = { proposalId, status, operation, summary, baseRevision, createdAt, resolvedAt?, resultingRevision? }` (`resultingRevision` solo en `APPLIED`), construida campo a campo desde los snapshots públicos. No incluye comando, identificadores UML, autor, resolutor, instrucción ni diagnósticos. `MentorProposalsModule` exporta el servicio. CU-06 no expone ruta HTTP, cursor ni UI de historial; CU-2P-07 decide cómo paginar y presentar, y la integración se hará tras fusionar CU-06.
 
 ## Risks / Trade-offs
 
