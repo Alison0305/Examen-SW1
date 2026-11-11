@@ -4,9 +4,17 @@
 
 ### Segundo Parcial
 
-**CU activo del segundo parcial:** CU-2P-04 - Analizar y explicar un modelo UML 2.5 (en validación).
+**CU activo del segundo parcial:** CU-2P-06 - Revisar y aplicar una propuesta IA sobre el modelo UML.
 
-**Último CU cerrado del segundo parcial:** CU-2P-03 - Persistir y recuperar memoria contextual del Mentor IA.
+**CU-2P-06** (issue #6, rama `feat/s2-cu06-aplicar-propuestas-uml`, OpenSpec `openspec/changes/s2-cu06-aplicar-propuestas-uml/`, PUDS `docs/puds/use-cases/CU-2P-06-aplicar-propuestas-uml.md`).
+
+Estado: COMPLETADO. RF-18 ✔, RF-19 ✔, RF-20 ✔, RF-21 ✔; Qwen real ✔, PostgreSQL real ✔, realtime real ✔, dos navegadores reales ✔ y OpenSpec strict ✔ (todas las tareas cerradas; 7.1 retirada). Queda solo la integración: push, PR con `Closes #6`, merge y archivo del OpenSpec.
+
+Implementación: RF-18 a RF-21 con `ADD_ATTRIBUTE`. Qwen local genera solo una intención estructurada (schema cerrado, sin multiplicidad ni identificadores, nombres literales con un único reintento); el servidor resuelve, previsualiza con el executor y el validador reales y persiste `MentorProposal` `PENDING` sin tocar el modelo. Aplicar usa `ProjectOperationService.apply` (recibo, idempotencia, control de revisión, reconciliación) y el ACK realtime existente; rechazar y cancelar no modifican el modelo; `STALE_PROPOSAL` impide aplicar sobre otra revisión. Panel Mentor con «Proponer cambio UML» y tarjeta de revisión; «Generar propuesta UML» desde recomendaciones CU-2P-05 que requieren cambio. Lectura `MentorProposalHistoryService` preparada para CU-2P-07.
+
+Evidencia: caso «Agrega el atributo teléfono de tipo String a Cliente» con Qwen3-1.7B-Q8_0 real 3/3 (201 `PENDING`, diff `Cliente.teléfono: string`) y aplicación con una sola revisión nueva, un recibo y un único atributo; «…a cliente» en minúscula 3/3; cancelar, rechazar, `STALE_PROPOSAL` y dos clientes Socket.IO verificados contra el backend real. Prueba visual con dos navegadores aprobada por el usuario: OWNER y EDITOR en el mismo workspace; el cambio aplicado en A apareció una sola vez en A y en B por realtime sin recargar, y tras recargar ambos mostraron el mismo estado persistido. Gates del 2026-11-10: backend 724 correctas y 3 omitidas (Vosk real), `mentor-proposals` 326/326, frontend 260/260 y build, `uml-core` 85/85, Prisma, `tsc`, ESLint, OpenSpec strict y diff-check correctos. Commits: `a2d99a5`…`f4e2d11` (implementación y correcciones) y `1ce8811` (lectura para CU-2P-07).
+
+**Último CU cerrado del segundo parcial:** CU-2P-05 - Solicitar recomendaciones y soluciones técnicas contextualizadas.
 
 Este track académico es independiente del roadmap histórico CU-00...CU-11. No renumera ni modifica el estado del primer parcial.
 
@@ -14,9 +22,11 @@ CU-2P-03 está cerrado y aceptado: PR #10 fusionado en `main`, issue #3 cerrado 
 
 **CU-2P-04 - Analizar y explicar un modelo UML 2.5** (issue #4, rama `feat/s2-cu04-analisis-uml`, OpenSpec `openspec/changes/s2-cu04-analisis-uml/`).
 
-Estado: implementación funcional completa — pendiente validación Qwen real y smoke test visual antes de PR/cierre. No está cerrado.
+Estado: integrado en `main`; conserva validación y cierre propios pendientes. No está cerrado.
 
 Implementación: `POST /projects/:id/mentor/analysis` con contexto determinista (fragmento UML, diagnósticos canónicos, hechos relacionales del mapper, conflictos y limitaciones), prompt compacto con recorte declarado y explicación con el mismo Qwen local compartido por CU-2P-01 (`ASSISTANT_LOCAL_MODEL`). Sección "Análisis UML" en el panel Mentor IA con "Explicar selección" y "Explicar modelo", de solo lectura. Integra `main` con CU-2P-01 (PR #8), CU-2P-02 (PR #9) y CU-2P-03 (PR #10/#11). OpenSpec 14/18 tareas. Pruebas: `mentor-analysis` 181 correctas + 15 reales de Qwen omitidas; backend completo 328 correctas + 36 omitidas (5 archivos PostgreSQL sin `backend/.env`); frontend 208/208; ESLint y TypeScript correctos. Pendiente: ejecutar la suite real de Qwen, revisión manual en navegador, revisión del compañero, PR, aceptación y cierre del issue.
+
+CU-2P-05 está completado y aceptado. PR #13 fue fusionado en `main`, cerró automáticamente el issue #5 y produjo el merge commit `2e6fade062361b25edde73ee446fb900b861147e`. RF-15, RF-16 y RF-17 están verificados: `POST /projects/:id/mentor/recommendations` entrega recomendaciones de solo lectura, conserva `query` y convive con `analysis` en el panel Mentor. La prueba manual aprobó 5/5 consultas Spring deterministas y la recomendación de atributo futuro sin mutación. OpenSpec archivado en `openspec/changes/archive/2026-11-10-s2-cu05-recomendaciones-tecnicas/` con 19/19 tareas. Lint, typecheck, build, Prisma, pruebas focalizadas y diff-check son correctos. La suite raíz con `ASSISTANT_MODEL_PATH` conserva el baseline preexistente de CU-2P-04 en `uml-analysis-qwen.real.integration.test.ts:222`, reproducido en `origin/main` `536cd6f`.
 
 ### Primer Parcial
 
@@ -208,4 +218,4 @@ El correctivo CU-06 está completo en 9/9. Con el proyecto `Prueba CU06 Backend`
 
 ## Siguiente Acción
 
-Segundo parcial: CU-2P-04 (Análisis UML) es el CU activo. Antes de su PR hay que ejecutar la suite real de Qwen y hacer la revisión manual en navegador. En el track histórico, planificar CU-11 según `docs/puds/use-cases/README.md` cuando se autorice (plan, aprobación del usuario y OpenSpec). Opcionalmente, crear un correctivo separado `fix-cu-10-...` para mejorar y medir el analizador de imágenes con capturas nuevas.
+CU-2P-05: ejecutar los gates completos tras integrar CU-2P-04 y preparar la revisión antes de commit/PR. Mantener CU-2P-04 disponible para su validación y cierre propios. En el track histórico, planificar CU-11 solo cuando se autorice.

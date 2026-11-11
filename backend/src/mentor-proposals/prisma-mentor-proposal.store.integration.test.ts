@@ -1,0 +1,188 @@
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { PrismaService } from "../prisma/prisma.service";
+import { toMentorProposalHistoryProjection } from "./mentor-proposal-response";
+import type { NewMentorProposal } from "./mentor-proposal-store";
+import { PrismaMentorProposalStore } from "./prisma-mentor-proposal.store";
+
+const AUTHOR_ID = "d6111111-1111-4111-8111-111111111111";
+const RESOLVER_ID = "d6111111-1111-4111-8111-222222222222";
+const PROJECT_ID = "d6222222-2222-4222-8222-111111111111";
+const OTHER_PROJECT_ID = "d6222222-2222-4222-8222-222222222222";
+const PROPOSAL_ID = "d6333333-3333-4333-8333-111111111111";
+const CLASS_ID = "d6444444-4444-4444-8444-111111111111";
+const ATTRIBUTE_ID = "d6444444-4444-4444-8444-222222222222";
+const CREATED_AT = new Date("2026-11-10T12:00:00.000Z");
+const RESOLVED_AT = new Date("2026-11-10T12:05:00.000Z");
+
+const proposal = (overrides: Partial<NewMentorProposal> = {}): NewMentorProposal => ({
+  id: PROPOSAL_ID,
+  projectId: PROJECT_ID,
+  authorUserId: AUTHOR_ID,
+  authorEmail: "proposal-author@example.test",
+  instruction: "Agrega el atributo teléfono de tipo String a Cliente",
+  baseRevision: 10,
+  command: { type: "AddAttribute", classId: CLASS_ID, attributeId: ATTRIBUTE_ID, name: "teléfono", attributeType: { kind: "primitive", name: "string" }, multiplicity: { lower: 0, upper: "unbounded" } },
+  operation: { kind: "ADD_ATTRIBUTE", target: { className: "Cliente" }, change: { attributeName: "teléfono", attributeType: "string", multiplicity: "0..*" } },
+  summary: [{ kind: "added", element: "attribute", label: "Cliente.teléfono: string [0..*]" }],
+  diagnostics: [],
+  createdAt: CREATED_AT,
+  ...overrides,
+});
+
+describe("MentorProposal PostgreSQL persistence", () => {
+  let prisma: PrismaService;
+  let store: PrismaMentorProposalStore;
+
+  async function cleanup() {
+    await prisma.project.deleteMany({ where: { id: { in: [PROJECT_ID, OTHER_PROJECT_ID] } } });
+    await prisma.user.deleteMany({ where: { id: { in: [AUTHOR_ID, RESOLVER_ID] } } });
+  }
+
+  beforeAll(async () => {
+    process.loadEnvFile(process.cwd().endsWith("backend") ? ".env" : "backend/.env");
+    prisma = new PrismaService();
+    await prisma.$connect();
+    store = new PrismaMentorProposalStore(prisma);
+  });
+
+  beforeEach(async () => {
+    await cleanup();
+    await prisma.user.createMany({ data: [
+      { id: AUTHOR_ID, email: "proposal-author@example.test", passwordHash: "test-hash-not-a-real-password" },
+      { id: RESOLVER_ID, email: "proposal-resolver@example.test", passwordHash: "test-hash-not-a-real-password" },
+    ] });
+    await prisma.project.createMany({ data: [
+      { id: PROJECT_ID, ownerId: AUTHOR_ID, name: "Proposals", document: {}, revision: 10 },
+      { id: OTHER_PROJECT_ID, ownerId: AUTHOR_ID, name: "Other", document: {}, revision: 1 },
+    ] });
+  });
+
+  afterAll(async () => {
+    if (prisma) { await cleanup(); await prisma.$disconnect(); }
+  });
+
+  it("DB-01 crea una propuesta PENDING sin resolución", async () => {
+    const stored = await store.create(proposal());
+    expect(stored).toEqual({ ...proposal(), status: "PENDING" });
+    const row = await prisma.mentorProposal.findUniqueOrThrow({ where: { id: PROPOSAL_ID } });
+    expect(row).toMatchObject({ status: "PENDING", resolvedAt: null, resolvedByUserId: null, resultingRevision: null });
+  });
+
+  it("DB-02 encuentra por projectId + id desde una nueva instancia", async () => {
+    await store.create(proposal());
+    const fresh = new PrismaService();
+    await fresh.$connect();
+    expect(await new PrismaMentorProposalStore(fresh).findByProjectAndId(PROJECT_ID, PROPOSAL_ID)).toEqual({ ...proposal(), status: "PENDING" });
+    await fresh.$disconnect();
+  });
+
+  it("DB-03 el mismo id no es visible bajo otro projectId, ni para leer ni para transicionar", async () => {
+    await store.create(proposal());
+    expect(await store.findByProjectAndId(OTHER_PROJECT_ID, PROPOSAL_ID)).toBeUndefined();
+    expect(await store.reject({ projectId: OTHER_PROJECT_ID, proposalId: PROPOSAL_ID, resolvedByUserId: RESOLVER_ID, resolvedAt: RESOLVED_AT })).toEqual({ ok: false, reason: "NOT_FOUND" });
+    expect((await store.findByProjectAndId(PROJECT_ID, PROPOSAL_ID))?.status).toBe("PENDING");
+  });
+
+  it("DB-04 rechaza una propuesta PENDING", async () => {
+    await store.create(proposal());
+    const result = await store.reject({ projectId: PROJECT_ID, proposalId: PROPOSAL_ID, resolvedByUserId: RESOLVER_ID, resolvedAt: RESOLVED_AT });
+    expect(result).toEqual({ ok: true, proposal: { ...proposal(), status: "REJECTED", resolvedAt: RESOLVED_AT, resolvedByUserId: RESOLVER_ID } });
+  });
+
+  it("DB-05 una propuesta rechazada no se marca aplicada", async () => {
+    await store.create(proposal());
+    await store.reject({ projectId: PROJECT_ID, proposalId: PROPOSAL_ID, resolvedByUserId: RESOLVER_ID, resolvedAt: RESOLVED_AT });
+    expect(await store.markApplied({ projectId: PROJECT_ID, proposalId: PROPOSAL_ID, resolvedByUserId: RESOLVER_ID, resolvedAt: RESOLVED_AT, resultingRevision: 11 })).toEqual({ ok: false, reason: "PROPOSAL_REJECTED" });
+  });
+
+  it("DB-06 marca aplicada una propuesta PENDING", async () => {
+    await store.create(proposal());
+    const result = await store.markApplied({ projectId: PROJECT_ID, proposalId: PROPOSAL_ID, resolvedByUserId: RESOLVER_ID, resolvedAt: RESOLVED_AT, resultingRevision: 11 });
+    expect(result).toEqual({ ok: true, proposal: { ...proposal(), status: "APPLIED", resolvedAt: RESOLVED_AT, resolvedByUserId: RESOLVER_ID, resultingRevision: 11 } });
+  });
+
+  it("DB-07 una propuesta aplicada no se rechaza", async () => {
+    await store.create(proposal());
+    await store.markApplied({ projectId: PROJECT_ID, proposalId: PROPOSAL_ID, resolvedByUserId: RESOLVER_ID, resolvedAt: RESOLVED_AT, resultingRevision: 11 });
+    expect(await store.reject({ projectId: PROJECT_ID, proposalId: PROPOSAL_ID, resolvedByUserId: RESOLVER_ID, resolvedAt: RESOLVED_AT })).toEqual({ ok: false, reason: "PROPOSAL_ALREADY_APPLIED" });
+  });
+
+  it("DB-08 transiciones concurrentes: exactamente una gana", async () => {
+    await store.create(proposal());
+    const resolution = { projectId: PROJECT_ID, proposalId: PROPOSAL_ID, resolvedByUserId: RESOLVER_ID, resolvedAt: RESOLVED_AT };
+    const results = await Promise.all([
+      store.markApplied({ ...resolution, resultingRevision: 11 }),
+      store.markApplied({ ...resolution, resultingRevision: 11 }),
+      store.reject(resolution),
+    ]);
+    expect(results.filter((result) => result.ok)).toHaveLength(1);
+    const final = await store.findByProjectAndId(PROJECT_ID, PROPOSAL_ID);
+    const winner = results.find((result) => result.ok);
+    expect(winner?.ok && final?.status).toBe(winner?.ok && winner.proposal.status);
+  });
+
+  it("DB-09 y DB-10 command y summary hacen round-trip exacto", async () => {
+    await store.create(proposal());
+    const row = await prisma.mentorProposal.findUniqueOrThrow({ where: { id: PROPOSAL_ID } });
+    expect(row.command).toEqual(proposal().command);
+    expect(row.summary).toEqual(proposal().summary);
+    const stored = await store.findByProjectAndId(PROJECT_ID, PROPOSAL_ID);
+    expect(stored?.command).toEqual(proposal().command);
+    expect(stored?.summary).toEqual(proposal().summary);
+  });
+
+  it("DB-11 conserva baseRevision aunque el proyecto avance", async () => {
+    await store.create(proposal());
+    await prisma.project.update({ where: { id: PROJECT_ID }, data: { revision: 15 } });
+    expect((await store.findByProjectAndId(PROJECT_ID, PROPOSAL_ID))?.baseRevision).toBe(10);
+  });
+
+  it("DB-12 resultingRevision solo existe en APPLIED y la base rechaza estados incoherentes", async () => {
+    await store.create(proposal());
+    await expect(prisma.$executeRaw`UPDATE "MentorProposal" SET "resultingRevision" = 11 WHERE "id" = ${PROPOSAL_ID}::uuid`).rejects.toThrow();
+    await expect(prisma.$executeRaw`UPDATE "MentorProposal" SET "status" = 'REJECTED' WHERE "id" = ${PROPOSAL_ID}::uuid`).rejects.toThrow();
+    await store.reject({ projectId: PROJECT_ID, proposalId: PROPOSAL_ID, resolvedByUserId: RESOLVER_ID, resolvedAt: RESOLVED_AT });
+    const row = await prisma.mentorProposal.findUniqueOrThrow({ where: { id: PROPOSAL_ID } });
+    expect(row.resultingRevision).toBeNull();
+  });
+
+  it("DB-14 la reconciliación autoritativa lleva REJECTED a APPLIED respetando el CHECK y no reescribe APPLIED", async () => {
+    await store.create(proposal());
+    await store.reject({ projectId: PROJECT_ID, proposalId: PROPOSAL_ID, resolvedByUserId: RESOLVER_ID, resolvedAt: RESOLVED_AT });
+    const reconciled = await store.reconcileAcceptedOperation({ projectId: PROJECT_ID, proposalId: PROPOSAL_ID, acceptedByUserId: AUTHOR_ID, acceptedAt: RESOLVED_AT, resultingRevision: 11 });
+    expect(reconciled).toMatchObject({ ok: true, changed: true, proposal: { status: "APPLIED", resolvedByUserId: AUTHOR_ID, resultingRevision: 11 } });
+    expect(await store.reconcileAcceptedOperation({ projectId: PROJECT_ID, proposalId: PROPOSAL_ID, acceptedByUserId: RESOLVER_ID, acceptedAt: RESOLVED_AT, resultingRevision: 12 })).toMatchObject({ ok: true, changed: false, proposal: { resultingRevision: 11 } });
+  });
+
+  it("DB-13 borrar el proyecto elimina sus propuestas; un usuario con propuestas no puede borrarse", async () => {
+    await store.create(proposal());
+    await store.reject({ projectId: PROJECT_ID, proposalId: PROPOSAL_ID, resolvedByUserId: RESOLVER_ID, resolvedAt: RESOLVED_AT });
+    await expect(prisma.user.delete({ where: { id: RESOLVER_ID } })).rejects.toThrow();
+
+    await prisma.project.delete({ where: { id: PROJECT_ID } });
+    expect(await prisma.mentorProposal.count({ where: { id: PROPOSAL_ID } })).toBe(0);
+  });
+
+  it("DB-15 lectura por proyecto para CU-2P-07: solo ese proyecto, más reciente primero, con límite y estados reales", async () => {
+    const id = (tail: string) => `d6333333-3333-4333-8333-${tail.padStart(12, "0")}`;
+    const at = (minute: number) => new Date(`2026-11-10T12:${String(minute).padStart(2, "0")}:00.000Z`);
+    await store.create(proposal({ id: id("a1"), createdAt: at(1) }));
+    await store.create(proposal({ id: id("a2"), createdAt: at(2) }));
+    await store.create(proposal({ id: id("a3"), createdAt: at(3) }));
+    await store.create(proposal({ id: id("b1"), projectId: OTHER_PROJECT_ID, createdAt: at(4) }));
+    await store.reject({ projectId: PROJECT_ID, proposalId: id("a1"), resolvedByUserId: RESOLVER_ID, resolvedAt: RESOLVED_AT });
+    await store.markApplied({ projectId: PROJECT_ID, proposalId: id("a2"), resolvedByUserId: RESOLVER_ID, resolvedAt: RESOLVED_AT, resultingRevision: 11 });
+
+    const listed = await store.listByProject(PROJECT_ID, 50);
+    expect(listed.map((item) => [item.id, item.status])).toEqual([[id("a3"), "PENDING"], [id("a2"), "APPLIED"], [id("a1"), "REJECTED"]]);
+    expect((await store.listByProject(PROJECT_ID, 2)).map((item) => item.id)).toEqual([id("a3"), id("a2")]);
+    expect((await store.listByProject(OTHER_PROJECT_ID, 50)).map((item) => item.id)).toEqual([id("b1")]);
+    expect(await store.listByProject("no-es-un-uuid", 50)).toEqual([]);
+    await expect(store.listByProject(PROJECT_ID, 0)).rejects.toBeInstanceOf(RangeError);
+
+    const projections = listed.map(toMentorProposalHistoryProjection);
+    expect(projections.map((item) => item.resultingRevision ?? null)).toEqual([null, 11, null]);
+    expect(projections.map((item) => item.resolvedAt ?? null)).toEqual([null, RESOLVED_AT.toISOString(), RESOLVED_AT.toISOString()]);
+    expect(JSON.stringify(projections)).not.toMatch(new RegExp(`command|${CLASS_ID}|${ATTRIBUTE_ID}|${AUTHOR_ID}|${RESOLVER_ID}|instruction`));
+  });
+});

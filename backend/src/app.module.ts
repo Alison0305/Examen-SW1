@@ -10,10 +10,11 @@ import { SpeechRecognitionController } from "./speech/speech-recognition.control
 import { MentorModule } from "./mentor/mentor.module";
 import { MentorAnalysisModule } from "./mentor-analysis/mentor-analysis.module";
 import { MentorHistoryModule } from "./mentor-history/mentor-history.module";
+import { MentorProposalsModule } from "./mentor-proposals/mentor-proposals.module";
 import { VisionModule } from "./vision/vision.module";
 
 @Module({
-  imports: [PrismaModule, ProjectsPersistenceModule, AuthModule, RealtimeModule, AssistantModule, VisionModule, MentorModule, MentorAnalysisModule, MentorHistoryModule],
+  imports: [PrismaModule, ProjectsPersistenceModule, AuthModule, RealtimeModule, AssistantModule, VisionModule, MentorModule, MentorAnalysisModule, MentorProposalsModule, MentorHistoryModule],
   controllers: [HealthController, SpeechRecognitionController],
 })
 export class AppModule {}

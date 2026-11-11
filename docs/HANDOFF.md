@@ -3,11 +3,12 @@
 ## Estado Operativo
 
 - CU-10 (XMI e imagen → UML) cerrado, aceptado y archivado en `openspec/changes/archive/2026-11-08-cu-10-xmi-imagen-uml/`.
-- Ningún CU activo. El siguiente es CU-11, el último del roadmap; todavía no tiene plan ni OpenSpec.
+- CU-2P-05 está terminado y aceptado: la prueba manual fue aprobada, PR #13 fue fusionado en `main` mediante `2e6fade062361b25edde73ee446fb900b861147e` e issue #5 quedó cerrado. OpenSpec archivado en `openspec/changes/archive/2026-11-10-s2-cu05-recomendaciones-tecnicas/` con 19/19 tareas.
 - CU-2P-01 Mentor IA contextual con Qwen está completado, aceptado e integrado en `main`; OpenSpec archivado en `openspec/changes/archive/2026-11-09-s2-cu01-mentor-contextual/`.
 - CU-2P-02 de `feat/s2-cu02-identidad-mentor` está completado y aceptado; OpenSpec archivado en `openspec/changes/archive/2026-11-09-s2-cu02-identidad-mentor/`. La identidad Mentor proviene del JWT, `ProjectAccessService.requireView` mantiene la autorización y el recorder recibe identidad segura. Anti-suplantación verificada; userId, email y rol siguen fuera del prompt Qwen.
 - CU-2P-03 Memoria contextual completado, aceptado e integrado en `main` (PR #10). Detalle en la sección CU-2P-03.
-- Segundo parcial, CU activo: CU-2P-04 Análisis UML en `openspec/changes/s2-cu04-analisis-uml/`, 14/18 tareas, rama `feat/s2-cu04-analisis-uml` (ya integra `main` con CU-2P-02 y CU-2P-03). Implementación funcional completa; pendiente validación Qwen real y smoke test visual antes de PR/cierre. Detalle en la sección CU-2P-04.
+- CU-2P-04 Análisis UML está integrado en `main` (PR #12); su OpenSpec `openspec/changes/s2-cu04-analisis-uml/` sigue sin archivar. Detalle en la sección CU-2P-04.
+- Segundo parcial: CU-2P-06 completado en `feat/s2-cu06-aplicar-propuestas-uml` (sin push de los últimos commits), con la prueba con dos navegadores aprobada; queda push, PR con `Closes #6`, merge y archivo. Detalle en la sección CU-2P-06.
 
 ## Entorno
 
@@ -21,6 +22,8 @@
 ## Decisiones Recientes
 
 - Imagen → UML se cerró con la limitación medida: en capturas reales, la cobertura es de 0,58 en clases y 0,16 en relaciones. Cualquier mejora del analizador irá en un correctivo `fix-cu-10-...` y debe medirse con capturas nuevas.
+- Recomendaciones CU-2P-05: salida Qwen con schema estricto; campos inválidos producen error controlado sin coerción. Guardas sin Qwen solo para elementos/relaciones/servicios/componentes concretos ausentes y temas externos o ambiguos como pagos; arquitectura general verificada se permite sin entidad literal. Contexto limitado a Next.js, NestJS, PostgreSQL, Prisma, Qwen local, UML, Spring y memoria autorizada del mismo proyecto. El panel Mentor tiene `Consultar` y `Recomendación técnica` separados; la respuesta es solo lectura y no ofrece aplicación UML.
+- Arquitectura conserva el retry único y fallback tras dos `UNVERIFIED_TECHNOLOGY`. Relaciones canónicas, atributo ausente y generación Spring Boot verificable se resuelven antes de Qwen. Spring requiere referencia al generador más intención de generar, exportar, preparar, validar o comprobar compatibilidad; responde desde UML canónico, transformación relacional y pipeline Spring, sin Qwen ni mutación. El provider conserva el rechazo de inglés, alternativas vacías y frases de cambio aplicado para las rutas no deterministas. Timeout backend 120 s; frontend no tiene timeout ni abort de recomendación. `recommendMentor` espera 500 ms y reintenta solo un `TypeError` sin HTTP; HTTP y `AbortError` no se reintentan, y `queryMentor` no cambia. Gates: focalizadas frontend 52/52 y backend 75/75; lint, typecheck, build y Prisma correctos. La suite raíz quedó bloqueada por la prueba real de CU-2P-04 `relacional no derivable`, donde Qwen inventa una FK al faltar identificadores.
 
 ## CU-2P-03
 
@@ -53,6 +56,21 @@ Defectos externos detectados durante CU-2P-04 (no corregidos aquí):
 - `relational-core`: dos asociaciones entre las mismas clases pueden producir columnas y FK duplicadas sin diagnóstico del mapper. CU-2P-04 lo informa como conflicto `DUPLICATE_FOREIGN_KEY_COLUMN` sin modificar `relational-core`.
 - `backend/src/auth/dto/dto-validation.pipe.ts`: un POST con cuerpo `null` o `undefined` produce 500 en lugar de 400. CU-2P-04 usa `UmlAnalysisBodyPipe` como protección local.
 
+## CU-2P-06 - Propuestas UML
+
+- Endpoints: `POST /projects/:projectId/mentor/proposals` (`{ instruction }`), `GET .../:proposalId`, `POST .../:proposalId/apply` y `.../reject`, todos con `requireEdit`. Detalle en `docs/puds/use-cases/CU-2P-06-aplicar-propuestas-uml.md`.
+- Generación: `LocalQwenMentorProposalIntentProvider` sobre el `ASSISTANT_LOCAL_MODEL` compartido. No cambiar el prompt, el schema, la validación literal ni el reintento sin repetir la prueba real: Qwen3-1.7B inventaba `"*"` si veía `multiplicity` y quitaba la tilde de «teléfono» sin el ejemplo del prompt.
+- Datos de prueba en la base local: usuarios `cu06-manual-*` y `cu06-acceptance-*@example.test` con sus proyectos; se pueden borrar por id.
+
+## Para CU-2P-07
+
+- Reutilizar `MentorProposalHistoryService.list(projectId, userId, limit)` (exportado por `MentorProposalsModule`; `requireView`, así que OWNER, EDITOR y VIEWER pueden leer; límite 1..50; más reciente primero) y su `MentorProposalHistoryProjection`: `proposalId`, `status` (`PENDING`, `APPLIED`, `REJECTED`), `operation` por nombre, `summary` (diff), `baseRevision`, `createdAt`, `resolvedAt?` y `resultingRevision?` (solo `APPLIED`). Una propuesta `PENDING` cuya `baseRevision` difiere de la revisión actual está obsoleta.
+- No usar directamente `MENTOR_PROPOSAL_STORE`, la tabla `MentorProposal` ni `StoredMentorProposal` para la vista: incluyen el comando persistido, identificadores UML, autor, resolutor e instrucción.
+- CU-07 no debe leer command JSON interno como contrato público.
+- CU-07 debe apoyarse en la proyección/contrato preparado por CU-06.
+- La proyección no incluye autor ni instrucción; añadirlos es una decisión de CU-2P-07 (hoy CU-2P-06 no los expone).
+- La rama `feat/s2-cu07-historial-compartido` se creó sobre un `main` anterior a CU-2P-06: integrar con cuidado después del merge de CU-2P-06, sin cherry-picks entre ramas.
+
 ## Siguiente Acción
 
-Completar la suite real de Qwen y la revisión manual de CU-2P-04 antes de su PR. En el track histórico, el siguiente CU es CU-11 cuando se autorice su planificación.
+CU-2P-06: push de la rama, PR con `Closes #6`, merge y archivo del OpenSpec. Después, CU-2P-07 integra la proyección de propuestas según la sección «Para CU-2P-07».

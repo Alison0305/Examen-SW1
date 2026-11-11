@@ -63,6 +63,25 @@ describe("ProjectRealtimeGateway", () => {
     await expect(instance.apply(client as never, { operationId: "44444444-4444-4444-8444-444444444444", projectId, baseRevision: 2, command: { type: "CreateClass", name: "Pedido" } })).resolves.toMatchObject({ code: "FORBIDDEN" });
   });
 
+  it("broadcastAccepted emite el ACK autoritativo una vez a la sala; conflictos y rechazos no se difunden", async () => {
+    const { instance, roomEmit, operations } = gateway();
+    const client = socket();
+    client.data.user = user;
+    const ack = { operationId: "55555555-5555-4555-8555-555555555555", projectId, revision: 3, command: { type: "CreateClass" as const, name: "Pago" } };
+
+    instance.broadcastAccepted(ack);
+    expect(instance.server.to).toHaveBeenCalledWith(`project:${projectId}`);
+    expect(roomEmit).toHaveBeenCalledTimes(1);
+    expect(roomEmit).toHaveBeenCalledWith("project.operation.accepted", ack);
+
+    roomEmit.mockClear();
+    operations.apply.mockResolvedValueOnce({ operationId: ack.operationId, projectId, code: "STALE_REVISION", revision: 3, requiresResync: true });
+    await instance.apply(client as never, { operationId: ack.operationId, projectId, baseRevision: 1, command: ack.command });
+    operations.apply.mockResolvedValueOnce({ operationId: ack.operationId, projectId, code: "INVALID_OPERATION", diagnostics: [] });
+    await instance.apply(client as never, { operationId: ack.operationId, projectId, baseRevision: 3, command: ack.command });
+    expect(roomEmit).not.toHaveBeenCalled();
+  });
+
   it("mantiene presencia efímera, inmediata y cursor coalescido sin ejecutar operaciones UML", async () => {
     vi.useFakeTimers();
     const { instance, roomEmit, operations } = gateway();

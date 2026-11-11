@@ -43,4 +43,37 @@ export type MentorQueryResponse = Readonly<{
   projectRevision: number;
   diagnostic?: MentorDiagnostic;
 }>;
+
+export type MentorRecommendationRequest = Readonly<{ question: string; focus?: string }>;
+
+export type MentorRecommendationDraft = Readonly<{
+  problem: string;
+  alternatives: readonly string[];
+  rationale: string;
+  limitations: string;
+  confidence: number;
+  needsClarification: boolean;
+  requiresUmlChange: boolean;
+}>;
+
+export type MentorRecommendationResponse = Readonly<{
+  status: "READ_ONLY";
+  problem: string;
+  alternatives: readonly string[];
+  rationale: string;
+  limitations: string;
+  confidence: number;
+  needsClarification: boolean;
+  requiresUmlChange: boolean;
+  projectRevision: number;
+}>;
+
+export type MentorRecommendationContext = Readonly<{
+  architecture: readonly string[];
+  springExport: readonly string[];
+}>;
+
+export type MentorRecommendationProvider = Readonly<{
+  recommend(context: MentorProjectContext, technicalContext: MentorRecommendationContext, question: string, memory: MentorMemory, retryInstruction?: string): Promise<MentorRecommendationDraft>;
+}>;
 import type { MentorInteractionIdentity } from "../mentor-identity/mentor-interaction-identity.contracts";

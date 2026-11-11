@@ -25,6 +25,7 @@ import {
 } from "../../../auth/api";
 import { useSession } from "../../../auth/session";
 import { WorkspaceClient } from "../../../workspace/workspace-client";
+import type { MentorProposalActions } from "../../../workspace/mentor-proposal-section";
 import {
   invalidateWorkspaceCollaborativeHistory,
   resetWorkspaceStore,
@@ -423,6 +424,21 @@ function PersistedWorkspace() {
       setInterfaceExportState("error");
     }
   };
+  // CU-2P-06. Applying never mutates the local document here: the backend broadcasts the accepted operation
+  // (operationId = proposal id) to the project room and `accepted` above applies it once, deduplicated by operationId,
+  // exactly like an operation from another editor. Without a live realtime connection there is no ACK, so the user is
+  // offered the existing "Recargar versión" instead of patching the document by hand.
+  const mentorProposals: MentorProposalActions | undefined = readOnly
+    ? undefined
+    : {
+        create: (instruction) => api.createMentorProposal(project.id, instruction),
+        get: (proposalId) => api.getMentorProposal(project.id, proposalId),
+        apply: (proposalId) => api.applyMentorProposal(project.id, proposalId),
+        reject: (proposalId) => api.rejectMentorProposal(project.id, proposalId),
+        onApplied: () => {
+          if (connectionRef.current !== "connected") setStaleConflict(true);
+        },
+      };
   const validBasePackage = basePackagePattern.test(basePackage.trim());
   return (
     <>
@@ -443,6 +459,8 @@ function PersistedWorkspace() {
         onPrepareInterface={prepareInterface}
         onMentorQuery={(question) => api.queryMentor(project.id, question)}
         onUmlAnalysis={(focus) => api.analyzeUml(project.id, focus)}
+        onMentorRecommendation={(question) => api.recommendMentor(project.id, question)}
+        mentorProposals={mentorProposals}
         mentorHistory={{ projectKey: project.id, onLoad: (params) => api.getMentorHistory(project.id, params) }}
         onRecognizeImage={
           readOnly ? undefined : (image) => api.recognizeDiagram(project.id, image)

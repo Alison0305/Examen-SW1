@@ -24,7 +24,7 @@ export type LocalTextModelInspection = {
   message: string;
 };
 
-export type LocalTextModelRequest = Readonly<{ systemPrompt: string; userPrompt: string; schema: InterpretationJsonSchema }>;
+export type LocalTextModelRequest = Readonly<{ systemPrompt: string; userPrompt: string; schema: InterpretationJsonSchema; maxTokens?: number }>;
 
 // Runtime-neutral boundary: the backend implements it with node-llama-cpp; assistant-core never loads a model.
 export interface LocalTextModel {

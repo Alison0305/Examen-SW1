@@ -8,6 +8,8 @@ import type { ApplyProjectOperationDto, ApplyProjectOperationResult, ProjectOper
 
 const RECEIPT_TTL_MS = 24 * 60 * 60 * 1000;
 
+export type AcceptedProjectOperation = Readonly<{ ack: ProjectOperationAck; actorUserId: string; resultingRevision: number; acceptedAt: Date }>;
+
 @Injectable()
 export class ProjectOperationService {
   private readonly queues = new Map<string, Promise<void>>();
@@ -27,6 +29,15 @@ export class ProjectOperationService {
   async apply(userId: string, dto: ApplyProjectOperationDto): Promise<ApplyProjectOperationResult> {
     await this.access.requireEdit(dto.projectId, userId);
     return this.serialized(dto.projectId, async () => this.applyAuthorized(userId, dto));
+  }
+
+  // Receipts are written only inside the transaction of an ACCEPTED operation (conflicts and rejections never create
+  // one), so an existing receipt proves the operation was applied. Internal read with no access check: callers
+  // authorize first. Receipts expire (RECEIPT_TTL_MS) and are pruned lazily; this is not a permanent history.
+  async findAcceptedOperation(projectId: string, operationId: string): Promise<AcceptedProjectOperation | undefined> {
+    const receipt = await this.prisma.projectOperationReceipt.findUnique({ where: { projectId_operationId: { projectId, operationId } } });
+    if (!receipt) return undefined;
+    return { ack: receipt.ack as unknown as ProjectOperationAck, actorUserId: receipt.actorUserId, resultingRevision: receipt.resultingRevision, acceptedAt: receipt.createdAt };
   }
 
   private async applyAuthorized(userId: string, dto: ApplyProjectOperationDto): Promise<ApplyProjectOperationResult> {

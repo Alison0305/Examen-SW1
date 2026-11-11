@@ -76,8 +76,9 @@ import {
   type WorkspaceTool,
 } from "./workspace-store";
 import type { ProjectPresence } from "./realtime-client";
-import type { MentorQueryResponse, UmlAnalysisFocus, UmlAnalysisResponse } from "../auth/api";
+import type { MentorQueryResponse, MentorRecommendationResponse, UmlAnalysisFocus, UmlAnalysisResponse } from "../auth/api";
 import { MentorPanel, type MentorPanelHistory } from "./mentor-panel";
+import type { MentorProposalActions } from "./mentor-proposal-section";
 import { describeSelection } from "./uml-analysis-section";
 
 const nodeTypes = {
@@ -140,6 +141,9 @@ export type WorkspaceClientProps = {
   onMentorQuery?: (question: string) => Promise<MentorQueryResponse>;
   // CU-2P-04: explain the selected class/relationship or the whole model (shown inside the Mentor panel).
   onUmlAnalysis?: (focus: UmlAnalysisFocus) => Promise<UmlAnalysisResponse>;
+  onMentorRecommendation?: (question: string) => Promise<MentorRecommendationResponse>;
+  // CU-2P-06: review and apply a Mentor UML proposal. Omitted for VIEWER (no way to start a change).
+  mentorProposals?: MentorProposalActions;
   // CU-2P-07: shared project history (shown inside the Mentor panel; the section owns its own state).
   mentorHistory?: MentorPanelHistory;
   collaboration?: {
@@ -173,6 +177,8 @@ export function WorkspaceClient({
   readOnly = false,
   onMentorQuery,
   onUmlAnalysis,
+  onMentorRecommendation,
+  mentorProposals,
   mentorHistory,
   collaboration,
 }: Readonly<WorkspaceClientProps>) {
@@ -199,6 +205,8 @@ export function WorkspaceClient({
         readOnly={readOnly}
         onMentorQuery={onMentorQuery}
         onUmlAnalysis={onUmlAnalysis}
+        onMentorRecommendation={onMentorRecommendation}
+        mentorProposals={mentorProposals}
         mentorHistory={mentorHistory}
         collaboration={collaboration}
       />
@@ -219,6 +227,8 @@ function WorkspaceContent({
   readOnly = false,
   onMentorQuery,
   onUmlAnalysis,
+  onMentorRecommendation,
+  mentorProposals,
   mentorHistory,
   collaboration,
 }: Readonly<WorkspaceClientProps>) {
@@ -438,7 +448,7 @@ function WorkspaceContent({
                   })}
               </Box>
             </Card>
-            {projectName && onMentorQuery && <MentorPanel projectName={projectName} onQuery={onMentorQuery} analysis={onUmlAnalysis ? { selection: describeSelection(store.document, store.selection), onAnalyze: onUmlAnalysis } : undefined} history={mentorHistory} />}
+            {projectName && onMentorQuery && <MentorPanel projectName={projectName} onQuery={onMentorQuery} onRecommend={onMentorRecommendation} proposals={readOnly ? undefined : mentorProposals} history={mentorHistory} analysis={onUmlAnalysis ? { selection: describeSelection(store.document, store.selection), onAnalyze: onUmlAnalysis } : undefined} />}
           </Stack>
         </Box>
         {compact ? (

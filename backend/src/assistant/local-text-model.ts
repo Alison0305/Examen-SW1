@@ -15,6 +15,7 @@ const messages: Record<LocalModelErrorCode, string> = {
 export class LocalModelError extends Error {
   constructor(readonly code: LocalModelErrorCode, message: string = messages[code]) {
     super(message);
+    this.name = "LocalModelError";
   }
 }
 
