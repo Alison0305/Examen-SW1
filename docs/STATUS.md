@@ -4,11 +4,29 @@
 
 ### Segundo Parcial
 
-**CU activo del segundo parcial:** CU-2P-06 - Revisar y aplicar una propuesta IA sobre el modelo UML.
+**CU activo del segundo parcial:** CU-2P-07 - Historial compartido del Mentor IA.
 
-**CU-2P-06** (issue #6, rama `feat/s2-cu06-aplicar-propuestas-uml`, OpenSpec `openspec/changes/s2-cu06-aplicar-propuestas-uml/`, PUDS `docs/puds/use-cases/CU-2P-06-aplicar-propuestas-uml.md`).
+**CU-2P-07** (issue #7, rama `feat/s2-cu07-historial-compartido`, OpenSpec `openspec/changes/s2-cu07-historial-compartido/`, PUDS `docs/puds/use-cases/CU-2P-07-historial-compartido.md`).
 
-Estado: COMPLETADO. RF-18 ✔, RF-19 ✔, RF-20 ✔, RF-21 ✔; Qwen real ✔, PostgreSQL real ✔, realtime real ✔, dos navegadores reales ✔ y OpenSpec strict ✔ (todas las tareas cerradas; 7.1 retirada). Queda solo la integración: push, PR con `Closes #6`, merge y archivo del OpenSpec.
+CU-2P-07: COMPLETADO. Smoke test multiusuario aprobado por el usuario el 2026-11-11 (dos integrantes ven el historial compartido; un tercero sin acceso no). PostgreSQL real ✔, frontend ✔, recomendaciones ✔, propuestas ✔ y OpenSpec strict ✔, con todas las tareas cerradas salvo la 7.3. Queda solo la integración: push, PR con `Closes #7`, revisión, merge y archivo del OpenSpec.
+
+Implementación:
+
+- **Interacciones:** `GET /projects/:id/mentor/history` (`requireView`: OWNER, EDITOR y VIEWER; 404 sin acceso o proyecto inexistente) sobre `MentorInteraction`, sin migración. Paginación keyset `occurredAt DESC, id DESC` con cursor opaco, `limit` 1..50 (por defecto 20) y búsqueda `q` sin distinguir mayúsculas, con comodines escapados. El DTO solo lleva `id`, `author.email`, `question`, `answer` y `occurredAt`.
+- **Recomendaciones de CU-2P-05:** un mapper estricto las muestra como texto legible, sin JSON ni campos internos.
+- **Propuestas UML de CU-2P-06:** `GET /projects/:id/mentor/history/proposals?limit` reutiliza `MentorProposalHistoryService` y su proyección (`PENDING`, `APPLIED`, `REJECTED`), como un conjunto separado de las interacciones.
+- **Frontend:** sección «Historial del proyecto» en el panel Mentor con los subconjuntos «Interacciones» y «Propuestas UML». Se refresca localmente tras una consulta o una recomendación registrada, y con «Actualizar». Sin realtime. La lectura funciona sin modelo local y nunca lo invoca.
+
+Evidencia (gates del 2026-11-11):
+
+- `src/mentor-history` 251/251, con integraciones PostgreSQL: lector, servicio, HTTP con `createApp()`, extremo a extremo multiusuario A/B/C y propuestas PROP-HIST-01 a 14.
+- Backend completo sin modelos reales: 975 correctas y 3 omitidas (Vosk real); `mentor*` 822/822; `mentor-proposals` 326/326.
+- Frontend 348/348 y build; `tsc` y ESLint correctos en backend y frontend; OpenSpec strict y diff-check correctos.
+- Commits: `826d693`…`2142b9f` (base), `e67bbe6` (merge de CU-2P-06), `aa1dfbf`, `f40d624`, `77112d1`, `73f0f6d`, `5603542` y `72f414c`.
+
+**CU-2P-06** (issue #6, PUDS `docs/puds/use-cases/CU-2P-06-aplicar-propuestas-uml.md`).
+
+Estado: COMPLETADO e integrado en `main` mediante el PR #15 (merge `b73a5f6`). RF-18 ✔, RF-19 ✔, RF-20 ✔, RF-21 ✔; Qwen real ✔, PostgreSQL real ✔, realtime real ✔, dos navegadores reales ✔ y OpenSpec strict ✔ (todas las tareas cerradas; 7.1 retirada). El OpenSpec `openspec/changes/s2-cu06-aplicar-propuestas-uml/` sigue sin archivar.
 
 Implementación: RF-18 a RF-21 con `ADD_ATTRIBUTE`. Qwen local genera solo una intención estructurada (schema cerrado, sin multiplicidad ni identificadores, nombres literales con un único reintento); el servidor resuelve, previsualiza con el executor y el validador reales y persiste `MentorProposal` `PENDING` sin tocar el modelo. Aplicar usa `ProjectOperationService.apply` (recibo, idempotencia, control de revisión, reconciliación) y el ACK realtime existente; rechazar y cancelar no modifican el modelo; `STALE_PROPOSAL` impide aplicar sobre otra revisión. Panel Mentor con «Proponer cambio UML» y tarjeta de revisión; «Generar propuesta UML» desde recomendaciones CU-2P-05 que requieren cambio. Lectura `MentorProposalHistoryService` preparada para CU-2P-07.
 
@@ -218,4 +236,4 @@ El correctivo CU-06 está completo en 9/9. Con el proyecto `Prueba CU06 Backend`
 
 ## Siguiente Acción
 
-CU-2P-05: ejecutar los gates completos tras integrar CU-2P-04 y preparar la revisión antes de commit/PR. Mantener CU-2P-04 disponible para su validación y cierre propios. En el track histórico, planificar CU-11 solo cuando se autorice.
+CU-2P-07: push de `feat/s2-cu07-historial-compartido`, PR con `Closes #7`, revisión del compañero, merge y archivo del OpenSpec (tarea 7.3). Pendientes de cierre propio: archivar el OpenSpec de CU-2P-06 y validar y cerrar CU-2P-04. En el track histórico, planificar CU-11 solo cuando se autorice.

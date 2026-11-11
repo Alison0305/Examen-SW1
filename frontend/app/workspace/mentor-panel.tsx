@@ -3,15 +3,19 @@
 import { Alert, Box, Button, Card, CardContent, CircularProgress, Divider, Stack, TextField, Typography } from "@mui/material";
 import { useRef, useState } from "react";
 import type { MentorQueryResponse, MentorRecommendationResponse, UmlAnalysisFocus, UmlAnalysisResponse } from "../auth/api";
+import { MentorHistorySection, type MentorHistoryLoader, type MentorProposalHistoryLoader } from "./mentor-history-section";
 import { MentorProposalCard, MentorProposalFeedbackAlert, useMentorProposalFlow, type MentorProposalActions } from "./mentor-proposal-section";
 import { UmlAnalysisSection, type UmlAnalysisSelection } from "./uml-analysis-section";
 
 // Optional CU-2P-04 section ("Explicar"); without it the panel is exactly the CU-2P-01 free query.
 export type MentorPanelAnalysis = Readonly<{ selection: UmlAnalysisSelection | null; onAnalyze: (focus: UmlAnalysisFocus) => Promise<UmlAnalysisResponse> }>;
+// Optional CU-2P-07 section. `projectKey` identifies the project: when it changes the section starts from scratch.
+// `onLoadProposals` (task 8.1) adds the read-only "Propuestas UML" sublist (CU-2P-06 state) to the same section.
+export type MentorPanelHistory = Readonly<{ projectKey: string; onLoad: MentorHistoryLoader; onLoadProposals?: MentorProposalHistoryLoader }>;
 
 // CU-2P-06: `proposals` is passed only to users who can edit (never to VIEWER). Without it there is no way to start a
 // UML change from the panel, and queries and recommendations stay exactly as before (read only).
-export function MentorPanel({ projectName, onQuery, onRecommend, analysis, proposals }: Readonly<{ projectName: string; onQuery: (question: string) => Promise<MentorQueryResponse>; onRecommend?: (question: string) => Promise<MentorRecommendationResponse>; analysis?: MentorPanelAnalysis; proposals?: MentorProposalActions }>) {
+export function MentorPanel({ projectName, onQuery, onRecommend, analysis, proposals, history }: Readonly<{ projectName: string; onQuery: (question: string) => Promise<MentorQueryResponse>; onRecommend?: (question: string) => Promise<MentorRecommendationResponse>; analysis?: MentorPanelAnalysis; proposals?: MentorProposalActions; history?: MentorPanelHistory }>) {
   const [question, setQuestion] = useState("");
   const [result, setResult] = useState<MentorQueryResponse | null>(null);
   const [recommendation, setRecommendation] = useState<MentorRecommendationResponse | null>(null);
@@ -20,6 +24,9 @@ export function MentorPanel({ projectName, onQuery, onRecommend, analysis, propo
   const [error, setError] = useState<string | null>(null);
   const [loadingOperation, setLoadingOperation] = useState<"query" | "recommendation" | null>(null);
   const activeRequest = useRef(false);
+  // Bumped after each successful query and each recorded recommendation, so an open (or already loaded) history picks
+  // up the new interaction. Local invalidation only: no realtime, no polling.
+  const [interactionVersion, setInteractionVersion] = useState(0);
   const proposalFlow = useMentorProposalFlow(proposals);
   const trimmed = question.trim();
   const creatingProposal = proposalFlow.state.phase === "creating";
@@ -34,6 +41,7 @@ export function MentorPanel({ projectName, onQuery, onRecommend, analysis, propo
     setRecommendation(null);
     try {
       setResult(await onQuery(trimmed));
+      setInteractionVersion((version) => version + 1);
     } catch {
       setError("No fue posible consultar al Mentor IA. Intenta nuevamente.");
     } finally {
@@ -51,8 +59,12 @@ export function MentorPanel({ projectName, onQuery, onRecommend, analysis, propo
     setResult(null);
     const asked = trimmed;
     try {
-      setRecommendation(await recommendRequest(asked));
+      const response = await recommendRequest(asked);
+      setRecommendation(response);
       setRecommendationQuestion(asked);
+      // CU-2P-05 records every recommendation it returns with needsClarification = false; a clarification
+      // (needsClarification = true) is returned without being recorded, so there is nothing new in the history.
+      if (!response.needsClarification) setInteractionVersion((version) => version + 1);
     } catch {
       setError("No fue posible solicitar una recomendación técnica. Intenta nuevamente.");
     } finally {
@@ -117,6 +129,8 @@ export function MentorPanel({ projectName, onQuery, onRecommend, analysis, propo
               </Box>}
             </Stack>
           </Alert>}
+          {history && <Divider />}
+          {history && <MentorHistorySection key={history.projectKey} onLoad={history.onLoad} onLoadProposals={history.onLoadProposals} refreshKey={interactionVersion} />}
         </Stack>
       </CardContent>
     </Card>

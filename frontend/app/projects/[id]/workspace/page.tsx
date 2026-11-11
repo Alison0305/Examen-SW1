@@ -461,6 +461,7 @@ function PersistedWorkspace() {
         onUmlAnalysis={(focus) => api.analyzeUml(project.id, focus)}
         onMentorRecommendation={(question) => api.recommendMentor(project.id, question)}
         mentorProposals={mentorProposals}
+        mentorHistory={{ projectKey: project.id, onLoad: (params) => api.getMentorHistory(project.id, params), onLoadProposals: () => api.getMentorProposalHistory(project.id) }}
         onRecognizeImage={
           readOnly ? undefined : (image) => api.recognizeDiagram(project.id, image)
         }
