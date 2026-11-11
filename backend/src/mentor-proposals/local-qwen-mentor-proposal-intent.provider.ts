@@ -32,14 +32,25 @@ export class MentorProposalGenerationUnavailableError extends Error {
 
 export const MENTOR_PROPOSAL_MAX_TOKENS = 128;
 
+// One-shot example for literal names. Measured with Qwen3-1.7B-Q8_0 (2026-11-10): the copy rules alone, and an example
+// with "dirección", did not stop "teléfono" → "telefono" (3/3); with this example "teléfono" is kept (3/3) and the
+// behaviour generalizes ("teléfono" on Proveedor, "código", "género"). The name is still checked as a literal substring.
+export const MENTOR_PROPOSAL_ACCENTED_EXAMPLE = {
+  instruction: "Agrega el atributo teléfono de tipo String a Cliente",
+  output: { operation: "ADD_ATTRIBUTE", className: "Cliente", attributeName: "teléfono", attributeType: "String" },
+} as const;
+
 export const MENTOR_PROPOSAL_SYSTEM_PROMPT = [
   "Eres un generador de propuestas UML estructuradas.",
   "No produces código, no produces identificadores y no modificas el modelo: solo propones una intención.",
   "Selecciona únicamente una operación permitida; la única operación permitida es ADD_ATTRIBUTE (agregar un atributo a una clase existente).",
   "Copia className y attributeName literalmente desde la instrucción: no corrijas ortografía, no elimines tildes, no traduzcas ni normalices esos nombres y conserva las mayúsculas.",
+  "Copy class and attribute names exactly as written by the user. Preserve accents, diacritics, capitalization and spelling. Never normalize identifiers.",
   "Copia el tipo tal como lo indica la instrucción.",
   "Si la instrucción pide cualquier otra cosa, responde {\"operation\":\"UNSUPPORTED\"}.",
   "Responde únicamente con el objeto JSON del schema solicitado.",
+  // One-shot example with an accented name kept exactly.
+  `Ejemplo: Instrucción: ${MENTOR_PROPOSAL_ACCENTED_EXAMPLE.instruction} → ${JSON.stringify(MENTOR_PROPOSAL_ACCENTED_EXAMPLE.output)}`,
 ].join(" ");
 
 // Appended to the same user prompt for the single retry after a non-literal name.

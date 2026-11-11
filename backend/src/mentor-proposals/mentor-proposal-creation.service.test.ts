@@ -209,3 +209,16 @@ describe("MentorProposalCreationService.create", () => {
     });
   });
 });
+
+describe("MentorProposalCreationService: nombres no literales", () => {
+  it("6: si el modelo devuelve «telefono» en ambos intentos no se persiste nada y ninguna capa corrige el nombre", async () => {
+    const { service, db, model, store, untouched } = setup({ ...INTENT, attributeName: "telefono" });
+    const result = await service.create(PROJECT_ID, OWNER, INSTRUCTION);
+
+    expect(result).toMatchObject({ ok: false, error: { code: "INVALID_PROPOSAL" } });
+    expect(model.generateStructured).toHaveBeenCalledTimes(2);
+    expect(store.create).not.toHaveBeenCalled();
+    expect(db.proposals).toHaveLength(0);
+    untouched();
+  });
+});

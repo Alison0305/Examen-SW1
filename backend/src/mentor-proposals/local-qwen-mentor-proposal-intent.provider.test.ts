@@ -6,12 +6,13 @@ import { parseSingleJsonObject } from "../assistant/structured-json";
 import {
   buildMentorProposalUserPrompt,
   LocalQwenMentorProposalIntentProvider,
+  MENTOR_PROPOSAL_ACCENTED_EXAMPLE,
   MENTOR_PROPOSAL_LITERAL_RETRY_PROMPT,
   MENTOR_PROPOSAL_MAX_TOKENS,
   MENTOR_PROPOSAL_SYSTEM_PROMPT,
   MentorProposalGenerationUnavailableError,
 } from "./local-qwen-mentor-proposal-intent.provider";
-import { MENTOR_PROPOSAL_INTENT_SCHEMA } from "./mentor-proposal-intent";
+import { MENTOR_PROPOSAL_INTENT_SCHEMA, namesAreLiteral, parseMentorProposalIntent } from "./mentor-proposal-intent";
 
 const INSTRUCTION = "Agrega el atributo teléfono de tipo String a Cliente";
 const REQUEST = { instruction: INSTRUCTION, classNames: ["Cliente", "Pedido", "Cliente", "  "] };
@@ -38,7 +39,8 @@ describe("LocalQwenMentorProposalIntentProvider", () => {
   });
 
   it("el system prompt es corto y restrictivo", () => {
-    expect(MENTOR_PROPOSAL_SYSTEM_PROMPT.length).toBeLessThan(700);
+    // Short: the rules plus a single one-shot example.
+    expect(MENTOR_PROPOSAL_SYSTEM_PROMPT.length).toBeLessThan(1100);
     for (const fragment of ["generador de propuestas UML estructuradas", "No produces código", "no produces identificadores", "no modificas el modelo", "ADD_ATTRIBUTE", "UNSUPPORTED", "schema", "literalmente", "no corrijas ortografía", "no elimines tildes", "no traduzcas ni normalices"]) {
       expect(MENTOR_PROPOSAL_SYSTEM_PROMPT).toContain(fragment);
     }
@@ -185,5 +187,42 @@ describe("LocalQwenMentorProposalIntentProvider: preservación literal y un úni
     const result = await new LocalQwenMentorProposalIntentProvider(model).generate(request);
     expect(result).toEqual({ ok: true, intent: VALID });
     expect(result.ok && "multiplicity" in result.intent).toBe(false);
+  });
+});
+
+describe("prompt con ejemplo acentuado (few-shot)", () => {
+  it("1: contiene un único ejemplo con el nombre acentuado conservado exactamente", () => {
+    expect(MENTOR_PROPOSAL_ACCENTED_EXAMPLE).toEqual({
+      instruction: "Agrega el atributo teléfono de tipo String a Cliente",
+      output: { operation: "ADD_ATTRIBUTE", className: "Cliente", attributeName: "teléfono", attributeType: "String" },
+    });
+    expect(MENTOR_PROPOSAL_SYSTEM_PROMPT).toContain('Ejemplo: Instrucción: Agrega el atributo teléfono de tipo String a Cliente → {"operation":"ADD_ATTRIBUTE","className":"Cliente","attributeName":"teléfono","attributeType":"String"}');
+    expect(MENTOR_PROPOSAL_SYSTEM_PROMPT.match(/Ejemplo:/g)).toHaveLength(1);
+  });
+
+  it("1: el ejemplo cumple el mismo schema, parser y validación literal que cualquier salida", () => {
+    const { instruction, output } = MENTOR_PROPOSAL_ACCENTED_EXAMPLE;
+    expect(parseMentorProposalIntent(output)).toEqual({ ok: true, intent: output });
+    expect(namesAreLiteral(instruction, output)).toBe(true);
+  });
+
+  it("2: sigue exigiendo copia literal, también con la regla breve explícita", () => {
+    expect(MENTOR_PROPOSAL_SYSTEM_PROMPT).toContain("Copy class and attribute names exactly as written by the user. Preserve accents, diacritics, capitalization and spelling. Never normalize identifiers.");
+    expect(MENTOR_PROPOSAL_SYSTEM_PROMPT).toContain("Copia className y attributeName literalmente desde la instrucción");
+  });
+
+  it("3: el schema sigue sin multiplicity", () => {
+    expect(JSON.stringify(MENTOR_PROPOSAL_INTENT_SCHEMA)).not.toContain("multiplicity");
+  });
+
+  it("4, 5 y 6: con el ejemplo en el prompt, «telefono» sigue rechazándose tras un único reintento y nada lo corrige", async () => {
+    const model = sequenceModel(WITHOUT_ACCENT, WITHOUT_ACCENT, VALID);
+    const result = await new LocalQwenMentorProposalIntentProvider(model).generate(REQUEST);
+
+    expect(result).toMatchObject({ ok: false, error: { code: "INVALID_PROPOSAL" } });
+    expect(model.generateStructured).toHaveBeenCalledTimes(2);
+    for (const [request] of model.generateStructured.mock.calls) expect(request.systemPrompt).toBe(MENTOR_PROPOSAL_SYSTEM_PROMPT);
+    // The example lives only in the prompt: it never becomes the answer.
+    expect(JSON.stringify(result)).not.toContain("teléfono");
   });
 });

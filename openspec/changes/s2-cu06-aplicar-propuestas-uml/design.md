@@ -252,6 +252,16 @@ CU-2P-05 permanece `READ_ONLY`: su contrato y su backend no cambian. Integració
 - Un único reintento: solo cuando la intención es válida pero un nombre no es literal se repite la inferencia una vez, con la misma instrucción, el mismo schema y el mismo parser y una corrección breve (`MENTOR_PROPOSAL_LITERAL_RETRY_PROMPT`). No se reintenta ante `UNSUPPORTED`, operación fuera de la allow-list, salida inválida, campos adicionales, indisponibilidad del modelo ni errores UML posteriores. Si el segundo intento vuelve a alterar el nombre, la respuesta es `INVALID_PROPOSAL`.
 - Resultado real (2026-11-10, Qwen3-1.7B-Q8_0, 3 ejecuciones limpias del caso literal): la multiplicidad ya no se inventa, pero Qwen devuelve `attributeName: "telefono"` en ambos intentos de las 3 ejecuciones (`{"operation":"ADD_ATTRIBUTE","className":"Cliente","attributeName":"telefono","attributeType":"String"}`), por lo que la API responde 422 `INVALID_PROPOSAL` sin persistir nada. La gramática JSON de node-llama-cpp admite caracteres no ASCII (solo excluye comillas, barra invertida y controles), así que la pérdida de la tilde es del modelo. Con un nombre sin tilde (`email`) el flujo completo funciona. El caso de aceptación sigue pendiente de una decisión (otro modelo o cuantización, o una estrategia distinta para nombres con tildes).
 
+### Ejemplo de nombres acentuados (Fase 11)
+
+Solo cambia el prompt de generación: se añade una regla breve («Copy class and attribute names exactly as written by the user. Preserve accents, diacritics, capitalization and spelling. Never normalize identifiers.») y un único ejemplo (`MENTOR_PROPOSAL_ACCENTED_EXAMPLE`: «Agrega el atributo teléfono de tipo String a Cliente» → `{"operation":"ADD_ATTRIBUTE","className":"Cliente","attributeName":"teléfono","attributeType":"String"}`). Schema, parser, validación literal, número de reintentos, resolver, temperatura y parámetros del modelo no cambian; ninguna capa corrige nombres.
+
+Medición con Qwen3-1.7B-Q8_0 (2026-11-10):
+
+- Un ejemplo con otro nombre acentuado («dirección» en `Empresa`) no bastó: «teléfono» siguió saliendo como «telefono» en ambos intentos (3 de 3), aunque «género» se conservó.
+- Con el ejemplo anterior, el caso literal pasa 3 de 3 al primer intento y el comportamiento generaliza: «teléfono» en `Proveedor`, «código» y «género» se conservan; `email` y `saldo` (`Decimal` → `number`) no se alteran y «Elimina la clase Cliente» sigue respondiendo `UNSUPPORTED`. Como el ejemplo coincide con el criterio de aceptación, la validación literal sigue siendo la garantía: cualquier nombre alterado continúa rechazándose.
+- Por HTTP, 3 proyectos limpios: 201 `PENDING`, `attributeName` «teléfono», sin multiplicidad, diff `Cliente.teléfono: string`, revisión 1 y 0 recibos tras crear. Aplicar uno: 200 `APPLIED`, `resultingRevision` 2, un único ACK con operationId = id de la propuesta, revisión 1 → 2, un recibo y exactamente un atributo `teléfono: string`.
+
 ### Prueba con el modelo real (Fase 9)
 
 Contra el backend real (Qwen3-1.7B-Q8_0 por `ASSISTANT_LOCAL_MODEL`, PostgreSQL y dos clientes Socket.IO como OWNER y EDITOR), el 2026-11-10:
