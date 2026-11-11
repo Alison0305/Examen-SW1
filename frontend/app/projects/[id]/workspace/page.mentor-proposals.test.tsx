@@ -77,6 +77,8 @@ const ACK = {
   command: { type: "AddAttribute", classId: CLIENTE_ID, attributeId: SERVER_ATTRIBUTE_ID, name: "teléfono", attributeType: { kind: "primitive", name: "string" } } as UmlCommand,
 };
 
+const RECOMMENDATION = { status: "READ_ONLY" as const, problem: "Falta contacto", alternatives: ["Agregar teléfono a Cliente."], rationale: "Cliente existe.", limitations: "Sin formato.", confidence: 0.75, needsClarification: false, requiresUmlChange: true, projectRevision: 10 };
+
 afterEach(() => { sessionStorage.clear(); realtime.connectListener = undefined; realtime.eventListeners = {}; vi.clearAllMocks(); resetPersistedWorkspaceTest(); });
 
 function documentWithCliente(): ProjectDocument {
@@ -205,5 +207,30 @@ describe("workspace persistido: propuesta UML del Mentor (CU-2P-06)", () => {
     expect(screen.queryByLabelText("Propuesta IA")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Aplicar" })).not.toBeInTheDocument();
     expect(client.applyMentorProposal).not.toHaveBeenCalled();
+  });
+
+  it("CU-2P-05 → CU-2P-06: desde una recomendación con requiresUmlChange se crea la propuesta solo con { instruction } y sin tocar el UML", async () => {
+    const before = await openWorkspace();
+    client.recommendMentor.mockResolvedValue(RECOMMENDATION);
+    fireEvent.change(screen.getByLabelText("Consulta"), { target: { value: INSTRUCTION } });
+    fireEvent.click(screen.getByRole("button", { name: "Recomendación técnica" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Generar propuesta UML" }));
+
+    expect(await screen.findByLabelText("Propuesta IA")).toBeInTheDocument();
+    expect(client.recommendMentor).toHaveBeenCalledExactlyOnceWith("project-1", INSTRUCTION);
+    expect(client.createMentorProposal).toHaveBeenCalledExactlyOnceWith("project-1", INSTRUCTION);
+    expect(client.applyMentorProposal).not.toHaveBeenCalled();
+    expect(useWorkspaceStore.getState().document).toEqual(before);
+  });
+
+  it("CU-2P-05 → CU-2P-06: un VIEWER ve la recomendación pero no puede generar la propuesta", async () => {
+    await openWorkspace({ accessRole: "VIEWER" });
+    client.recommendMentor.mockResolvedValue(RECOMMENDATION);
+    fireEvent.change(screen.getByLabelText("Consulta"), { target: { value: INSTRUCTION } });
+    fireEvent.click(screen.getByRole("button", { name: "Recomendación técnica" }));
+
+    expect(await screen.findByText("Recomendación técnica (solo lectura)")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Generar propuesta UML" })).not.toBeInTheDocument();
+    expect(client.createMentorProposal).not.toHaveBeenCalled();
   });
 });

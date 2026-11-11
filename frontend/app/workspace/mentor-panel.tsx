@@ -15,6 +15,8 @@ export function MentorPanel({ projectName, onQuery, onRecommend, analysis, propo
   const [question, setQuestion] = useState("");
   const [result, setResult] = useState<MentorQueryResponse | null>(null);
   const [recommendation, setRecommendation] = useState<MentorRecommendationResponse | null>(null);
+  // The user's own request that produced the recommendation (CU-2P-05 → CU-2P-06 handoff, see proposeFromRecommendation).
+  const [recommendationQuestion, setRecommendationQuestion] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadingOperation, setLoadingOperation] = useState<"query" | "recommendation" | null>(null);
   const activeRequest = useRef(false);
@@ -47,8 +49,10 @@ export function MentorPanel({ projectName, onQuery, onRecommend, analysis, propo
     setLoadingOperation("recommendation");
     setError(null);
     setResult(null);
+    const asked = trimmed;
     try {
-      setRecommendation(await recommendRequest(trimmed));
+      setRecommendation(await recommendRequest(asked));
+      setRecommendationQuestion(asked);
     } catch {
       setError("No fue posible solicitar una recomendación técnica. Intenta nuevamente.");
     } finally {
@@ -64,6 +68,18 @@ export function MentorPanel({ projectName, onQuery, onRecommend, analysis, propo
     setResult(null);
     setRecommendation(null);
     await proposalFlow.create(trimmed);
+  }
+
+  // CU-2P-05 → CU-2P-06: a recommendation that requires a UML change (and needs no clarification) may start a proposal,
+  // only on an explicit click and only for users who can edit. The instruction is the user's own request that the
+  // recommendation answered: natural text, no parsing and no internal data. The recommendation's alternatives are not
+  // reused because they may omit the type ("No se infiere tipo…"), which the model would then have to invent. From
+  // here on it is exactly the CU-2P-06 flow: same endpoint, card, confirmation, errors and apply.
+  const proposalInstruction = proposals && recommendation?.requiresUmlChange === true && !recommendation.needsClarification ? recommendationQuestion : null;
+  async function proposeFromRecommendation() {
+    if (!proposalInstruction || activeRequest.current) return;
+    setError(null);
+    await proposalFlow.create(proposalInstruction);
   }
 
   return (
@@ -95,6 +111,10 @@ export function MentorPanel({ projectName, onQuery, onRecommend, analysis, propo
               <Typography><strong>Limitaciones:</strong> {recommendation.limitations}</Typography>
               <Typography><strong>¿Implica cambio UML?</strong> {recommendation.requiresUmlChange ? "Sí, como recomendación futura." : "No."}</Typography>
               {recommendation.needsClarification && <Typography><strong>Se necesita aclaración:</strong> aporta el contexto solicitado antes de continuar.</Typography>}
+              {proposalInstruction && <Box>
+                <Typography variant="body2" color="text.secondary">Se enviará tu consulta como instrucción: «{proposalInstruction}». El diagrama no cambia hasta que confirmes la propuesta.</Typography>
+                <Button size="small" variant="outlined" sx={{ mt: 0.5 }} onClick={() => void proposeFromRecommendation()} disabled={loading}>Generar propuesta UML</Button>
+              </Box>}
             </Stack>
           </Alert>}
         </Stack>

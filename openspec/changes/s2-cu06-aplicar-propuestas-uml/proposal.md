@@ -26,7 +26,7 @@ Requisitos oficiales (texto sin modificar):
 - `mentor-uml-proposals`: propuestas UML estructuradas, validadas, previsualizadas y aplicadas solo tras confirmación, con estado persistente y resultado registrado.
 
 ### Modified Capabilities
-- Ninguna en esta fase. La integración visual con la recomendación de CU-2P-05 (tarea 9) evaluará si requiere un delta de `mentor-technical-recommendations`; la recomendación seguirá siendo de solo lectura.
+- `mentor-technical-recommendations` (tarea 9.1): la recomendación sigue siendo de solo lectura, pero cuando requiere un cambio UML sin aclaración puede ofrecer «Generar propuesta UML» a usuarios con edición, que solo inicia una propuesta `PENDING` de CU-2P-06.
 
 ## Impact
 

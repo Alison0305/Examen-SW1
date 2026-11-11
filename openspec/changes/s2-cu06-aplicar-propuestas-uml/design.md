@@ -243,7 +243,15 @@ La tarea 7.1 (resolver la forma del criterio de aceptación sin Qwen) no se impl
 
 ### Relación con CU-2P-05
 
-CU-2P-05 permanece `READ_ONLY` y sin cambios. La integración futura mostrará "Generar propuesta" solo cuando `requiresUmlChange === true && needsClarification === false`, y CU-06 generará su propia intención estructurada desde la instrucción; nunca convierte `alternatives[]` en comandos. La generación (Fase 7) reutilizará `parseSingleJsonObject` y un schema cerrado propio, con validador estricto equivalente a `parseRecommendation`.
+CU-2P-05 permanece `READ_ONLY`: su contrato y su backend no cambian. Integración (Fase 9): cuando `requiresUmlChange === true && needsClarification === false` y el usuario puede editar, la recomendación muestra «Generar propuesta UML». La instrucción enviada a `POST .../proposals` es la consulta del usuario que produjo la recomendación, mostrada en pantalla antes de enviarla; no se reutilizan `alternatives[]` porque pueden omitir el tipo («No se infiere tipo…») y el modelo tendría que inventarlo, y nunca se convierten en comandos. El botón solo crea una propuesta `PENDING` con el mismo flujo de CU-06 (`useMentorProposalFlow`: tarjeta, confirmación, errores, aplicar, rechazar y cancelar); VIEWER no lo ve. Delta MODIFIED de `mentor-technical-recommendations` en este cambio.
+
+### Prueba con el modelo real (Fase 9)
+
+Contra el backend real (Qwen3-1.7B-Q8_0 por `ASSISTANT_LOCAL_MODEL`, PostgreSQL y dos clientes Socket.IO como OWNER y EDITOR), el 2026-11-10:
+
+- Caso literal «Agrega el atributo teléfono de tipo String a Cliente»: falla. La gramática se cumple, pero Qwen elige siempre la variante con `multiplicity` y la rellena con `"*"` aunque la instrucción no la indique (3 de 3 intentos, también con `email` y `edad`); el resolver estricto rechaza `"*"` y la API responde 422 `INVALID_PROPOSAL` sin persistir nada. Además translitera `teléfono` a `telefono`. La validación funciona como se diseñó (no se adivina ni se corrige la salida); el defecto está en la generación (orden y forma de las variantes del schema y prompt) y requiere una decisión antes de cerrar el CU.
+- Con la multiplicidad explícita en la instrucción, el resto del flujo real funcionó: propuesta `PENDING` sin cambios ni recibos, aplicación con una sola revisión nueva, `resultingRevision` igual a la del ACK y un único `project.operation.accepted` por cliente (operationId = id de la propuesta), segundo apply 409 `PROPOSAL_ALREADY_APPLIED`, cancelación sin cambios y la propuesta sigue `PENDING`, rechazo sin cambios y apply posterior 409 `PROPOSAL_REJECTED`, y `STALE_PROPOSAL` tras otra operación sin aplicar ni ajustar `baseRevision`.
+- Pendiente: la prueba con dos navegadores reales (actualización visual sin recarga y sin doble atributo).
 
 ### Relación con CU-2P-07
 

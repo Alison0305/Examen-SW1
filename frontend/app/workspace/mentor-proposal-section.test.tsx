@@ -225,3 +225,102 @@ describe("MentorPanel: propuesta UML (CU-2P-06)", () => {
     expect(onQuery).not.toHaveBeenCalled();
   });
 });
+
+const RECOMMENDATION = {
+  status: "READ_ONLY" as const,
+  problem: "Cliente no tiene un medio de contacto.",
+  alternatives: ["Agregar un atributo de contacto a Cliente."],
+  rationale: "Cliente existe en el modelo vigente.",
+  limitations: "No se valida el formato del teléfono.",
+  confidence: 0.75,
+  needsClarification: false,
+  requiresUmlChange: true,
+  projectRevision: 10,
+};
+
+function renderWithRecommendation(recommendation: Partial<typeof RECOMMENDATION>, given: ReturnType<typeof actions> | "none" = actions()) {
+  const proposals = given === "none" ? undefined : given;
+  const onRecommend = vi.fn().mockResolvedValue({ ...RECOMMENDATION, ...recommendation });
+  render(<AppProviders><MentorPanel projectName="CRM" onQuery={vi.fn()} onRecommend={onRecommend} proposals={proposals} /></AppProviders>);
+  fireEvent.change(screen.getByLabelText("Consulta"), { target: { value: INSTRUCTION } });
+  fireEvent.click(screen.getByRole("button", { name: "Recomendación técnica" }));
+  return { proposals, onRecommend };
+}
+
+describe("MentorPanel: recomendación técnica (CU-2P-05) → propuesta UML (CU-2P-06)", () => {
+  it("requiresUmlChange=false: no aparece Generar propuesta UML", async () => {
+    renderWithRecommendation({ requiresUmlChange: false });
+    expect(await screen.findByText("Recomendación técnica (solo lectura)")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Generar propuesta UML" })).not.toBeInTheDocument();
+  });
+
+  it("requiresUmlChange=true pero needsClarification=true: no es accionable y no aparece", async () => {
+    renderWithRecommendation({ requiresUmlChange: true, needsClarification: true });
+    expect(await screen.findByText("Recomendación técnica (solo lectura)")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Generar propuesta UML" })).not.toBeInTheDocument();
+  });
+
+  it("requiresUmlChange=true: aparece el botón e indica qué instrucción se enviará, sin generar nada todavía", async () => {
+    const { proposals } = renderWithRecommendation({});
+    expect(await screen.findByRole("button", { name: "Generar propuesta UML" })).toBeEnabled();
+    expect(screen.getByText(`Se enviará tu consulta como instrucción: «${INSTRUCTION}». El diagrama no cambia hasta que confirmes la propuesta.`)).toBeInTheDocument();
+    expect(proposals!.create).not.toHaveBeenCalled();
+  });
+
+  it("pulsar el botón usa el flujo CU-2P-06: create(instrucción), tarjeta PENDING y sin aplicar automáticamente", async () => {
+    const { proposals, onRecommend } = renderWithRecommendation({});
+    fireEvent.click(await screen.findByRole("button", { name: "Generar propuesta UML" }));
+    const card = await screen.findByLabelText("Propuesta IA");
+
+    expect(proposals!.create).toHaveBeenCalledExactlyOnceWith(INSTRUCTION);
+    expect(within(card).getByText("Estado: Pendiente")).toBeInTheDocument();
+    expect(within(card).getByLabelText("Cambios propuestos")).toHaveTextContent("+ Cliente.teléfono: string");
+    expect(onRecommend).toHaveBeenCalledOnce();
+    expect(proposals!.apply).not.toHaveBeenCalled();
+    expect(proposals!.reject).not.toHaveBeenCalled();
+    // The recommendation stays visible as read-only context.
+    expect(screen.getByText("Recomendación técnica (solo lectura)")).toBeInTheDocument();
+  });
+
+  it("la instrucción es la consulta que produjo la recomendación, aunque luego se edite el campo", async () => {
+    const { proposals } = renderWithRecommendation({});
+    const button = await screen.findByRole("button", { name: "Generar propuesta UML" });
+    fireEvent.change(screen.getByLabelText("Consulta"), { target: { value: "otro texto" } });
+    fireEvent.click(button);
+
+    await waitFor(() => expect(proposals!.create).toHaveBeenCalledExactlyOnceWith(INSTRUCTION));
+  });
+
+  it("Cancelar sigue sin hacer peticiones y Aplicar usa el mismo flujo existente", async () => {
+    const { proposals } = renderWithRecommendation({});
+    fireEvent.click(await screen.findByRole("button", { name: "Generar propuesta UML" }));
+    fireEvent.click(within(await screen.findByLabelText("Propuesta IA")).getByRole("button", { name: "Cancelar" }));
+    expect(screen.queryByLabelText("Propuesta IA")).not.toBeInTheDocument();
+    expect(proposals!.apply).not.toHaveBeenCalled();
+    expect(proposals!.reject).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Generar propuesta UML" }));
+    const card = await screen.findByLabelText("Propuesta IA");
+    fireEvent.click(within(card).getByRole("button", { name: "Aplicar" }));
+    await waitFor(() => expect(within(card).getByText("Estado: Aplicada")).toBeInTheDocument());
+    expect(proposals!.create).toHaveBeenCalledTimes(2);
+    expect(proposals!.apply).toHaveBeenCalledExactlyOnceWith(PROPOSAL_ID);
+    expect(proposals!.onApplied).toHaveBeenCalledExactlyOnceWith(APPLIED);
+  });
+
+  it("los errores del endpoint se muestran con el mismo manejo de CU-2P-06", async () => {
+    renderWithRecommendation({}, actions({ create: vi.fn().mockRejectedValue(new ApiError(503, "El Mentor IA no está disponible en este momento.")) }));
+    fireEvent.click(await screen.findByRole("button", { name: "Generar propuesta UML" }));
+
+    expect(await screen.findByText(MODEL_UNAVAILABLE_MESSAGE)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Propuesta IA")).not.toBeInTheDocument();
+  });
+
+  it("VIEWER (sin acciones de propuesta) no puede iniciarla aunque requiresUmlChange=true", async () => {
+    renderWithRecommendation({}, "none");
+    expect(await screen.findByText("Recomendación técnica (solo lectura)")).toBeInTheDocument();
+    expect(screen.getByText("Sí, como recomendación futura.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Generar propuesta UML" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Se enviará tu consulta/)).not.toBeInTheDocument();
+  });
+});
