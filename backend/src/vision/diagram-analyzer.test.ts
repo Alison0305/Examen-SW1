@@ -1,6 +1,6 @@
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
-import { analyzeDiagram, parseMultiplicityText, type OcrLine } from "./diagram-analyzer";
+import { analyzeDiagram, parseMultiplicityText, valueRange, type OcrLine } from "./diagram-analyzer";
 import { preprocessImage } from "./image-preprocessing";
 import { renderSyntheticDiagram, type SyntheticDiagram } from "./synthetic-diagram";
 
@@ -142,4 +142,34 @@ describe("parseMultiplicityText", () => {
   ])("lee %s", (text, expected) => expect(parseMultiplicityText(text)).toEqual(expected));
 
   it.each(["0.0.", "5..2", "abc", "", "1..0"])("rechaza %s", (text) => expect(parseMultiplicityText(text)).toBeUndefined());
+});
+
+describe("conectores grandes", () => {
+  // Regression (Railway, 2026-11-11): a connector with hundreds of thousands of pixels overflowed the call stack in
+  // `Math.max(...pixels)` ("Maximum call stack size exceeded") and the import failed with a 500.
+  it("analiza un conector muy grueso sin desbordar la pila", async () => {
+    const { svg, lines } = renderSyntheticDiagram({
+      width: 1024, height: 1024,
+      classes: [
+        { name: "Cliente", x: 20, y: 20, attributes: ["- nombre : String"] },
+        { name: "Pedido", x: 760, y: 20, attributes: ["- fecha : Date"] },
+      ],
+    });
+    // A solid band joining both boxes: about 500 000 dark pixels in one component.
+    const band = `<rect x="200" y="60" width="580" height="940" fill="#000000"/>`;
+    const png = await sharp(Buffer.from(svg.replace("</svg>", `${band}</svg>`))).png().toBuffer();
+    const image = await preprocessImage(png, LIMITS);
+
+    expect(() => analyzeDiagram(image, lines)).not.toThrow();
+  });
+});
+
+describe("valueRange", () => {
+  it("calcula mínimo y máximo de listas más grandes que el límite de argumentos", () => {
+    // 7919 is coprime with 1 000 000, so this is a permutation of 0..999 999.
+    const values = Array.from({ length: 1_000_000 }, (_, index) => (index * 7919) % 1_000_000);
+    expect(valueRange(values)).toEqual({ min: 0, max: 999_999 });
+    expect(valueRange([3, -2, 9])).toEqual({ min: -2, max: 9 });
+    expect(valueRange([])).toEqual({ min: Number.POSITIVE_INFINITY, max: Number.NEGATIVE_INFINITY });
+  });
 });

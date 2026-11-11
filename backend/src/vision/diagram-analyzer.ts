@@ -457,9 +457,9 @@ function traceConnectors(context: TraceContext): Connector[] {
       connectors.push({ ends: [], span: 0 });
       continue;
     }
-    const xs = pixels.map((index) => index % imageWidth);
-    const ys = pixels.map((index) => Math.floor(index / imageWidth));
-    const span = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) + 1;
+    const xs = valueRange(pixels.map((index) => index % imageWidth));
+    const ys = valueRange(pixels.map((index) => Math.floor(index / imageWidth)));
+    const span = Math.max(xs.max - xs.min, ys.max - ys.min) + 1;
     const ends = [...touches.entries()]
       .sort(([left], [right]) => left - right)
       .map(([classIndex, touch]): ConnectorEnd => {
@@ -471,6 +471,18 @@ function traceConnectors(context: TraceContext): Connector[] {
     connectors.push({ ends, span });
   }
   return connectors.filter((connector) => connector.span > 0);
+}
+
+// Min and max with a loop: `Math.max(...values)` passes every value as an argument and overflows the call stack on
+// large pixel lists (seen in production with a thick connector: "Maximum call stack size exceeded").
+export function valueRange(values: ReadonlyArray<number>): { min: number; max: number } {
+  let min = Number.POSITIVE_INFINITY;
+  let max = Number.NEGATIVE_INFINITY;
+  for (const value of values) {
+    if (value < min) min = value;
+    if (value > max) max = value;
+  }
+  return { min, max };
 }
 
 function sideOf(box: Box, x: number, y: number): Side {
@@ -518,21 +530,24 @@ function classifyEnd(context: TraceContext, componentLabels: Int32Array, label: 
       if (!ink[index] || componentLabels[index] !== label) continue;
       const { along, across } = frame(x, y);
       if (along < 1 || along > headRadius || Math.abs(across) > headRadius) continue;
-      slices.set(along, [...(slices.get(along) ?? []), across]);
+      const slice = slices.get(along);
+      if (slice) slice.push(across);
+      else slices.set(along, [across]);
     }
   }
   const wide = Math.max(6, stroke * 2.5);
   const solidSlices = [...slices.values()].filter((values) => {
-    const extent = Math.max(...values) - Math.min(...values) + 1;
+    const { min, max } = valueRange(values);
+    const extent = max - min + 1;
     return extent >= wide && values.length / extent >= 0.85;
   });
   return solidSlices.length >= 3 ? "filledDiamond" : "none";
 }
 
 function thirdWidths(samples: ReadonlyArray<{ along: number; across: number }>): [number, number, number] {
-  const alongs = samples.map((sample) => sample.along);
-  const minAlong = Math.min(...alongs);
-  const length = Math.max(...alongs) - minAlong + 1;
+  const alongs = valueRange(samples.map((sample) => sample.along));
+  const minAlong = alongs.min;
+  const length = alongs.max - minAlong + 1;
   const ranges = [0, 1, 2].map(() => ({ min: Number.POSITIVE_INFINITY, max: Number.NEGATIVE_INFINITY }));
   for (const sample of samples) {
     const range = ranges[Math.min(2, Math.floor(((sample.along - minAlong) * 3) / length))]!;
