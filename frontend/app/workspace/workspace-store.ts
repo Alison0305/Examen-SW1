@@ -17,7 +17,7 @@ import {
 } from "@examen-sw1/uml-core";
 import { create } from "zustand";
 import { calculateAutoLayout } from "./auto-layout";
-import { parseMultiplicity, typeFromPrimitiveName } from "./workspace-utils";
+import { parseMultiplicity, typeFromValue } from "./workspace-utils";
 
 export type WorkspaceTool = "select" | "class" | "enum" | UmlRelationshipType;
 
@@ -207,7 +207,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       attributeId: createWorkspaceUuid(),
       name,
       visibility,
-      attributeType: typeFromPrimitiveName(typeName),
+      attributeType: typeFromValue(typeName),
       multiplicity: parseMultiplicity(multiplicity),
     });
   },
@@ -219,7 +219,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       updates: {
         name,
         visibility,
-        attributeType: typeFromPrimitiveName(typeName),
+        attributeType: typeFromValue(typeName),
         multiplicity: parseMultiplicity(multiplicity),
       },
     });

@@ -1,6 +1,6 @@
 import { applyNodeChanges, type Edge, type Node, type NodeChange } from "@xyflow/react";
 import type { ProjectDocument, UmlClass, UmlEnumeration, UmlRelationship, UmlVisibility } from "@examen-sw1/uml-core";
-import { formatMultiplicity } from "./workspace-utils";
+import { formatAttributeSignature, formatMultiplicity } from "./workspace-utils";
 import { calculateUmlEdgeRoute, type UmlEdgeRoute } from "./uml-edge-routing";
 
 export interface UmlNodeData extends Record<string, unknown> {
@@ -39,7 +39,8 @@ export function toReactFlowNodes(document: ProjectDocument, selectedId?: string,
         selected: selectedId === umlClass.id,
         label: umlClass.name,
         visibility: umlClass.visibility,
-        attributes: umlClass.attributes.map((attribute) => `${attribute.visibility}:${attribute.name}:${attribute.type.kind === "primitive" ? attribute.type.name : attribute.type.elementId}`),
+        // Already formatted with the UML notation; reference types resolved by name.
+        attributes: umlClass.attributes.map((attribute) => formatAttributeSignature(attribute, document.uml)),
       },
       selected: selectedId === umlClass.id,
       draggable: !readOnly,

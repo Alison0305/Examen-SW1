@@ -42,6 +42,7 @@ import {
 } from "@xyflow/react";
 import { useEffect, useId, useRef, useState } from "react";
 import {
+  enumerationReferenceType,
   type Diagnostic,
   type Multiplicity,
   type ProjectDocument,
@@ -63,10 +64,13 @@ import { interpretNaturalUmlText, interpretStrictUmlText, isStrictUmlText, type 
 import { WorkspaceImportActions, type RecognizeDiagramImage } from "./import-actions";
 import { UmlClassNode, UmlEnumerationNode } from "./uml-nodes";
 import {
+  formatAttributeLabel,
+  formatAttributeType,
   formatMultiplicity,
   formatType,
   MULTIPLICITY_PRESETS,
   primitiveTypeNames,
+  typeFromValue,
 } from "./workspace-utils";
 import {
   setWorkspacePersistentChangeListener,
@@ -1286,7 +1290,7 @@ function ClassInspector({ classId }: Readonly<{ classId: string }>) {
               flexWrap="wrap"
             >
               <Typography variant="body2" sx={{ flexGrow: 1 }}>
-                {attribute.name}: {formatType(attribute.type)}
+                {formatAttributeLabel(attribute, document.uml)}
               </Typography>
               <Button
                 size="small"
@@ -1363,8 +1367,8 @@ function initialAttributeDraft(): AttributeDraft {
 function attributeDraft(attribute: UmlAttribute): AttributeDraft {
   return {
     name: attribute.name,
-    typeName:
-      attribute.type.kind === "primitive" ? attribute.type.name : "string",
+    // The selector value identifies a reference type too, so editing keeps it instead of turning it into `string`.
+    typeName: formatType(attribute.type),
     visibility: attribute.visibility,
     multiplicity: formatMultiplicity(attribute.multiplicity) || "1",
   };
@@ -1400,7 +1404,7 @@ function AttributeForm({
             }
             size="small"
           />
-          <PrimitiveTypeSelect
+          <AttributeTypeSelect
             label="Tipo de atributo"
             value={draft.typeName}
             onChange={(typeName) => onChange({ ...draft, typeName })}
@@ -1799,7 +1803,10 @@ function WorkspaceStatusBar({
   );
 }
 
-function PrimitiveTypeSelect({
+// Primitive types plus the model's enumerations (relational mapper and Spring generator support them as ENUM columns).
+// Classes are not offered as a new type, since the relational mapper rejects them (REL_UNSUPPORTED_TYPE); a class or
+// unresolved reference that an attribute already has (from XMI or an image) stays selectable, so editing keeps it.
+function AttributeTypeSelect({
   label,
   value,
   onChange,
@@ -1809,6 +1816,14 @@ function PrimitiveTypeSelect({
   onChange: (value: string) => void;
 }>) {
   const id = useId();
+  const uml = useWorkspaceStore((state) => state.document.uml);
+  const options = [
+    ...primitiveTypeNames.map((typeName) => ({ value: typeName, label: typeName })),
+    ...uml.enumerations.map((enumeration) => ({ value: formatType(enumerationReferenceType(enumeration.id)), label: enumeration.name })),
+  ];
+  if (!options.some((option) => option.value === value)) {
+    options.push({ value, label: formatAttributeType(typeFromValue(value), uml) });
+  }
   return (
     <FormControl size="small">
       <InputLabel id={`${id}-label`}>{label}</InputLabel>
@@ -1819,9 +1834,9 @@ function PrimitiveTypeSelect({
         value={value}
         onChange={(event) => onChange(event.target.value)}
       >
-        {primitiveTypeNames.map((typeName) => (
-          <MenuItem key={typeName} value={typeName}>
-            {typeName}
+        {options.map((option) => (
+          <MenuItem key={option.value} value={option.value}>
+            {option.label}
           </MenuItem>
         ))}
       </Select>

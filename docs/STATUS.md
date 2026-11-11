@@ -2,13 +2,24 @@
 
 ## Estado Actual
 
+### Correctivo Activo
+
+**`fix-cu-02-notacion-uml-clases`** (rama `fix/cu02-notacion-uml-clases`, OpenSpec `openspec/changes/fix-cu-02-notacion-uml-clases/`, detalle en el PUDS de CU-02, sección «Cambio Posterior - Notación UML De Atributos»).
+
+- Notación UML 2.5.1 de atributos en el diagrama: `visibilidad nombre: Tipo [multiplicidad]`.
+- Tipos de referencia por nombre, nunca por identificador.
+- Enumeraciones elegibles como tipo en el inspector, sin perder el tipo al editar.
+- Estereotipo `«enumeration»`.
+
+Implementado y con gates verdes: frontend 366/366, build, `tsc` y ESLint. Integrado en `main` por push directo, a pedido del usuario el 2026-11-11, para continuar con el despliegue. Pendiente: prueba manual del usuario (tarea 3.4), aceptación y archivo del OpenSpec. Sin cambios en `uml-core`, backend, XMI ni generadores.
+
 ### Segundo Parcial
 
 **CU activo del segundo parcial:** CU-2P-07 - Historial compartido del Mentor IA.
 
 **CU-2P-07** (issue #7, rama `feat/s2-cu07-historial-compartido`, OpenSpec `openspec/changes/s2-cu07-historial-compartido/`, PUDS `docs/puds/use-cases/CU-2P-07-historial-compartido.md`).
 
-CU-2P-07: COMPLETADO. Smoke test multiusuario aprobado por el usuario el 2026-11-11 (dos integrantes ven el historial compartido; un tercero sin acceso no). PostgreSQL real ✔, frontend ✔, recomendaciones ✔, propuestas ✔ y OpenSpec strict ✔, con todas las tareas cerradas salvo la 7.3. Queda solo la integración: push, PR con `Closes #7`, revisión, merge y archivo del OpenSpec.
+CU-2P-07: COMPLETADO. Smoke test multiusuario aprobado por el usuario el 2026-11-11 (dos integrantes ven el historial compartido; un tercero sin acceso no). PostgreSQL real ✔, frontend ✔, recomendaciones ✔, propuestas ✔ y OpenSpec strict ✔. Integrado en `main` mediante el PR #16 (merge `0b8f36e`). Queda solo archivar el OpenSpec `s2-cu07-historial-compartido`, que es el último paso de la tarea 7.3.
 
 Implementación:
 
@@ -236,4 +247,4 @@ El correctivo CU-06 está completo en 9/9. Con el proyecto `Prueba CU06 Backend`
 
 ## Siguiente Acción
 
-CU-2P-07: push de `feat/s2-cu07-historial-compartido`, PR con `Closes #7`, revisión del compañero, merge y archivo del OpenSpec (tarea 7.3). Pendientes de cierre propio: archivar el OpenSpec de CU-2P-06 y validar y cerrar CU-2P-04. En el track histórico, planificar CU-11 solo cuando se autorice.
+Despliegue en Railway (cambio OpenSpec propio). `fix-cu-02-notacion-uml-clases`, ya en `main`: prueba manual del usuario, aceptación y archivo. Pendientes de cierre propio: archivar los OpenSpec de CU-2P-07 y CU-2P-06, y validar y cerrar CU-2P-04. En el track histórico, planificar CU-11 solo cuando se autorice.

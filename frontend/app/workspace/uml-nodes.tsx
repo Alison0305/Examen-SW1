@@ -10,7 +10,7 @@ export function UmlClassNode({ data, selected }: NodeProps<UmlReactFlowNode>) {
 }
 
 export function UmlEnumerationNode({ data, selected }: NodeProps<UmlReactFlowNode>) {
-  return <UmlClassifierNode data={data} selected={selected || data.selected} stereotype="<<enumeration>>" />;
+  return <UmlClassifierNode data={data} selected={selected || data.selected} stereotype="«enumeration»" />;
 }
 
 function UmlClassifierNode({
@@ -52,22 +52,14 @@ function UmlClassifierNode({
             {data.kind === "class" ? "Sin atributos" : "Sin literales"}
           </Typography>
         )}
-        {rows.map((row) => (
-          <Typography key={row} variant="caption" sx={{ fontFamily: "monospace" }}>
-            {formatNodeRow(row, data.kind)}
+        {/* Attribute rows arrive already in UML notation (react-flow-adapters); literals as they are. */}
+        {rows.map((row, index) => (
+          <Typography key={`${index}-${row}`} variant="caption" sx={{ fontFamily: "monospace" }}>
+            {row}
           </Typography>
         ))}
       </Stack>
       <Handle type="source" position={Position.Right} />
     </Box>
   );
-}
-
-function formatNodeRow(row: string, kind: "class" | "enumeration"): string {
-  if (kind === "enumeration") {
-    return row;
-  }
-
-  const [visibility, name, type] = row.split(":");
-  return `${visibilitySymbol(visibility as UmlNodeData["visibility"])} ${name}: ${type}`;
 }

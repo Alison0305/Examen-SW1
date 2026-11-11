@@ -170,7 +170,8 @@ describe("Workspace UML manual", () => {
     expect(screen.getByRole("button", { name: "Nodo clase Clase1" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Nodo enum Estado1" })).toBeInTheDocument();
     expect(screen.getByText("Sin atributos")).toBeInTheDocument();
-    expect(screen.getByText("<<enumeration>>")).toBeInTheDocument();
+    expect(screen.getByText("«enumeration»")).toBeInTheDocument();
+    expect(screen.queryByText("<<enumeration>>")).not.toBeInTheDocument();
   });
 
   it("muestra Eliminar clase y la elimina mediante Command Bus con Undo", async () => {
@@ -574,7 +575,9 @@ describe("Workspace UML manual", () => {
       visibility: "protected",
       multiplicity: { lower: 0, upper: "unbounded" },
     });
-    expect(screen.getByText("edad: number")).toBeInTheDocument();
+    // UML attribute notation shows the multiplicity when it is not the default 1.
+    expect(screen.getByText("edad: number [0..*]")).toBeInTheDocument();
+    expect(screen.getByText("# edad: number [0..*]")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Editar" }));
     fireEvent.change(screen.getByLabelText("Nombre de atributo"), { target: { value: "" } });

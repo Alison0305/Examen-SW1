@@ -160,3 +160,34 @@ OpenSpec: `openspec/changes/feat-relationship-multiplicity-menu/`. Implementado 
 - Se conserva la creación de la clase intermedia N:M cuando ambos extremos quedan en muchos.
 - El menú es un select nativo para que el fieldset de solo lectura lo deshabilite para VIEWER.
 - Pruebas: frontend 161/161, con tests de opciones, aplicación inmediata, Undo, Otra…, `*`, Sin especificar, VIEWER y unitarios de `parseMultiplicity`. Lint, typecheck y build correctos.
+
+## Cambio Posterior - Notación UML De Atributos
+
+OpenSpec: `openspec/changes/fix-cu-02-notacion-uml-clases/`, rama `fix/cu02-notacion-uml-clases`. Correctivo del 2026-11-11, surgido al revisar la notación UML 2.5.1 del diagrama de clases.
+
+Defectos corregidos en el subconjunto ya soportado:
+
+- **Multiplicidad de atributo invisible.** El modelo la guardaba, pero el nodo mostraba solo `nombre: tipo`. Ahora cada atributo sigue la notación UML `visibilidad nombre: Tipo [multiplicidad]`. La multiplicidad se omite si no existe o es exactamente `1`, que es el valor por defecto en UML.
+- **Identificador interno como tipo.** Un atributo tipado por una enumeración o una clase (llegado por XMI o por imagen) mostraba el UUID en el nodo y `enumeration:<id>` en el inspector. Ahora se muestra el nombre del clasificador, o `?` si la referencia no existe; el validador ya la diagnosticaba.
+- **Enumeración no elegible como tipo.** El selector de tipo del inspector solo ofrecía primitivos. Ahora ofrece también las enumeraciones del modelo. No se ofrecen clases como tipo nuevo, porque el mapper relacional las rechaza (`REL_UNSUPPORTED_TYPE`).
+- **Tipo perdido al editar.** Editar un atributo con tipo de referencia lo convertía en `string` sin avisar. Ahora el tipo se conserva, también para una clase importada.
+- **Estereotipo en ASCII.** `<<enumeration>>` pasa a `«enumeration»`.
+
+Decisiones:
+
+- El símbolo de visibilidad delante del nombre de clase o enumeración (`+ Cliente`) se mantiene, porque es notación válida de UML 2.5.1 para elementos empaquetables.
+- Sin cambios en `uml-core`, el backend, la persistencia, XMI ni los generadores. `AddAttribute` y `UpdateAttribute` ya aceptaban tipos de referencia, `DeleteEnumeration` impide borrar una enumeración en uso y el mapper genera columnas `ENUM`.
+- El valor interno del selector (`enumeration:<id>`) nunca se muestra; `typeFromValue` lo convierte de vuelta en el tipo.
+
+Archivos: `frontend/app/workspace/workspace-utils.ts` (`formatAttributeSignature`, `formatAttributeLabel`, `formatAttributeType` y `typeFromValue`), `react-flow-adapters.ts`, `uml-nodes.tsx`, `workspace-store.ts` y `workspace-client.tsx` (`AttributeTypeSelect`).
+
+Pruebas:
+
+- 18 tests nuevos en `uml-notation.test.tsx`: multiplicidades visibles y por defecto, símbolos de visibilidad, referencia por nombre y `?`, conversión del valor del selector, filas del adaptador, nodo e inspector sin identificadores, opciones del selector (primitivos y enumeraciones, sin clases), creación con enumeración y Undo, cambio de tipo desde Editar, conservación del tipo de enumeración y de clase, y estereotipo `«enumeration»`.
+- Dos aserciones existentes actualizadas a la notación nueva: `«enumeration»` y `edad: number [0..*]`.
+- Frontend 366/366; build, typecheck y ESLint correctos.
+- Una mutación que restaura la conversión a `string` hace fallar los dos tests de conservación.
+
+Pendiente: prueba manual del usuario.
+
+Fuera de este correctivo (evaluado y no implementado): compartimento de operaciones, interfaces, clases abstractas, realización, dependencia, miembros estáticos, navegabilidad, roles y valores por defecto.
