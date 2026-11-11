@@ -82,7 +82,9 @@ Cancelar o cerrar la vista previa es solo del cliente: sin petición, sin cambio
 | POST | `/projects/:projectId/mentor/proposals/:proposalId/apply` | vacío | `MentorProposalResponse` (`APPLIED`) |
 | POST | `/projects/:projectId/mentor/proposals/:proposalId/reject` | vacío | `MentorProposalResponse` (`REJECTED`) |
 
-Estado (Fase 6): `MentorProposalController` expone GET detalle, `apply` y `reject` con `JwtAuthGuard`, `ParseUUIDPipe` en `projectId` y `proposalId`, identidad solo desde el JWT y `@HttpCode(200)` en los POST; `MentorProposalsModule` (con `AuthModule`, `ProjectsPersistenceModule` y `RealtimeModule`) está registrado en `AppModule`. La creación (`POST .../proposals`) se añade en la Fase 7 porque necesita generar la intención estructurada.
+Estado (Fase 6): `MentorProposalController` expone GET detalle, `apply` y `reject` con `JwtAuthGuard`, `ParseUUIDPipe` en `projectId` y `proposalId`, identidad solo desde el JWT y `@HttpCode(200)` en los POST; `MentorProposalsModule` (con `AuthModule`, `ProjectsPersistenceModule` y `RealtimeModule`) está registrado en `AppModule`.
+
+Estado (Fase 7): `POST .../proposals` responde 201 con la propuesta `PENDING`. El cuerpo se valida con `CreateMentorProposalDto` (`instruction` recortada, 1..500, `DtoValidationPipe` con `forbidNonWhitelisted`). `MentorProposalsModule` importa además `AssistantModule` para reutilizar el único `ASSISTANT_LOCAL_MODEL`.
 
 El cuerpo de creación no admite `userId`, `projectId`, `baseRevision`, comando ni UUID; el DTO rechaza propiedades extra. La revisión base procede del proyecto cargado por el servidor. Apply y reject no declaran `@Body()`: cualquier cuerpo (por ejemplo `{ baseRevision: 999, command: { type: "DeleteClass" } }`) se ignora por completo y la operación usa solo la propuesta persistida.
 
@@ -201,7 +203,7 @@ model MentorProposal {
 
 | Código | HTTP | Caso |
 |---|---|---|
-| `INVALID_PROPOSAL` | 422 | Intent mal formado, campos extra o identificadores, multiplicidad inválida, candidato rechazado por validación canónica |
+| `INVALID_PROPOSAL` | 422 | Intent mal formado (incluida una salida del modelo que no es un único objeto JSON), campos extra o identificadores, multiplicidad inválida, candidato rechazado por validación canónica |
 | `UNSUPPORTED_OPERATION` | 422 | Operación fuera de la allow-list |
 | `ELEMENT_NOT_FOUND` | 422 | Clase destino ausente o ambigua |
 | `UNKNOWN_TYPE` | 422 | Tipo no resoluble |
@@ -211,10 +213,24 @@ model MentorProposal {
 | — | 403 | VIEWER (`requireEdit`) |
 | — | 404 | Sin acceso, proyecto inexistente o propuesta de otro proyecto |
 | — | 400 | Cuerpo inválido según el DTO (`instruction` ausente, vacía, > 500, propiedades extra) |
-| — | 503 | Generación estructurada no disponible (Fase 7), como en CU-2P-01, 04 y 05 |
+| — | 503 | Modelo local no configurado o no disponible (`MentorProposalGenerationUnavailableError`), cuerpo `{ statusCode, error, message }` como en CU-2P-01, 04 y 05 |
 | — | 500 | `MentorProposalDataError` (JSON persistido corrupto): cuerpo genérico, sin JSON, campo, traza ni error de Prisma |
 
 El cuerpo de error sigue el patrón de CU-2P-07: `{ statusCode, error, code, message }`, más `diagnostics` públicos en `INVALID_PROPOSAL` (`toMentorProposalHttpException`). `NOT_FOUND` usa el 404 estándar, idéntico al de un proyecto sin acceso, para no revelar si la propuesta existe en otro proyecto. Los contratos puros solo fijan los códigos; el mapeo HTTP pertenece al controlador.
+
+### Generación estructurada (Fase 7)
+
+`MentorProposalCreationService.create(projectId, user, instruction)`: `requireEdit` → instrucción recortada (1..500) → `ProjectsPersistenceService.findProject` → `MENTOR_PROPOSAL_INTENT_GENERATOR` → `resolveMentorProposal` → `previewMentorProposal` → `buildNewMentorProposal` → `store.create`. Se autoriza antes de inferir, así que VIEWER (403), un usuario sin acceso o un proyecto inexistente (404) nunca invocan el modelo. La vista previa se calcula sobre el documento con `revision` igual a la columna `Project.revision`, la misma que comprueba `ProjectOperationService` al aplicar, por lo que `baseRevision` es siempre la revisión autoritativa. Cualquier fallo anterior a `store.create` no persiste nada; crear nunca llama a `ProjectOperationService`, no cambia revisión ni documento y no genera recibos.
+
+`LocalQwenMentorProposalIntentProvider` usa `generateStructured` del `QueuedLocalTextModel` compartido (cola, timeout y extracción `parseSingleJsonObject` + `grammar.parse` del motor existente) con:
+
+- System prompt corto: generador de propuestas UML estructuradas; sin código, sin identificadores, sin modificar el modelo; solo `ADD_ATTRIBUTE`; si no aplica, `{"operation":"UNSUPPORTED"}`; solo el JSON del schema.
+- Contexto mínimo: los nombres de clase del documento autoritativo y la instrucción. Nunca identificadores, atributos, layout ni el documento completo.
+- Schema cerrado `MENTOR_PROPOSAL_INTENT_SCHEMA`: `oneOf` de `ADD_ATTRIBUTE` sin multiplicidad, `ADD_ATTRIBUTE` con `multiplicity` (node-llama-cpp trata como obligatorias todas las propiedades listadas, por eso la multiplicidad opcional es una variante) y `UNSUPPORTED` sin texto libre. Todas con `additionalProperties: false` y strings 1..80 (multiplicidad 1..16). `className` es texto libre a propósito: un `enum` de clases forzaría una petición sobre una clase inexistente hacia otra clase; el servidor resuelve el nombre y responde `ELEMENT_NOT_FOUND`.
+
+La salida se valida otra vez con `parseMentorProposalIntent` como dato no confiable: objeto plano, `operation` en la allow-list (si no, `UNSUPPORTED_OPERATION`, incluida la salida `UNSUPPORTED`), claves exactas (cualquier otra, como `classId`, `attributeId` o `command`, es `INVALID_PROPOSAL`), strings no vacíos de una línea dentro de los límites y sin UUID. No repara, completa ni adivina; tipo y multiplicidad siguen siendo texto hasta el resolver. `LocalModelError("INVALID_OUTPUT")` (texto que no es un único objeto JSON conforme) es `INVALID_PROPOSAL`; `NOT_CONFIGURED`, `MODEL_NOT_FOUND`, `RUNTIME_NOT_AVAILABLE`, `INFERENCE_ERROR`, `TIMEOUT`, `BUSY` y la ausencia de modelo son `MentorProposalGenerationUnavailableError` → 503 con el cuerpo de CU-2P-01/04/05. Los logs registran solo etapa y código, nunca instrucción, prompt, salida cruda ni ruta del modelo.
+
+La tarea 7.1 (resolver la forma del criterio de aceptación sin Qwen) no se implementa en esta fase: contradice la decisión de que la intención la genere el modelo local y de no derivar comandos de texto libre de forma heurística. Queda pendiente de decisión explícita.
 
 ### Relación con CU-2P-05
 

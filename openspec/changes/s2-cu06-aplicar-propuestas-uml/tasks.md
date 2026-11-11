@@ -6,7 +6,7 @@
 
 ## 2. Resolver y vista previa pura
 
-- [ ] 2.1 Validar estrictamente un intent desconocido (`unknown`): claves exactas, tipos, longitudes, operación en allow-list, sin identificadores; verificar `INVALID_PROPOSAL` y `UNSUPPORTED_OPERATION`. Pendiente: se hará junto con la generación estructurada (7.x), que es la primera fuente de entrada no tipada; el resolver actual ya rechaza en ejecución una operación fuera de la allow-list.
+- [x] 2.1 Validar estrictamente un intent desconocido (`unknown`): claves exactas, tipos, longitudes, operación en allow-list, sin identificadores; verificar `INVALID_PROPOSAL` y `UNSUPPORTED_OPERATION`. Hecho en la Fase 7 con `parseMentorProposalIntent` (`mentor-proposal-intent.ts`), aplicado a la salida del modelo antes del resolver.
 - [x] 2.2 Resolver `className` a `classId` sobre el documento autoritativo, normalizar el tipo con `normalizePrimitiveTypeName` sin respaldo a `string` y analizar la multiplicidad con un parser estricto; verificar `ELEMENT_NOT_FOUND`, `UNKNOWN_TYPE` y multiplicidad ausente o inválida.
 - [x] 2.3 Construir exactamente un `AddAttribute` con `attributeId` asignado por una fábrica inyectable y ejecutar la vista previa sobre una copia con `UmlCommandBus` (`historyLimit: 0`); verificar que el documento original, su revisión y su layout no cambian y que un candidato inválido produce `INVALID_PROPOSAL` con diagnósticos públicos sin `path` ni `elementId`.
 
@@ -38,8 +38,8 @@
 
 ## 7. Generación estructurada
 
-- [ ] 7.1 Resolver de forma determinista la forma inequívoca del criterio de aceptación ("Agrega el atributo X de tipo T a C") sin invocar Qwen.
-- [ ] 7.2 Generar el intent con Qwen local mediante schema cerrado, `parseSingleJsonObject` y validación estricta, con contexto solo por nombres; verificar 503 controlado y ausencia de identificadores.
+- [ ] 7.1 Resolver de forma determinista la forma inequívoca del criterio de aceptación ("Agrega el atributo X de tipo T a C") sin invocar Qwen. No implementado en la Fase 7: la decisión vigente es que toda instrucción pase por Qwen y nunca derivar comandos de texto libre de forma heurística; queda pendiente de decisión explícita (implementarla como ruta estricta previa al modelo o retirarla).
+- [x] 7.2 Generar el intent con Qwen local (`ASSISTANT_LOCAL_MODEL` compartido, `generateStructured`) mediante schema cerrado (`MENTOR_PROPOSAL_INTENT_SCHEMA`, variantes `oneOf` y salida `UNSUPPORTED`), extracción `parseSingleJsonObject` del motor existente y validación estricta, con contexto solo por nombres de clase (`LocalQwenMentorProposalIntentProvider`); `MentorProposalCreationService` (`requireEdit` → proyecto → modelo → resolver → vista previa → `buildNewMentorProposal` → `store.create`) y `POST /projects/:projectId/mentor/proposals` (201, `CreateMentorProposalDto`, 422 por código, 503 seguro). Verificado: AI-01 a AI-15 con un doble determinista del modelo (parser, proveedor, servicio y HTTP con el módulo real), DI del módulo con un único modelo compartido y PostgreSQL real (8 pruebas: creación OWNER/EDITOR sin cambios de revisión, documento ni recibos; aplicación posterior con el UUID del servidor; rechazos sin filas; VIEWER, externo e inexistente sin invocar el modelo). Sin prueba con el GGUF real en esta fase.
 
 ## 8. Frontend
 
