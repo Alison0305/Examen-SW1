@@ -1,0 +1,45 @@
+# Contexto de build de las imágenes Docker (backend/Dockerfile y frontend/Dockerfile se construyen desde la raíz).
+# Nunca entran secretos, dependencias locales, compilados ni modelos de IA.
+
+# Secretos y configuración local
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Dependencias y compilados (se instalan y compilan dentro de la imagen)
+**/node_modules
+**/dist
+**/.next
+**/out
+**/*.tsbuildinfo
+**/coverage
+
+# Entornos y cachés locales
+**/.venv
+**/__pycache__
+.cache
+.turbo
+.gradle-cu09
+
+# Modelos pesados de IA (se descargan al volumen en el primer arranque)
+models
+**/*.gguf
+**/*.onnx
+**/*.safetensors
+
+# Salidas generadas por pruebas y benchmarks
+**/.generated*
+**/.benchmark-output
+
+# Repositorio, herramientas y documentación (no se necesitan en la imagen)
+.git
+.claude
+.opencode
+.vscode
+.idea
+docs
+openspec
+**/*.log
