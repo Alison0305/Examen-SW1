@@ -3,14 +3,15 @@
 import { Alert, Box, Button, Card, CardContent, CircularProgress, Divider, Stack, TextField, Typography } from "@mui/material";
 import { useRef, useState } from "react";
 import type { MentorQueryResponse, MentorRecommendationResponse, UmlAnalysisFocus, UmlAnalysisResponse } from "../auth/api";
-import { MentorHistorySection, type MentorHistoryLoader } from "./mentor-history-section";
+import { MentorHistorySection, type MentorHistoryLoader, type MentorProposalHistoryLoader } from "./mentor-history-section";
 import { MentorProposalCard, MentorProposalFeedbackAlert, useMentorProposalFlow, type MentorProposalActions } from "./mentor-proposal-section";
 import { UmlAnalysisSection, type UmlAnalysisSelection } from "./uml-analysis-section";
 
 // Optional CU-2P-04 section ("Explicar"); without it the panel is exactly the CU-2P-01 free query.
 export type MentorPanelAnalysis = Readonly<{ selection: UmlAnalysisSelection | null; onAnalyze: (focus: UmlAnalysisFocus) => Promise<UmlAnalysisResponse> }>;
 // Optional CU-2P-07 section. `projectKey` identifies the project: when it changes the section starts from scratch.
-export type MentorPanelHistory = Readonly<{ projectKey: string; onLoad: MentorHistoryLoader }>;
+// `onLoadProposals` (task 8.1) adds the read-only "Propuestas UML" sublist (CU-2P-06 state) to the same section.
+export type MentorPanelHistory = Readonly<{ projectKey: string; onLoad: MentorHistoryLoader; onLoadProposals?: MentorProposalHistoryLoader }>;
 
 // CU-2P-06: `proposals` is passed only to users who can edit (never to VIEWER). Without it there is no way to start a
 // UML change from the panel, and queries and recommendations stay exactly as before (read only).
@@ -129,7 +130,7 @@ export function MentorPanel({ projectName, onQuery, onRecommend, analysis, propo
             </Stack>
           </Alert>}
           {history && <Divider />}
-          {history && <MentorHistorySection key={history.projectKey} onLoad={history.onLoad} refreshKey={interactionVersion} />}
+          {history && <MentorHistorySection key={history.projectKey} onLoad={history.onLoad} onLoadProposals={history.onLoadProposals} refreshKey={interactionVersion} />}
         </Stack>
       </CardContent>
     </Card>

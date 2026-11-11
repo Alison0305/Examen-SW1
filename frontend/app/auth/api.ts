@@ -135,6 +135,24 @@ export type MentorHistoryItem = {
 };
 export type MentorHistoryPage = { items: MentorHistoryItem[]; nextCursor: string | null };
 export type MentorHistoryParams = { limit?: number; cursor?: string; q?: string };
+// CU-2P-07, task 8.1: public contract of GET /projects/:id/mentor/history/proposals (backend
+// MentorProposalHistoryProjection of CU-2P-06, served unchanged). A set separate from the interactions: no cursor, no
+// search. Never the command, the instruction, author or resolver ids, internal UML ids, receipts or model output.
+export type MentorProposalHistoryItem = {
+  proposalId: string;
+  status: MentorProposalStatus;
+  operation: MentorProposalOperation;
+  summary: MentorProposalDiffLine[];
+  baseRevision: number;
+  createdAt: string;
+  // Present for APPLIED and REJECTED.
+  resolvedAt?: string;
+  // Present for APPLIED only.
+  resultingRevision?: number;
+};
+export type MentorProposalHistoryList = { items: MentorProposalHistoryItem[] };
+// Only `limit` (1..50); without it the backend uses CU-2P-06's default of 20.
+export type MentorProposalHistoryParams = { limit?: number };
 export type VisionRecognition = {
   proposal: import("@examen-sw1/uml-core").UmlImportProposal;
   image: { width: number; height: number };
@@ -189,6 +207,7 @@ export type ApiClient = {
   applyMentorProposal(id: string, proposalId: string): Promise<MentorProposalResponse>;
   rejectMentorProposal(id: string, proposalId: string): Promise<MentorProposalResponse>;
   getMentorHistory(id: string, params?: MentorHistoryParams): Promise<MentorHistoryPage>;
+  getMentorProposalHistory(id: string, params?: MentorProposalHistoryParams): Promise<MentorProposalHistoryList>;
   recognizeDiagram(id: string, image: Blob): Promise<VisionRecognition>;
 };
 
@@ -564,6 +583,11 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
       if (search) query.set("q", search);
       const suffix = query.toString();
       return request<MentorHistoryPage>(`/projects/${encodeURIComponent(id)}/mentor/history${suffix ? `?${suffix}` : ""}`, options);
+    },
+    getMentorProposalHistory: (id, params = {}) => {
+      // Only `limit`, and only when given: no cursor, q or anything else is ever sent (the backend rejects them).
+      const suffix = params.limit !== undefined ? `?${new URLSearchParams({ limit: String(params.limit) })}` : "";
+      return request<MentorProposalHistoryList>(`/projects/${encodeURIComponent(id)}/mentor/history/proposals${suffix}`, options);
     },
     recognizeDiagram: (id, image) =>
       requestDiagramRecognition(id, image, options),
