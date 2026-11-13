@@ -68,12 +68,14 @@
   - **Por captura:** `223837` pasa de 0 a 5 de 7 clases bien nombradas (de 0 a 7 atributos) y `224343` de 0 a 2 de 9. Ninguna otra captura cambió. Benchmark sintético sin cambios.
   - **Alternativa medida y descartada:** la misma detección sobre la imagen en grises, en lugar de la máscara de tinta, no recuperó las cabeceras verdes (el OCR también lee mal su texto blanco) y bajó la cobertura de clases a 0,6181, así que se mantuvo la máscara de tinta.
   - **Limitaciones:** las cabeceras de color medio con texto blanco que el OCR lee mal, y el tipo B.
-- [ ] 3.2 Unión de trazos de líneas discontinuas.
-- [ ] 3.3 Máscara de las cajas del OCR antes de trazar conectores.
-- [ ] 3.4 Pruebas y medición con el benchmark.
+- [ ] 3.2 Unión de trazos de líneas discontinuas. **Pospuesta** por decisión del usuario el 2026-11-13; no implementada.
+- [ ] 3.3 Máscara de las cajas del OCR antes de trazar conectores. **Pospuesta** por decisión del usuario el 2026-11-13; no implementada. Era la siguiente propuesta, por su impacto esperado en la cobertura de relaciones (0,17 y 0,28).
+- [ ] 3.4 Pruebas y medición con el benchmark. Hecho solo para 3.1; pendiente para 3.2 y 3.3.
 
 ## 4. Cierre
 
-- [ ] 4.1 Medición independiente con un lote nuevo de capturas aportado por el usuario.
-- [ ] 4.2 Gates del backend, OpenSpec strict y diff-check.
-- [ ] 4.3 PUDS de CU-10 y STATUS actualizados; aceptación del usuario, archivo, commit y push.
+- [x] 4.1 Medición independiente con un lote nuevo de capturas aportado por el usuario. Hecha con 11 capturas nuevas para el incremento 1 y para 3.1 (ver 2.4 y 3.1).
+- [x] 4.2 Gates del backend, OpenSpec strict y diff-check. 2026-11-13:
+  - visión 69/69, `tsc` y ESLint correctos; OpenSpec strict y diff-check correctos;
+  - en la suite completa del backend, todo correcto salvo 3 tests de integración del chat (CU-2P-08, `prisma-project-chat.store.integration.test.ts`), ajenos a este correctivo: la base local no tiene aplicada la migración `20261111180000_add_project_chat_messages`, que llegó con el pull de `main`.
+- [ ] 4.3 PUDS de CU-10 y STATUS actualizados; aceptación del usuario, archivo, commit y push. Documentación, commit y push de la rama hechos el 2026-11-13. Pendientes: aceptación del usuario, integración en `main` y archivo del OpenSpec.
