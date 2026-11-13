@@ -129,6 +129,114 @@ describe("analyzeDiagram", () => {
   });
 });
 
+// fix-cu-10-mejorar-reconocimiento-imagenes, incremento 1: causes measured with the 19 real captures of CU-10.
+describe("atributos sin tipo o con espacios", () => {
+  const withBody = (texts: readonly string[]) => analyze(
+    { width: 700, height: 320, classes: [{ name: "Lector", x: 40, y: 40, attributes: texts.map((_, index) => `- placeholder${index} : int`) }] },
+    (lines) => lines.map((line) => { const match = /^- placeholder(\d+) : int$/.exec(line.text); return match ? { ...line, text: texts[Number(match[1])]! } : line; }),
+  );
+
+  it("acepta dos puntos sin tipo y propone String con diagnóstico", async () => {
+    const proposal = await withBody(["-Nombre:"]);
+    expect(proposal.classes[0]!.attributes).toEqual([{ key: "C1.A1", name: "Nombre", type: "String", visibility: "private" }]);
+    expect(codes(proposal)).toEqual(["IMAGE_ATTRIBUTE_WITHOUT_TYPE"]);
+  });
+
+  it("une un nombre de varias palabras seguido de dos puntos y lo informa", async () => {
+    const proposal = await withBody(["-ID del usuario: int", "+ Fecha de nacimiento :"]);
+    expect(proposal.classes[0]!.attributes).toEqual([
+      { key: "C1.A1", name: "IDDelUsuario", type: "int", visibility: "private" },
+      { key: "C1.A2", name: "FechaDeNacimiento", type: "String", visibility: "public" },
+    ]);
+    expect(codes(proposal)).toEqual(["IMAGE_ATTRIBUTE_NAME_JOINED", "IMAGE_ATTRIBUTE_NAME_JOINED", "IMAGE_ATTRIBUTE_WITHOUT_TYPE"]);
+  });
+
+  it("sin dos puntos solo acepta una palabra: varias palabras sueltas no se convierten en atributo", async () => {
+    const proposal = await withBody(["- telefono", "datos de contacto"]);
+    expect(proposal.classes[0]!.attributes).toEqual([{ key: "C1.A1", name: "telefono", type: "String", visibility: "private" }]);
+    expect(codes(proposal)).toEqual(["IMAGE_ATTRIBUTE_WITHOUT_TYPE", "IMAGE_UNREADABLE_TEXT"]);
+  });
+
+  it("sigue omitiendo las operaciones, también con nombre y tipo", async () => {
+    const proposal = await withBody(["- total : float", "+calcularTotal(): float"]);
+    expect(proposal.classes[0]!.attributes).toEqual([{ key: "C1.A1", name: "total", type: "float", visibility: "private" }]);
+    expect(codes(proposal)).toEqual(["IMAGE_OPERATIONS_OMITTED"]);
+  });
+});
+
+describe("regiones cerradas sin texto", () => {
+  async function withShapes(shapes: string) {
+    const { svg, lines } = renderSyntheticDiagram({
+      width: 900, height: 420,
+      classes: [
+        { name: "Cliente", x: 40, y: 40, attributes: ["- nombre : String"] },
+        { name: "Pedido", x: 600, y: 40, attributes: ["- fecha : Date"] },
+      ],
+      connectors: [{ from: "Cliente", to: "Pedido" }],
+    });
+    const png = await sharp(Buffer.from(svg.replace("</svg>", `${shapes}</svg>`))).png().toBuffer();
+    return analyzeDiagram(await preprocessImage(png, LIMITS), lines);
+  }
+  // Two empty cells, like a background grid or an unlabeled frame.
+  const cells = `<rect x="80" y="300" width="160" height="80" fill="none" stroke="#000" stroke-width="2"/><rect x="600" y="300" width="160" height="80" fill="none" stroke="#000" stroke-width="2"/>`;
+
+  it("no las propone como clases y lo informa con el número descartado", async () => {
+    const proposal = await withShapes(cells);
+    expect(proposal.classes.map((entry) => [entry.key, entry.name])).toEqual([["C1", "Cliente"], ["C2", "Pedido"]]);
+    expect(proposal.relationships).toEqual([{ key: "R1", type: "Association", source: "C1", target: "C2" }]);
+    expect(proposal.diagnostics).toEqual([expect.objectContaining({ code: "IMAGE_EMPTY_REGIONS_DISCARDED", message: expect.stringContaining("2 región") })]);
+  });
+
+  it("una línea entre una clase y una región sin texto no es una relación", async () => {
+    const proposal = await withShapes(`${cells}<line x1="160" y1="300" x2="160" y2="160" stroke="#000" stroke-width="2"/>`);
+    expect(proposal.relationships.map((entry) => `${entry.source}->${entry.target}`)).toEqual(["C1->C2"]);
+    expect(codes(proposal)).not.toContain("IMAGE_CONNECTOR_WITHOUT_END");
+  });
+});
+
+// Incremento 2, problema 1: filled headers with white names (real captures 223837 in blue and 224343 in green).
+describe("cabeceras con relleno de color", () => {
+  it.each([["azul", "#4472C4"], ["verde", "#7CB342"], ["gris oscuro", "#404040"]])("reconoce el nombre de una cabecera rellena %s y sus atributos", async (_color, fill) => {
+    const proposal = await analyze({
+      width: 820, height: 340,
+      classes: [
+        { name: "Lector", x: 40, y: 60, headerFill: fill, attributes: ["- nombre : String", "- telefono : String"], operations: ["+ reservar() : void"] },
+        { name: "Pedido", x: 560, y: 60, attributes: ["- fecha : Date"] },
+      ],
+      connectors: [{ from: "Lector", to: "Pedido", fromLabel: "1", toLabel: "0..*" }],
+    });
+
+    expect(proposal.classes).toEqual([
+      { key: "C1", name: "Lector", attributes: [
+        { key: "C1.A1", name: "nombre", type: "String", visibility: "private" },
+        { key: "C1.A2", name: "telefono", type: "String", visibility: "private" },
+      ] },
+      { key: "C2", name: "Pedido", attributes: [{ key: "C2.A1", name: "fecha", type: "Date", visibility: "private" }] },
+    ]);
+    expect(proposal.relationships).toEqual([{ key: "R1", type: "Association", source: "C1", target: "C2", sourceMultiplicity: { lower: 1, upper: 1 }, targetMultiplicity: { lower: 0, upper: "unbounded" } }]);
+    expect(codes(proposal)).toEqual(["IMAGE_OPERATIONS_OMITTED"]);
+  });
+
+  it("varias clases con cabecera rellena unidas por herencia y composición", async () => {
+    const proposal = await analyze({
+      width: 1000, height: 440,
+      classes: [
+        { name: "Persona", x: 390, y: 30, headerFill: "#4472C4", attributes: ["- nombre : String"] },
+        { name: "Empleado", x: 390, y: 270, headerFill: "#4472C4", attributes: ["- sueldo : double"] },
+        { name: "Empresa", x: 40, y: 270, headerFill: "#4472C4", attributes: ["- ruc : String"] },
+      ],
+      connectors: [
+        { from: "Empleado", to: "Persona", toMarker: "triangle" },
+        { from: "Empresa", to: "Empleado", fromMarker: "filledDiamond" },
+      ],
+    });
+
+    const name = (key: string) => proposal.classes.find((candidate) => candidate.key === key)?.name;
+    expect(proposal.classes.map((entry) => entry.name).sort()).toEqual(["Empleado", "Empresa", "Persona"]);
+    expect(proposal.relationships.map((entry) => `${entry.type}:${name(entry.source)}->${name(entry.target)}`).sort()).toEqual(["Composition:Empresa->Empleado", "Generalization:Empleado->Persona"]);
+  });
+});
+
 describe("parseMultiplicityText", () => {
   it.each([
     ["1", { lower: 1, upper: 1 }],

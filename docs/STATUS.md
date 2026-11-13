@@ -2,7 +2,15 @@
 
 ## Estado Actual
 
-### Correctivo Activo
+### Correctivos Activos
+
+**`fix-cu-10-mejorar-reconocimiento-imagenes`** (rama `fix/cu10-reconocimiento-imagenes`, sin integrar en `main`; OpenSpec `openspec/changes/fix-cu-10-mejorar-reconocimiento-imagenes/`; detalle en el PUDS de CU-10, sección «Cambio Posterior - Mejora Del Reconocimiento De Imágenes»).
+
+- Imagen → UML: atributos sin tipo o con espacios, descarte de regiones sin texto y cabeceras con relleno de color.
+- Con 11 capturas independientes nuevas, la precisión sube en clases (0,72 → 0,79) y en relaciones (0,41 → 0,47), sin bajar la cobertura.
+- Con las 19 de diagnóstico, la cobertura de clases sube de 0,58 a 0,63.
+
+Detenido por decisión del usuario el 2026-11-13 tras ese primer problema del incremento 2. Pendientes: líneas discontinuas, máscara del texto sobre conectores, aceptación, integración en `main` y archivo.
 
 **`fix-cu-02-notacion-uml-clases`** (rama `fix/cu02-notacion-uml-clases`, OpenSpec `openspec/changes/fix-cu-02-notacion-uml-clases/`, detalle en el PUDS de CU-02, sección «Cambio Posterior - Notación UML De Atributos»).
 

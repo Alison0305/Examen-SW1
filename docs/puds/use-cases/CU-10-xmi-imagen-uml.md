@@ -368,3 +368,40 @@ Lectura de los resultados:
   - separar el texto de los conectores;
   - cola de visión duplicada respecto de la de Qwen.
 - **Commit de cierre:** `feat: agregar imagen a UML con Florence-2, revisión común y benchmark VLM CU-10`.
+
+## Cambio Posterior - Mejora Del Reconocimiento De Imágenes
+
+OpenSpec `openspec/changes/fix-cu-10-mejorar-reconocimiento-imagenes/`, rama `fix/cu10-reconocimiento-imagenes`, 2026-11-13. Es un correctivo parcial: el usuario decidió detenerlo tras el primer problema del incremento 2.
+
+Implementado, con todo el detalle en `tasks.md` del OpenSpec:
+
+- **Incremento 1.**
+  - Atributos sin tipo (`-Nombre:` se propone como String) o con nombre de varias palabras seguido de dos puntos (`ID del usuario` → `IDDelUsuario`).
+  - Las regiones cerradas sin texto del OCR (fondos, sombras, cuadrículas) dejan de proponerse como clases y como extremos de relación.
+- **Cabeceras con relleno de color.** Una banda de tinta de 12 px o más encima del primer compartimento, del ancho de la caja, pasa a ser la cabecera, y su texto el nombre de la clase.
+
+Medición con el benchmark (`npm run benchmark:vlm`), con tolerancia y antes / después:
+
+| Métrica | 19 capturas de diagnóstico | 11 capturas independientes nuevas |
+|---|---|---|
+| Clases: precisión | 0,34 → **0,57** | 0,72 → **0,79** |
+| Clases: cobertura | 0,58 → **0,63** | 0,81 → 0,81 |
+| Atributos: cobertura | 0,13 → **0,15** | 0,39 → 0,39 |
+| Relaciones: precisión | 0,19 → **0,28** | 0,41 → **0,47** |
+| Relaciones: cobertura | 0,16 → 0,17 | 0,28 → 0,28 |
+
+- **Las 19 capturas ya se usaron para diagnosticar,** así que solo las 11 nuevas son una medición independiente. Confirman la mejora de precisión.
+- **El lote independiente no tiene cabeceras rellenas,** así que esa mejora solo está medida con el lote de diagnóstico.
+- **Benchmark sintético idéntico.** Latencia sin cambios.
+
+Hallazgos y limitaciones:
+
+- **Texto diminuto** (capturas pequeñas o muy densas): el OCR de Florence-2 lee basura aunque las cajas se detecten. Es un límite del modelo, no del analizador.
+- **Cabeceras de color medio** (por ejemplo, verde) con texto blanco: se recuperan solo en parte, y el OCR también lee mal su texto. La variante medida sobre la imagen en grises no mejoró y se descartó.
+- **Pendiente, no implementado:**
+  - unión de trazos de líneas discontinuas;
+  - máscara del texto del OCR antes de trazar conectores (la mejora propuesta para la cobertura de relaciones).
+
+Pruebas: `diagram-analyzer.test.ts` pasa de 24 a 34 tests y el módulo de visión queda en 69/69. Las mutaciones de cada cambio hacen fallar sus tests.
+
+Commits: `761fb8d` (incremento 1) y `b7d395a` (cabeceras rellenas), más el commit de documentación.

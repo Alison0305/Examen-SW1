@@ -2,7 +2,8 @@ import type { OcrLine } from "./diagram-analyzer";
 
 // Synthetic class diagrams for tests and the VLM benchmark: SVG plus the OCR lines its texts would produce.
 
-export type SyntheticClass = Readonly<{ name: string; x: number; y: number; width?: number; stereotype?: string; attributes?: readonly string[]; operations?: readonly string[] }>;
+// `headerFill`: a filled header with the name in white, as Enterprise Architect, draw.io or Creately draw them.
+export type SyntheticClass = Readonly<{ name: string; x: number; y: number; width?: number; stereotype?: string; attributes?: readonly string[]; operations?: readonly string[]; headerFill?: string }>;
 export type SyntheticMarker = "none" | "triangle" | "hollowDiamond" | "filledDiamond";
 export type SyntheticConnector = Readonly<{ from: string; to: string; fromMarker?: SyntheticMarker; toMarker?: SyntheticMarker; fromLabel?: string; toLabel?: string }>;
 export type SyntheticDiagram = Readonly<{ width: number; height: number; classes: readonly SyntheticClass[]; connectors?: readonly SyntheticConnector[]; danglingLines?: ReadonlyArray<readonly [number, number, number, number]>; freeTexts?: ReadonlyArray<Readonly<{ text: string; x: number; y: number }>> }>;
@@ -17,8 +18,8 @@ type Rendered = { svg: string[]; lines: OcrLine[] };
 
 const escapeXml = (text: string) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-function text(rendered: Rendered, value: string, x: number, baseline: number, bold = false) {
-  rendered.svg.push(`<text x="${x}" y="${baseline}"${bold ? ' font-weight="bold"' : ""}>${escapeXml(value)}</text>`);
+function text(rendered: Rendered, value: string, x: number, baseline: number, bold = false, fill?: string) {
+  rendered.svg.push(`<text x="${x}" y="${baseline}"${bold ? ' font-weight="bold"' : ""}${fill ? ` fill="${fill}"` : ""}>${escapeXml(value)}</text>`);
   rendered.lines.push({ text: value, box: { left: x, top: baseline - 13, right: Math.round(x + value.length * CHAR_WIDTH), bottom: baseline + 4 } });
 }
 
@@ -34,13 +35,15 @@ function renderClass(rendered: Rendered, entry: SyntheticClass) {
   const bounds = classBounds(entry);
   const boxWidth = bounds.right - bounds.left;
   rendered.svg.push(`<rect x="${bounds.left}" y="${bounds.top}" width="${boxWidth}" height="${bounds.bottom - bounds.top}" fill="#ffffff" stroke="#000000" stroke-width="2"/>`);
+  if (entry.headerFill) rendered.svg.push(`<rect x="${bounds.left}" y="${bounds.top}" width="${boxWidth}" height="${bounds.header}" fill="${entry.headerFill}"/>`);
+  const headerText = entry.headerFill ? "#ffffff" : undefined;
   const centered = (value: string) => Math.round(bounds.left + (boxWidth - value.length * CHAR_WIDTH) / 2);
   let baseline = bounds.top + 23;
   if (entry.stereotype) {
-    text(rendered, `«${entry.stereotype}»`, centered(`«${entry.stereotype}»`), baseline);
+    text(rendered, `«${entry.stereotype}»`, centered(`«${entry.stereotype}»`), baseline, false, headerText);
     baseline += LINE_HEIGHT;
   }
-  text(rendered, entry.name, centered(entry.name), baseline, true);
+  text(rendered, entry.name, centered(entry.name), baseline, true, headerText);
   const attributesTop = bounds.top + bounds.header;
   rendered.svg.push(`<line x1="${bounds.left}" y1="${attributesTop}" x2="${bounds.right}" y2="${attributesTop}" stroke="#000000" stroke-width="2"/>`);
   (entry.attributes ?? []).forEach((attribute, index) => text(rendered, attribute, bounds.left + 10, attributesTop + 22 + index * LINE_HEIGHT));
