@@ -13,6 +13,8 @@ export interface UmlNodeData extends Record<string, unknown> {
   primaryKeys?: boolean[];
   // Set when the class is mapped to a table but has no primary key, or more than one.
   primaryKeyIssue?: "missing" | "multiple";
+  // Subclass without its own key: names the attribute and class it inherits the key from.
+  inheritedPrimaryKey?: { attribute: string; fromClass: string };
   literals?: string[];
 }
 
@@ -50,6 +52,7 @@ export function toReactFlowNodes(document: ProjectDocument, selectedId?: string,
         attributes: umlClass.attributes.map((attribute, index) => `${formatAttributeSignature(attribute, document.uml)}${primaryKeys[index] ? " {id}" : ""}`),
         primaryKeys,
         primaryKeyIssue: keyStatus.kind === "missing" || keyStatus.kind === "multiple" ? keyStatus.kind : undefined,
+        inheritedPrimaryKey: keyStatus.kind === "inherited" ? inheritedKeyLabel(document, keyStatus.fromClassId, keyStatus.attributeId) : undefined,
       },
       selected: selectedId === umlClass.id,
       draggable: !readOnly,
@@ -105,6 +108,12 @@ export function toReactFlowEdges(document: ProjectDocument, selectedId?: string,
         : undefined,
     },
   }));
+}
+
+export function inheritedKeyLabel(document: Pick<ProjectDocument, "uml">, fromClassId: string, attributeId: string): { attribute: string; fromClass: string } | undefined {
+  const parent = document.uml.classes.find((entry) => entry.id === fromClassId);
+  const attribute = parent?.attributes.find((entry) => entry.id === attributeId);
+  return parent && attribute ? { attribute: attribute.name, fromClass: parent.name } : undefined;
 }
 
 export function relationshipLabel(relationship: UmlRelationship): string {

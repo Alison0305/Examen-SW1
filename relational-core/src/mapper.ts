@@ -38,18 +38,20 @@ export function mapToRelationalModel(model: CanonicalUmlModel): RelationalModel 
   const names = new Set<string>();
   const tableByClassId = new Map<string, MutableTable>();
   const associationClassIds = new Set(model.relationships.filter((relationship) => relationship.type === "Association" && relationship.associationClassId).map((relationship) => relationship.associationClassId!));
+  const childClassIds = new Set(model.relationships.filter((relationship) => relationship.type === "Generalization").map((relationship) => relationship.sourceId));
   ordered(model.classes).forEach((clazz) => {
     // Manual workspace classes predate generator metadata; only an explicit false excludes one.
     if (clazz.generationMetadata?.entity === false) return;
-    const table = mapClass(clazz, model.classes.indexOf(clazz), enumById, names, diagnostics, associationClassIds.has(clazz.id));
+    const table = mapClass(clazz, model.classes.indexOf(clazz), enumById, names, diagnostics, associationClassIds.has(clazz.id), childClassIds.has(clazz.id));
     tableByClassId.set(clazz.id, table);
   });
 
+  // Inheritance first: a subclass may take its primary key from the parent, and associations need it.
+  mapInheritance(model, tableByClassId, diagnostics);
   const relations: RelationalRelation[] = [];
   [...model.relationships].sort(compareRelationship).forEach((relationship) => {
     mapRelationship(relationship, model.relationships.indexOf(relationship), tableByClassId, relations, diagnostics);
   });
-  mapInheritance(model, tableByClassId, diagnostics);
   const frozenDiagnostics = diagnostics.sort(compareDiagnostics).map((item) => Object.freeze(item));
   const hasErrors = frozenDiagnostics.some((diagnostic) => diagnostic.severity === "error");
   return Object.freeze({
@@ -62,7 +64,7 @@ export function mapToRelationalModel(model: CanonicalUmlModel): RelationalModel 
   });
 }
 
-function mapClass(clazz: UmlClass, index: number, enumById: Map<string, { name: string; path: string }>, names: Set<string>, diagnostics: RelationalDiagnostic[], associationClass: boolean): MutableTable {
+function mapClass(clazz: UmlClass, index: number, enumById: Map<string, { name: string; path: string }>, names: Set<string>, diagnostics: RelationalDiagnostic[], associationClass: boolean, subclass: boolean): MutableTable {
   const path = `classes[${index}]`;
   const name = snake(clazz.name);
   validateName(clazz.name, path, clazz.id, diagnostics, "Nombre no generable");
@@ -78,11 +80,13 @@ function mapClass(clazz: UmlClass, index: number, enumById: Map<string, { name: 
     columns.unshift({ source: source(clazz.id, path), name: technicalName, type: "BIGINT", nullable: false, identifier: true, generated: true, unique: false, searchable: false, sortable: false });
     identifiers = columns.filter((column) => column.identifier);
   }
-  if (identifiers.length !== 1) addDiagnostic(diagnostics, "error", identifiers.length ? "REL_MULTIPLE_PRIMARY_KEYS" : "REL_NO_PRIMARY_KEY", "Una entidad requiere exactamente un identifier.", path, clazz.id);
+  // A subclass without its own identifier inherits the parent's in mapInheritance, which reports it if that fails.
+  const inheritsKey = subclass && identifiers.length === 0;
+  if (identifiers.length !== 1 && !inheritsKey) addDiagnostic(diagnostics, "error", identifiers.length ? "REL_MULTIPLE_PRIMARY_KEYS" : "REL_NO_PRIMARY_KEY", "Una entidad requiere exactamente un identifier.", path, clazz.id);
   const declaredCrud = clazz.generationMetadata?.crud;
   const crud = declaredCrud === false ? { create: false, read: false, update: false, delete: false } : declaredCrud && typeof declaredCrud === "object" ? { create: declaredCrud.create ?? true, read: declaredCrud.read ?? true, update: declaredCrud.update ?? true, delete: declaredCrud.delete ?? true } : { create: true, read: true, update: true, delete: true };
   const readOnly = clazz.generationMetadata?.readOnly === true;
-  if ((crud.create || crud.update || crud.delete) && identifiers.length !== 1) addDiagnostic(diagnostics, "error", "REL_CRUD_REQUIRES_PRIMARY_KEY", "CRUD requiere exactamente un identifier.", path, clazz.id);
+  if ((crud.create || crud.update || crud.delete) && identifiers.length !== 1 && !inheritsKey) addDiagnostic(diagnostics, "error", "REL_CRUD_REQUIRES_PRIMARY_KEY", "CRUD requiere exactamente un identifier.", path, clazz.id);
   return { source: source(clazz.id, path), name, columns, primaryKey: identifiers.length === 1 ? identifiers[0].name : undefined, uniqueConstraints: columns.filter((column) => column.unique).map((column) => ({ name: `uq_${name}_${column.name}`, columns: [column.name] })), indexes: columns.filter((column) => clazz.attributes.some((attribute) => attribute.id === column.source.elementId && attribute.generationMetadata?.indexed === true)).map((column) => `idx_${name}_${column.name}`), foreignKeys: [], crud, readOnly, resourceName: clazz.generationMetadata?.resourceName ?? name };
 }
 
@@ -194,10 +198,12 @@ function addForeignKey(owner: MutableTable, target: MutableTable, relationship: 
 }
 
 function mapInheritance(model: CanonicalUmlModel, tables: Map<string, MutableTable>, diagnostics: RelationalDiagnostic[]): void {
-  model.relationships.filter((relationship) => relationship.type === "Generalization").sort(compareRelationship).forEach((relationship) => {
+  const generalizations = parentsFirst(model.relationships.filter((relationship) => relationship.type === "Generalization").sort(compareRelationship));
+  generalizations.forEach((relationship) => {
     const child = tables.get(relationship.sourceId);
     const parent = tables.get(relationship.targetId);
     const path = `relationships[${model.relationships.indexOf(relationship)}]`;
+    if (child && parent) inheritPrimaryKey(child, parent, relationship, path);
     const childKey = child && primaryKeyColumn(child);
     const parentKey = parent && primaryKeyColumn(parent);
     if (!child || !parent || !childKey || !parentKey) {
@@ -216,6 +222,35 @@ function mapInheritance(model: CanonicalUmlModel, tables: Map<string, MutableTab
     }
     child.foreignKeys.push({ source: source(relationship.id, path), name: `fk_${child.name}_${parentKey.name}`, column: childKey.name, targetTable: parent.name, targetColumn: parentKey.name, lifecycle: "NONE" });
   });
+  // Subclasses that could not inherit a key (the parent has none, or is not an entity): the checks mapClass deferred.
+  new Set(generalizations.map((relationship) => tables.get(relationship.sourceId))).forEach((child) => {
+    if (!child || child.columns.some((column) => column.identifier)) return;
+    addDiagnostic(diagnostics, "error", "REL_NO_PRIMARY_KEY", "Una entidad requiere exactamente un identifier.", child.source.path, child.source.elementId);
+    if (child.crud.create || child.crud.update || child.crud.delete) addDiagnostic(diagnostics, "error", "REL_CRUD_REQUIRES_PRIMARY_KEY", "CRUD requiere exactamente un identifier.", child.source.path, child.source.elementId);
+  });
+}
+
+// UML subclasses inherit the parent's attributes, so a subclass that declares no identifier gets the parent's key
+// (JOINED: same name and type, not generated, and a foreign key to the parent added by mapInheritance).
+function inheritPrimaryKey(child: MutableTable, parent: MutableTable, relationship: UmlRelationship, path: string): void {
+  const parentKey = primaryKeyColumn(parent);
+  if (!parentKey || child.columns.some((column) => column.identifier || column.name === parentKey.name)) return;
+  child.columns.unshift({ source: source(relationship.id, path), name: parentKey.name, type: parentKey.type, nullable: false, identifier: true, generated: false, unique: false, searchable: false, sortable: false, ...(parentKey.enumName ? { enumName: parentKey.enumName } : {}) });
+  child.primaryKey = parentKey.name;
+}
+
+// Parents before children, so a key inherited down several levels (A <- B <- C) is already in place. A cycle (rejected
+// by the UML validator) falls back to the given order.
+function parentsFirst(relationships: UmlRelationship[]): UmlRelationship[] {
+  const result: UmlRelationship[] = [];
+  let pending = relationships;
+  while (pending.length > 0) {
+    const ready = pending.filter((relationship) => !pending.some((other) => other.sourceId === relationship.targetId));
+    const batch = ready.length > 0 ? ready : [pending[0]!];
+    result.push(...batch);
+    pending = pending.filter((relationship) => !batch.includes(relationship));
+  }
+  return result;
 }
 
 function validateName(original: string, path: string, elementId: string, diagnostics: RelationalDiagnostic[], prefix: string): void {

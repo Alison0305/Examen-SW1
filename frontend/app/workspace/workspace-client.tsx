@@ -56,6 +56,7 @@ import {
 } from "@examen-sw1/uml-core";
 import {
   applyVisualNodeChanges,
+  inheritedKeyLabel,
   toReactFlowEdges,
   toReactFlowNodes,
   type UmlReactFlowNode,
@@ -1213,6 +1214,7 @@ function ClassInspector({ classId }: Readonly<{ classId: string }>) {
     return null;
   }
   const keyStatus = primaryKeyStatus(document.uml, umlClass);
+  const inheritedKey = keyStatus.kind === "inherited" ? inheritedKeyLabel(document, keyStatus.fromClassId, keyStatus.attributeId) : undefined;
 
   return (
     <Stack spacing={2}>
@@ -1251,6 +1253,12 @@ function ClassInspector({ classId }: Readonly<{ classId: string }>) {
         <Alert severity="warning">
           La clase no tiene llave primaria. Marca un atributo con «Hacer PK» o agrega uno llamado id; sin ella no se
           puede generar el código.
+        </Alert>
+      )}
+      {keyStatus.kind === "inherited" && inheritedKey && (
+        <Alert severity="info">
+          Hereda la llave primaria {inheritedKey.attribute} de {inheritedKey.fromClass}. El código generado la comparte con
+          la tabla del padre.
         </Alert>
       )}
       {keyStatus.kind === "multiple" && (
@@ -1317,7 +1325,7 @@ function ClassInspector({ classId }: Readonly<{ classId: string }>) {
                 <Tooltip title="Llave primaria: la usa el generador de código como identificador de la tabla">
                   <Chip size="small" color="primary" label="PK" aria-label={`${attribute.name} es la llave primaria`} />
                 </Tooltip>
-              ) : (
+              ) : keyStatus.kind === "inherited" ? null : (
                 <Button
                   size="small"
                   aria-label={`Marcar ${attribute.name} como llave primaria`}

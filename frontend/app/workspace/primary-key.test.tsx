@@ -96,3 +96,32 @@ describe("elegir la llave primaria", () => {
     expect(screen.getByLabelText("fecha es la llave primaria")).toBeInTheDocument();
   });
 });
+
+describe("llave primaria heredada por generalización", () => {
+  const inheritance = (): UmlFragment => ({
+    classes: [
+      { id: id(1), name: "Persona", visibility: "public", attributes: [{ id: id(10), name: "id", visibility: "private", type: primitiveType("integer") }], operations: [] },
+      { id: id(2), name: "Cliente", visibility: "public", attributes: [{ id: id(20), name: "ruc", visibility: "private", type: primitiveType("string") }], operations: [] },
+    ],
+    enumerations: [],
+    relationships: [{ id: id(9), type: "Generalization", sourceId: id(2), targetId: id(1) }],
+    layout: [{ elementId: id(1), x: 80, y: 80, width: 180, height: 120 }, { elementId: id(2), x: 80, y: 320, width: 180, height: 120 }],
+  });
+
+  it("la hija no muestra aviso y nombra la llave que hereda", () => {
+    expect(useWorkspaceStore.getState().importFragment(inheritance()).success).toBe(true);
+    const cliente = toReactFlowNodes(useWorkspaceStore.getState().document).find((node) => node.id === id(2))!.data;
+    expect(cliente.primaryKeyIssue).toBeUndefined();
+    expect(cliente.inheritedPrimaryKey).toEqual({ attribute: "id", fromClass: "Persona" });
+  });
+
+  it("el inspector de la hija explica la herencia y no ofrece «Hacer PK»", async () => {
+    expect(useWorkspaceStore.getState().importFragment(inheritance()).success).toBe(true);
+    render(<AppProviders><WorkspacePage /></AppProviders>);
+
+    act(() => useWorkspaceStore.getState().selectElement(id(2)));
+    expect(await screen.findByText(/Hereda la llave primaria id de Persona/)).toBeInTheDocument();
+    expect(screen.queryByText(/La clase no tiene llave primaria/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Marcar ruc como llave primaria" })).not.toBeInTheDocument();
+  });
+});

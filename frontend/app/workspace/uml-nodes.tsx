@@ -67,6 +67,15 @@ function UmlClassifierNode({
           );
         })}
       </Stack>
+      {data.kind === "class" && data.inheritedPrimaryKey && (
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          sx={{ display: "block", borderTop: "1px dashed", borderColor: "grey.300", px: 1.25, py: 0.5, fontFamily: "monospace" }}
+        >
+          {`↑ ${data.inheritedPrimaryKey.attribute} {id} de ${data.inheritedPrimaryKey.fromClass}`}
+        </Typography>
+      )}
       {data.kind === "class" && data.primaryKeyIssue && (
         <Typography
           role="note"

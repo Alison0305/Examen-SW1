@@ -188,8 +188,19 @@ describe("buildRelationalFacts: agregación, composición y generalización", ()
     expect(fact.foreignKeys).toEqual([expect.objectContaining({ name: "fk_cliente_vip_id", ownerTable: "cliente_vip", column: "id", references: { table: "cliente", classId: id(CLIENTE), column: "id" }, nullable: false })]);
   });
 
-  it("T-11: una hija sin identificador hace la herencia no derivable sin inventar la FK", () => {
+  it("T-11: una hija sin identificador propio hereda la PK del padre y la herencia es derivable", () => {
+    // UML subclasses inherit the parent's attributes, so the mapper gives the child the parent's key (fix 2026-11-13).
     const input = model([cliente(), klass(CLIENTE_VIP, "ClienteVip", [attribute(501, "descuento")])], [{ id: id(42), type: "Generalization", sourceId: id(CLIENTE_VIP), targetId: id(CLIENTE) }]);
+    const { facts } = analyze(input, { kind: "relationship", id: id(42) });
+
+    expect(relationship(facts, 42)).toMatchObject({ status: "mapped", strategy: "joined-inheritance" });
+    expect(relationship(facts, 42).inheritance).toEqual({ childTable: "cliente_vip", childClassId: id(CLIENTE_VIP), parentTable: "cliente", parentClassId: id(CLIENTE), strategy: "JOINED" });
+    expect(relationship(facts, 42).foreignKeys).toEqual([expect.objectContaining({ ownerTable: "cliente_vip", column: "id", references: { table: "cliente", classId: id(CLIENTE), column: "id" } })]);
+    expect(facts.classes.find((entry) => entry.classId === id(CLIENTE_VIP))).toMatchObject({ status: "mapped", table: "cliente_vip" });
+  });
+
+  it("T-11c: si el padre tampoco tiene identificador, la herencia sigue sin ser derivable y no inventa la FK", () => {
+    const input = model([klass(CLIENTE, "Cliente", [attribute(101, "nombre")]), klass(CLIENTE_VIP, "ClienteVip", [attribute(501, "descuento")])], [{ id: id(42), type: "Generalization", sourceId: id(CLIENTE_VIP), targetId: id(CLIENTE) }]);
     const { facts } = analyze(input, { kind: "relationship", id: id(42) });
 
     expect(relationship(facts, 42)).toMatchObject({ status: "not-derivable", foreignKeys: [] });

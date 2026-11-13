@@ -203,3 +203,51 @@ describe("RelationalMapper", () => {
     expect(mapToRelationalModel(structuredClone(input))).toEqual(result);
   });
 });
+
+describe("RelationalMapper: PK heredada en la generalización", () => {
+  const plain = (id: string, name: string, attributes: CanonicalUmlModel["classes"][number]["attributes"] = []) => ({ id, name, visibility: "public" as const, attributes, operations: [] });
+  const text = (id: string, name: string) => attribute(id, name, { kind: "primitive", name: "string" });
+  const keyOf = (result: ReturnType<typeof mapToRelationalModel>, table: string) => result.tables.find((entry) => entry.name === table)!;
+
+  it("la hija sin identifier propio hereda la PK del padre, con FK al padre y sin errores", () => {
+    const input: CanonicalUmlModel = { packages: [], enumerations: [], classes: [entity(ids.user, "Persona", "integer", [text(ids.status, "nombre")]), plain(ids.profile, "Cliente", [text(ids.product, "ruc")])], relationships: [{ id: ids.relation, type: "Generalization", sourceId: ids.profile, targetId: ids.user }] };
+    const result = mapToRelationalModel(input);
+
+    expect(result.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    const cliente = keyOf(result, "cliente");
+    expect(cliente).toMatchObject({ primaryKey: "id", inheritsFrom: "persona", inheritanceStrategy: "JOINED" });
+    expect(cliente.columns.find((column) => column.name === "id")).toMatchObject({ type: "BIGINT", identifier: true, generated: false, nullable: false, source: { elementId: ids.relation } });
+    expect(cliente.foreignKeys).toEqual([expect.objectContaining({ column: "id", targetTable: "persona", targetColumn: "id" })]);
+    expect(mapToRelationalModel(structuredClone(input))).toEqual(result);
+  });
+
+  it("hereda en varios niveles aunque el orden de las relaciones sea el inverso", () => {
+    const input: CanonicalUmlModel = { packages: [], enumerations: [], classes: [entity(ids.user, "Persona", "string"), plain(ids.profile, "Cliente"), plain(ids.order, "ClienteVip")], relationships: [
+      { id: ids.relation, type: "Generalization", sourceId: ids.order, targetId: ids.profile },
+      { id: ids.relationTwo, type: "Generalization", sourceId: ids.profile, targetId: ids.user },
+    ] };
+    const result = mapToRelationalModel(input);
+
+    expect(result.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(keyOf(result, "cliente_vip")).toMatchObject({ primaryKey: "id", inheritsFrom: "cliente" });
+    expect(keyOf(result, "cliente_vip").columns.find((column) => column.name === "id")?.type).toBe("VARCHAR");
+  });
+
+  it("una asociación hacia la hija usa la PK heredada", () => {
+    const input: CanonicalUmlModel = { packages: [], enumerations: [], classes: [entity(ids.user, "Persona"), plain(ids.profile, "Cliente"), entity(ids.order, "Pedido")], relationships: [
+      { id: ids.relation, type: "Generalization", sourceId: ids.profile, targetId: ids.user },
+      { id: ids.relationTwo, type: "Association", sourceId: ids.order, targetId: ids.profile, sourceMultiplicity: { lower: 0, upper: "unbounded" }, targetMultiplicity: { lower: 1, upper: 1 } },
+    ] };
+    const result = mapToRelationalModel(input);
+
+    expect(result.diagnostics.filter((diagnostic) => diagnostic.severity === "error")).toEqual([]);
+    expect(keyOf(result, "pedido").foreignKeys).toContainEqual(expect.objectContaining({ targetTable: "cliente", targetColumn: "id" }));
+  });
+
+  it("si el padre tampoco tiene PK, informa la falta en ambas clases", () => {
+    const input: CanonicalUmlModel = { packages: [], enumerations: [], classes: [plain(ids.user, "Persona", [text(ids.status, "nombre")]), plain(ids.profile, "Cliente")], relationships: [{ id: ids.relation, type: "Generalization", sourceId: ids.profile, targetId: ids.user }] };
+    const codes = mapToRelationalModel(input).diagnostics.map((diagnostic) => `${diagnostic.code}:${diagnostic.elementId}`);
+
+    expect(codes).toEqual(expect.arrayContaining([`REL_NO_PRIMARY_KEY:${ids.user}`, `REL_NO_PRIMARY_KEY:${ids.profile}`, `REL_INVALID_INHERITANCE:${ids.relation}`]));
+  });
+});

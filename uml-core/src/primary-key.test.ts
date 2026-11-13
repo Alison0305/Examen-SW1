@@ -63,3 +63,24 @@ describe("SetAttributeIdentifiers", () => {
     expect(bus.document).toEqual(document);
   });
 });
+
+describe("primaryKeyStatus con generalización", () => {
+  const generalization = (n: number, child: number, parent: number) => ({ id: id(n), type: "Generalization" as const, sourceId: id(child), targetId: id(parent) });
+  const persona = umlClass([attribute(10, "id"), attribute(11, "nombre")], { id: id(1), name: "Persona" });
+  const cliente = umlClass([attribute(20, "ruc")], { id: id(2), name: "Cliente" });
+  const vip = umlClass([], { id: id(3), name: "ClienteVip" });
+
+  it("la hija sin llave propia hereda la del padre, también a través de varios niveles", () => {
+    const model = { classes: [persona, cliente, vip], relationships: [generalization(8, 3, 2), generalization(9, 2, 1)] };
+    expect(primaryKeyStatus(model, cliente)).toEqual({ kind: "inherited", attributeId: id(10), fromClassId: id(1) });
+    expect(primaryKeyStatus(model, vip)).toEqual({ kind: "inherited", attributeId: id(10), fromClassId: id(1) });
+  });
+
+  it("sigue faltando si ningún ancestro tiene llave, y no se cuelga con ciclos", () => {
+    const sinLlave = umlClass([attribute(11, "nombre")], { id: id(1), name: "Persona" });
+    expect(primaryKeyStatus({ classes: [sinLlave, cliente], relationships: [generalization(9, 2, 1)] }, cliente)).toEqual({ kind: "missing" });
+    const a = umlClass([], { id: id(4), name: "A" });
+    const b = umlClass([], { id: id(5), name: "B" });
+    expect(primaryKeyStatus({ classes: [a, b], relationships: [generalization(6, 4, 5), generalization(7, 5, 4)] }, a)).toEqual({ kind: "missing" });
+  });
+});

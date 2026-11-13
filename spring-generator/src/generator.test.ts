@@ -317,6 +317,9 @@ describe("SpringBackendGenerator", () => {
     expect(perfil).toContain("extends Usuario");
     expect(perfil).toContain('@PrimaryKeyJoinColumn(name = "id")');
     expect(perfil).not.toContain("@Id");
+    // JOINED is declared on the hierarchy root, the only place JPA reads it.
+    expect(usuario).toContain("@Inheritance(strategy = InheritanceType.JOINED)");
+    expect(perfil).not.toContain("@Inheritance");
     expect(files.some((file) => file.path.endsWith("UsuarioProductoFavoritos.java"))).toBe(false);
     const usuarioResponse = files.find((file) => file.path.endsWith("dto/UsuarioResponse.java"))!.content;
     const pedidoResponse = files.find((file) => file.path.endsWith("dto/PedidoResponse.java"))!.content;

@@ -220,7 +220,10 @@ function entityView(table: RelationalTable, model: RelationalModel, basePackage:
   const inverse = inverseFields(table, model);
   const imports = new Set(["jakarta.persistence.Column", "jakarta.persistence.Entity", "jakarta.persistence.Id", "jakarta.persistence.Table"]);
   if (table.uniqueConstraints.length) imports.add("jakarta.persistence.UniqueConstraint");
-  if (table.inheritanceStrategy === "JOINED") { imports.add("jakarta.persistence.Inheritance"); imports.add("jakarta.persistence.InheritanceType"); }
+  // JPA reads @Inheritance only on the root of a hierarchy; without it the root defaults to SINGLE_TABLE and the
+  // subclasses' own tables (and their inherited key) are ignored.
+  const joinedRoot = !table.inheritsFrom && model.tables.some((other) => other.inheritsFrom === table.name && other.inheritanceStrategy === "JOINED");
+  if (joinedRoot) { imports.add("jakarta.persistence.Inheritance"); imports.add("jakarta.persistence.InheritanceType"); }
   if (table.inheritsFrom) { imports.add(`${basePackage}.entities.${pascal(table.inheritsFrom)}`); imports.add("jakarta.persistence.PrimaryKeyJoinColumn"); }
   for (const field of [...fields, ...inverse]) for (const item of field.imports) imports.add(item.startsWith("java.") || item.startsWith("jakarta.") ? item : `${basePackage}.entities.${item}`);
   for (const column of table.columns) {
@@ -231,7 +234,7 @@ function entityView(table: RelationalTable, model: RelationalModel, basePackage:
       imports.add("jakarta.persistence.EnumType");
     }
   }
-  return { basePackage, className: pascal(table.name), tableName: table.name, tableAnnotation: table.uniqueConstraints.length ? `@Table(name = "${table.name}", uniqueConstraints = {${table.uniqueConstraints.map((constraint) => `@UniqueConstraint(columnNames = {${constraint.columns.map((column) => `"${column}"`).join(", ")}})`).join(", ")}})` : `@Table(name = "${table.name}")`, extendsName: table.inheritsFrom ? pascal(table.inheritsFrom) : undefined, inheritance: table.inheritanceStrategy === "JOINED", joinedChild: Boolean(table.inheritsFrom), primaryKeyColumn: table.primaryKey, fields: [...fields, ...inverse].sort((a, b) => binary(a.fieldName, b.fieldName)), imports: [...imports].sort(binary) };
+  return { basePackage, className: pascal(table.name), tableName: table.name, tableAnnotation: table.uniqueConstraints.length ? `@Table(name = "${table.name}", uniqueConstraints = {${table.uniqueConstraints.map((constraint) => `@UniqueConstraint(columnNames = {${constraint.columns.map((column) => `"${column}"`).join(", ")}})`).join(", ")}})` : `@Table(name = "${table.name}")`, extendsName: table.inheritsFrom ? pascal(table.inheritsFrom) : undefined, inheritance: joinedRoot, joinedChild: Boolean(table.inheritsFrom), primaryKeyColumn: table.primaryKey, fields: [...fields, ...inverse].sort((a, b) => binary(a.fieldName, b.fieldName)), imports: [...imports].sort(binary) };
 }
 
 function columnField(table: RelationalTable, column: RelationalColumn, relations: readonly RelationalRelation[]) {
