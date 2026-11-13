@@ -299,7 +299,7 @@ describe("SpringBackendGenerator", () => {
       tables: [
         { source, name: "usuario", primaryKey: "id", columns: [{ source, name: "id", type: "BIGINT", nullable: false, identifier: true, unique: false }], uniqueConstraints: [], indexes: [], foreignKeys: [] },
         { source, name: "pedido", primaryKey: "id", columns: [{ source, name: "id", type: "BIGINT", nullable: false, identifier: true, unique: false }, { source, name: "usuario_id", type: "BIGINT", nullable: false, identifier: false, unique: false }], uniqueConstraints: [], indexes: [], foreignKeys: [{ source, name: "fk_pedido_usuario_id", column: "usuario_id", targetTable: "usuario", targetColumn: "id", lifecycle: "NONE" }] },
-        { source, name: "perfil", primaryKey: "id", columns: [{ source, name: "id", type: "BIGINT", nullable: false, identifier: true, unique: false }], uniqueConstraints: [], indexes: [], foreignKeys: [], inheritsFrom: "usuario", inheritanceStrategy: "JOINED" },
+        { source, name: "perfil", primaryKey: "id", columns: [{ source, name: "id", type: "BIGINT", nullable: false, identifier: true, unique: false }], uniqueConstraints: [], indexes: [], foreignKeys: [{ source, name: "fk_perfil_id", column: "id", targetTable: "usuario", targetColumn: "id", lifecycle: "NONE" }], inheritsFrom: "usuario", inheritanceStrategy: "JOINED" },
         { source, name: "usuario_producto_favoritos", columns: [{ source, name: "usuario_id", type: "BIGINT", nullable: false, identifier: false, unique: false }, { source, name: "producto_id", type: "BIGINT", nullable: false, identifier: false, unique: false }], uniqueConstraints: [], indexes: [], foreignKeys: [{ source, name: "fk_join_usuario", column: "usuario_id", targetTable: "usuario", targetColumn: "id", lifecycle: "NONE" }, { source, name: "fk_join_producto", column: "producto_id", targetTable: "producto", targetColumn: "id", lifecycle: "NONE" }] },
         { source, name: "producto", primaryKey: "id", columns: [{ source, name: "id", type: "BIGINT", nullable: false, identifier: true, unique: false }], uniqueConstraints: [], indexes: [], foreignKeys: [] },
       ], enums: [], relations: [
@@ -321,6 +321,11 @@ describe("SpringBackendGenerator", () => {
     const usuarioResponse = files.find((file) => file.path.endsWith("dto/UsuarioResponse.java"))!.content;
     const pedidoResponse = files.find((file) => file.path.endsWith("dto/PedidoResponse.java"))!.content;
     const mapper = files.find((file) => file.path.endsWith("dto/ResponseMapper.java"))!.content;
+    const perfilResponse = files.find((file) => file.path.endsWith("dto/PerfilResponse.java"))!.content;
+    const perfilService = files.find((file) => file.path.endsWith("services/PerfilService.java"))!.content;
+    expect(perfilResponse).toContain("Long id");
+    expect(perfilService).not.toContain("UsuarioRepository");
+    expect(perfilService).not.toContain("ResponseMapper.usuario(entity.getId())");
     expect(pedidoResponse).toContain("Long usuarioId");
     expect(usuarioResponse).toContain("Set<Long> pedidoIds");
     expect(usuarioResponse).toContain("Set<Long> productoIdsUsuarioProductoFavoritos");

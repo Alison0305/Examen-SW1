@@ -84,7 +84,13 @@ function apiView(table: RelationalTable, model: RelationalModel, basePackage: st
   const sortable = table.columns.filter((column) => column.sortable).map((column) => camel(column.name));
   const defaultColumn = table.columns.find((column) => column.defaultSort);
   const fields = table.columns.map((column) => {
-    const foreignKey = table.foreignKeys.find((item) => item.column === column.name);
+    const candidateForeignKey = table.foreignKeys.find((item) => item.column === column.name);
+    const inheritanceForeignKey =
+      Boolean(table.inheritsFrom) &&
+      column.identifier &&
+      candidateForeignKey?.targetTable === table.inheritsFrom &&
+      candidateForeignKey?.targetColumn === column.name;
+    const foreignKey = inheritanceForeignKey ? undefined : candidateForeignKey;
     return { name: camel(column.name), accessor: pascal(column.name), javaType: foreignKey ? javaTypeForForeignKey(foreignKey, table) : column.enumName ? pascal(column.enumName) : javaType(column), entityType: foreignKey ? pascal(foreignKey.targetTable) : undefined, repositoryType: foreignKey ? `${pascal(foreignKey.targetTable)}Repository` : undefined, repositoryVariable: foreignKey ? `${camel(foreignKey.targetTable)}Repository` : undefined, enumLiteral: column.enumName ? model.enums.find((item) => item.name === column.enumName)?.literals[0] : undefined, required: !column.nullable, identifier: column.identifier, generated: column.generated === true, relation: Boolean(foreignKey), stringField: column.type === "VARCHAR", searchable: column.searchable === true && column.type === "VARCHAR", sortable: column.sortable === true, queryPath: foreignKey ? `${camel(column.name)}.${camel(foreignKey.targetColumn)}` : camel(column.name), mapping: foreignKey ? `entity.get${pascal(column.name)}() == null ? null : entity.get${pascal(column.name)}().get${pascal(foreignKey.targetColumn)}()` : `entity.get${pascal(column.name)}()`, navigation: foreignKey ? `entity.get${pascal(column.name)}() == null ? null : ResponseMapper.${camel(foreignKey.targetTable)}(entity.get${pascal(column.name)}())` : undefined, navigationName: foreignKey ? camel(column.name) : undefined };
   });
   const dtoImports = new Set<string>();
