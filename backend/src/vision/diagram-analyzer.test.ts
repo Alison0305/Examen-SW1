@@ -194,6 +194,49 @@ describe("regiones cerradas sin texto", () => {
   });
 });
 
+// Incremento 2, problema 1: filled headers with white names (real captures 223837 in blue and 224343 in green).
+describe("cabeceras con relleno de color", () => {
+  it.each([["azul", "#4472C4"], ["verde", "#7CB342"], ["gris oscuro", "#404040"]])("reconoce el nombre de una cabecera rellena %s y sus atributos", async (_color, fill) => {
+    const proposal = await analyze({
+      width: 820, height: 340,
+      classes: [
+        { name: "Lector", x: 40, y: 60, headerFill: fill, attributes: ["- nombre : String", "- telefono : String"], operations: ["+ reservar() : void"] },
+        { name: "Pedido", x: 560, y: 60, attributes: ["- fecha : Date"] },
+      ],
+      connectors: [{ from: "Lector", to: "Pedido", fromLabel: "1", toLabel: "0..*" }],
+    });
+
+    expect(proposal.classes).toEqual([
+      { key: "C1", name: "Lector", attributes: [
+        { key: "C1.A1", name: "nombre", type: "String", visibility: "private" },
+        { key: "C1.A2", name: "telefono", type: "String", visibility: "private" },
+      ] },
+      { key: "C2", name: "Pedido", attributes: [{ key: "C2.A1", name: "fecha", type: "Date", visibility: "private" }] },
+    ]);
+    expect(proposal.relationships).toEqual([{ key: "R1", type: "Association", source: "C1", target: "C2", sourceMultiplicity: { lower: 1, upper: 1 }, targetMultiplicity: { lower: 0, upper: "unbounded" } }]);
+    expect(codes(proposal)).toEqual(["IMAGE_OPERATIONS_OMITTED"]);
+  });
+
+  it("varias clases con cabecera rellena unidas por herencia y composición", async () => {
+    const proposal = await analyze({
+      width: 1000, height: 440,
+      classes: [
+        { name: "Persona", x: 390, y: 30, headerFill: "#4472C4", attributes: ["- nombre : String"] },
+        { name: "Empleado", x: 390, y: 270, headerFill: "#4472C4", attributes: ["- sueldo : double"] },
+        { name: "Empresa", x: 40, y: 270, headerFill: "#4472C4", attributes: ["- ruc : String"] },
+      ],
+      connectors: [
+        { from: "Empleado", to: "Persona", toMarker: "triangle" },
+        { from: "Empresa", to: "Empleado", fromMarker: "filledDiamond" },
+      ],
+    });
+
+    const name = (key: string) => proposal.classes.find((candidate) => candidate.key === key)?.name;
+    expect(proposal.classes.map((entry) => entry.name).sort()).toEqual(["Empleado", "Empresa", "Persona"]);
+    expect(proposal.relationships.map((entry) => `${entry.type}:${name(entry.source)}->${name(entry.target)}`).sort()).toEqual(["Composition:Empresa->Empleado", "Generalization:Empleado->Persona"]);
+  });
+});
+
 describe("parseMultiplicityText", () => {
   it.each([
     ["1", { lower: 1, upper: 1 }],

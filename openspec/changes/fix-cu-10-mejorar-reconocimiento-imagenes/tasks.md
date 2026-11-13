@@ -48,7 +48,26 @@
 
 ## 3. Incremento 2: cabeceras rellenas, líneas discontinuas y texto sobre conectores
 
-- [ ] 3.1 Binarización que admita cabeceras con relleno de color y texto claro.
+- [x] 3.1 Binarización que admita cabeceras con relleno de color y texto claro.
+
+  **Diagnóstico.** Se generaron máscaras de lo que ve el analizador para las 4 capturas antiguas con 0 clases. Hay dos tipos de fallo:
+  - **A. Cabecera rellena** (`223837` azul, `224343` verde). La cabecera se binariza como un bloque de tinta, el nombre queda fuera de la caja y la clase toma su primer atributo como nombre.
+  - **B. Texto diminuto** (`224138`, `224226` de 430×330 px, `224513`). El OCR lee basura, por ejemplo «dolce» o «dolcos» en 64 líneas, aunque las cajas se detectan. Es un límite del OCR de Florence-2 (trabaja a unos 768 px), no del analizador, y queda fuera de este correctivo.
+
+  **Solución para A.** Si encima del primer compartimento hay una banda de al menos 12 px con mayoría de tinta en todo el ancho de la caja, que termina en fondo y no se sale por los lados, se añade como compartimento de cabecera. Su texto pasa a ser el nombre de la clase y su tinta queda dentro de la caja, de modo que deja de trazarse como conector. Para las pruebas, el generador sintético admite `headerFill`. Hay 4 tests nuevos (cabeceras azul, verde y gris oscuro, y un diagrama con herencia y composición), y desactivar la detección los hace fallar.
+
+  **Medición** (reportes `vlm-inc2-cabeceras-19-…` y `vlm-inc2-cabeceras-independiente-…`):
+
+  | Con tolerancia | Incremento 1 | Problema 1 resuelto |
+  |---|---|---|
+  | 19 capturas: clases P / R | 0,5287 / 0,5764 | **0,5732 / 0,6250** |
+  | 19 capturas: atributos R | 0,1322 | **0,1538** |
+  | 19 capturas: relaciones P / R | 0,2747 / 0,1678 | 0,2796 / 0,1745 |
+  | 11 independientes | sin cambios | sin cambios (el lote no tiene cabeceras rellenas) |
+
+  - **Por captura:** `223837` pasa de 0 a 5 de 7 clases bien nombradas (de 0 a 7 atributos) y `224343` de 0 a 2 de 9. Ninguna otra captura cambió. Benchmark sintético sin cambios.
+  - **Alternativa medida y descartada:** la misma detección sobre la imagen en grises, en lugar de la máscara de tinta, no recuperó las cabeceras verdes (el OCR también lee mal su texto blanco) y bajó la cobertura de clases a 0,6181, así que se mantuvo la máscara de tinta.
+  - **Limitaciones:** las cabeceras de color medio con texto blanco que el OCR lee mal, y el tipo B.
 - [ ] 3.2 Unión de trazos de líneas discontinuas.
 - [ ] 3.3 Máscara de las cajas del OCR antes de trazar conectores.
 - [ ] 3.4 Pruebas y medición con el benchmark.

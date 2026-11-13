@@ -34,6 +34,13 @@ const MIN_MARKER_HOLE_AREA = 10;
 // Triangles and diamonds fill about half of their bounding box; letter holes ("o", "0") fill about 0.78.
 const MAX_MARKER_HOLE_FILL = 0.68;
 const MAX_UNASSIGNED_TEXT_REPORTED = 10;
+// Filled header: a band above the first compartment, mostly ink, taller than any border, ending in background.
+const MIN_FILLED_HEADER_HEIGHT = 12;
+const MAX_FILLED_HEADER_HEIGHT = 120;
+const FILLED_HEADER_MEAN_INK = 0.55;
+const CLEAR_ROW_INK = 0.2;
+const CLEAR_ROWS_TO_END = 3;
+const MAX_SIDE_INK = 0.5;
 
 const VISIBILITY: Readonly<Record<string, UmlVisibility>> = { "+": "public", "-": "private", "#": "protected", "~": "package" };
 const IDENTIFIER = /^[\p{L}_][\p{L}\p{N}_]*$/u;
@@ -56,7 +63,7 @@ export function analyzeDiagram(image: GrayImage, lines: readonly OcrLine[]): Uml
   const ink = binarize(image);
   const closed = dilate(ink, image.width, image.height);
   const { outer, holeLabels, holes } = labelBackground(closed, image.width, image.height);
-  const detected = detectClasses(holes, ink, image.width, image.height);
+  const detected = detectClasses(holes, ink, image);
   const stroke = median(borderDepths(detected)) || 2;
   const headRadius = Math.min(40, Math.max(16, Math.round(Math.max(image.width, image.height) * 0.03)));
 
@@ -254,7 +261,8 @@ function contains(container: Box, content: Box): boolean {
   return container.left < content.left && container.right > content.right && container.top < content.top && container.bottom > content.bottom;
 }
 
-function detectClasses(holes: readonly Hole[], ink: Uint8Array, imageWidth: number, imageHeight: number): DetectedClass[] {
+function detectClasses(holes: readonly Hole[], ink: Uint8Array, image: GrayImage): DetectedClass[] {
+  const { width: imageWidth, height: imageHeight } = image;
   const candidates = holes.filter(isCompartment).map((hole) => hole.box);
   // Frames and packages enclose other compartments; they are not classes.
   const compartments = candidates.filter((box) => !candidates.some((other) => other !== box && contains(box, other))).sort((left, right) => left.top - right.top || left.left - right.left);
@@ -273,9 +281,59 @@ function detectClasses(holes: readonly Hole[], ink: Uint8Array, imageWidth: numb
   return [...groups.values()]
     .map((group) => {
       const innerBox = group.reduce<MutableBox>((union, box) => ({ left: Math.min(union.left, box.left), top: Math.min(union.top, box.top), right: Math.max(union.right, box.right), bottom: Math.max(union.bottom, box.bottom) }), { ...group[0]! });
-      return { outer: expandToBorder(ink, imageWidth, imageHeight, innerBox), compartments: group };
+      // A filled header becomes the class's first compartment, so its text is the name and its ink is inside the box.
+      const header = filledHeaderAbove(ink, imageWidth, imageHeight, innerBox);
+      const bounds = header ? { ...innerBox, top: header.top } : innerBox;
+      return { outer: expandToBorder(ink, imageWidth, imageHeight, bounds), compartments: header ? [header, ...group] : group };
     })
     .sort((left, right) => left.outer.top - right.outer.top || left.outer.left - right.outer.left);
+}
+
+// Filled headers (Enterprise Architect, draw.io, Creately…): a colored band with light text binarizes as a solid ink
+// block, so it is not a background compartment and the class would lose its name. Walking up from the first
+// compartment, the band is the run of rows with ink across the box (the light letters only lower the fraction) until
+// a few clear rows of background. It must be taller than any border, mostly ink, and must not extend beyond the
+// box's sides (a dark area larger than the class is not its header).
+// Measured alternative (2026-11-13): the same test on the grayscale image instead of the ink mask did not recover the
+// green headers of capture 224343 (its OCR also misreads them) and lowered class coverage slightly, so the ink mask
+// is kept.
+function filledHeaderAbove(ink: Uint8Array, imageWidth: number, imageHeight: number, inner: Box): MutableBox | undefined {
+  const filled = (index: number) => ink[index]!;
+  const rowFraction = (y: number) => {
+    let count = 0;
+    for (let x = inner.left; x <= inner.right; x += 1) count += filled(y * imageWidth + x);
+    return count / width(inner);
+  };
+  const limit = Math.max(0, inner.top - MAX_FILLED_HEADER_HEIGHT);
+  let top = inner.top;
+  let clear = 0;
+  let ended = false;
+  for (let y = inner.top - 1; y >= limit; y -= 1) {
+    if (rowFraction(y) < CLEAR_ROW_INK) {
+      clear += 1;
+      if (clear >= CLEAR_ROWS_TO_END) {
+        ended = true;
+        break;
+      }
+    } else {
+      clear = 0;
+      top = y;
+    }
+  }
+  const bandHeight = inner.top - top;
+  if (!ended || bandHeight < MIN_FILLED_HEADER_HEIGHT) return undefined;
+  let total = 0;
+  for (let y = top; y < inner.top; y += 1) total += rowFraction(y);
+  if (total / bandHeight < FILLED_HEADER_MEAN_INK) return undefined;
+  const sideFraction = (x: number) => {
+    if (x < 0 || x >= imageWidth) return 0;
+    let count = 0;
+    for (let y = top; y < inner.top; y += 1) count += filled(y * imageWidth + x);
+    return count / bandHeight;
+  };
+  const margin = MAX_BORDER_DEPTH + 2;
+  if (sideFraction(inner.left - margin) > MAX_SIDE_INK || sideFraction(inner.right + margin) > MAX_SIDE_INK) return undefined;
+  return { left: inner.left, top, right: inner.right, bottom: Math.min(imageHeight - 1, inner.top - 1) };
 }
 
 // Walks outward from the interior until the border stroke ends, so the box includes its own lines.
