@@ -129,6 +129,71 @@ describe("analyzeDiagram", () => {
   });
 });
 
+// fix-cu-10-mejorar-reconocimiento-imagenes, incremento 1: causes measured with the 19 real captures of CU-10.
+describe("atributos sin tipo o con espacios", () => {
+  const withBody = (texts: readonly string[]) => analyze(
+    { width: 700, height: 320, classes: [{ name: "Lector", x: 40, y: 40, attributes: texts.map((_, index) => `- placeholder${index} : int`) }] },
+    (lines) => lines.map((line) => { const match = /^- placeholder(\d+) : int$/.exec(line.text); return match ? { ...line, text: texts[Number(match[1])]! } : line; }),
+  );
+
+  it("acepta dos puntos sin tipo y propone String con diagnóstico", async () => {
+    const proposal = await withBody(["-Nombre:"]);
+    expect(proposal.classes[0]!.attributes).toEqual([{ key: "C1.A1", name: "Nombre", type: "String", visibility: "private" }]);
+    expect(codes(proposal)).toEqual(["IMAGE_ATTRIBUTE_WITHOUT_TYPE"]);
+  });
+
+  it("une un nombre de varias palabras seguido de dos puntos y lo informa", async () => {
+    const proposal = await withBody(["-ID del usuario: int", "+ Fecha de nacimiento :"]);
+    expect(proposal.classes[0]!.attributes).toEqual([
+      { key: "C1.A1", name: "IDDelUsuario", type: "int", visibility: "private" },
+      { key: "C1.A2", name: "FechaDeNacimiento", type: "String", visibility: "public" },
+    ]);
+    expect(codes(proposal)).toEqual(["IMAGE_ATTRIBUTE_NAME_JOINED", "IMAGE_ATTRIBUTE_NAME_JOINED", "IMAGE_ATTRIBUTE_WITHOUT_TYPE"]);
+  });
+
+  it("sin dos puntos solo acepta una palabra: varias palabras sueltas no se convierten en atributo", async () => {
+    const proposal = await withBody(["- telefono", "datos de contacto"]);
+    expect(proposal.classes[0]!.attributes).toEqual([{ key: "C1.A1", name: "telefono", type: "String", visibility: "private" }]);
+    expect(codes(proposal)).toEqual(["IMAGE_ATTRIBUTE_WITHOUT_TYPE", "IMAGE_UNREADABLE_TEXT"]);
+  });
+
+  it("sigue omitiendo las operaciones, también con nombre y tipo", async () => {
+    const proposal = await withBody(["- total : float", "+calcularTotal(): float"]);
+    expect(proposal.classes[0]!.attributes).toEqual([{ key: "C1.A1", name: "total", type: "float", visibility: "private" }]);
+    expect(codes(proposal)).toEqual(["IMAGE_OPERATIONS_OMITTED"]);
+  });
+});
+
+describe("regiones cerradas sin texto", () => {
+  async function withShapes(shapes: string) {
+    const { svg, lines } = renderSyntheticDiagram({
+      width: 900, height: 420,
+      classes: [
+        { name: "Cliente", x: 40, y: 40, attributes: ["- nombre : String"] },
+        { name: "Pedido", x: 600, y: 40, attributes: ["- fecha : Date"] },
+      ],
+      connectors: [{ from: "Cliente", to: "Pedido" }],
+    });
+    const png = await sharp(Buffer.from(svg.replace("</svg>", `${shapes}</svg>`))).png().toBuffer();
+    return analyzeDiagram(await preprocessImage(png, LIMITS), lines);
+  }
+  // Two empty cells, like a background grid or an unlabeled frame.
+  const cells = `<rect x="80" y="300" width="160" height="80" fill="none" stroke="#000" stroke-width="2"/><rect x="600" y="300" width="160" height="80" fill="none" stroke="#000" stroke-width="2"/>`;
+
+  it("no las propone como clases y lo informa con el número descartado", async () => {
+    const proposal = await withShapes(cells);
+    expect(proposal.classes.map((entry) => [entry.key, entry.name])).toEqual([["C1", "Cliente"], ["C2", "Pedido"]]);
+    expect(proposal.relationships).toEqual([{ key: "R1", type: "Association", source: "C1", target: "C2" }]);
+    expect(proposal.diagnostics).toEqual([expect.objectContaining({ code: "IMAGE_EMPTY_REGIONS_DISCARDED", message: expect.stringContaining("2 región") })]);
+  });
+
+  it("una línea entre una clase y una región sin texto no es una relación", async () => {
+    const proposal = await withShapes(`${cells}<line x1="160" y1="300" x2="160" y2="160" stroke="#000" stroke-width="2"/>`);
+    expect(proposal.relationships.map((entry) => `${entry.source}->${entry.target}`)).toEqual(["C1->C2"]);
+    expect(codes(proposal)).not.toContain("IMAGE_CONNECTOR_WITHOUT_END");
+  });
+});
+
 describe("parseMultiplicityText", () => {
   it.each([
     ["1", { lower: 1, upper: 1 }],

@@ -37,7 +37,11 @@ const MAX_UNASSIGNED_TEXT_REPORTED = 10;
 
 const VISIBILITY: Readonly<Record<string, UmlVisibility>> = { "+": "public", "-": "private", "#": "protected", "~": "package" };
 const IDENTIFIER = /^[\p{L}_][\p{L}\p{N}_]*$/u;
-const ATTRIBUTE = /^([+\-#~])?\s*([\p{L}_][\p{L}\p{N}_]*)\s*(?::\s*([\p{L}_][\p{L}\p{N}_<>.,]*)\s*(\[[^\]]*\])?)?\s*(?:=.*)?$/u;
+// "visibility name: Type [multiplicity] = default". With a colon the name may have several words ("ID del usuario")
+// and the type may be missing ("-Nombre:"); without a colon only a single word is an attribute, as before, so loose
+// text in the body is not turned into attributes.
+const TYPED_ATTRIBUTE = /^([+\-#~])?\s*([\p{L}_][\p{L}\p{N}_]*(?:\s+[\p{L}\p{N}_]+){0,4})\s*:\s*(?:([\p{L}_][\p{L}\p{N}_<>.,]*)\s*(\[[^\]]*\])?)?\s*(?:=.*)?$/u;
+const UNTYPED_ATTRIBUTE = /^([+\-#~])?\s*([\p{L}_][\p{L}\p{N}_]*)\s*(?:=.*)?$/u;
 const STEREOTYPE = /^\s*(?:«|<<|<)\s*([\p{L}_ ]+?)\s*(?:»|>>|>)\s*$/u;
 
 const width = (box: Box) => box.right - box.left + 1;
@@ -65,20 +69,33 @@ export function analyzeDiagram(image: GrayImage, lines: readonly OcrLine[]): Uml
     else freeTexts.push(line);
   }
 
+  // A closed region without any OCR text is background (fills, shadows, grid cells), not a class. It stays in
+  // `detected` as geometry, so its borders are not traced as connectors, but it is neither proposed as a class nor
+  // used as a relationship end. Keys stay consecutive among the proposed classes.
   const classes: ImportClass[] = [];
   const enumerations: ImportEnumeration[] = [];
-  const keyByIndex: string[] = [];
+  const keyByIndex: Array<string | undefined> = [];
+  let discardedRegions = 0;
   detected.forEach((entry, index) => {
-    const parsed = parseClassText(entry, textsByClass[index]!, `C${index + 1}`, diagnostics);
+    if (textsByClass[index]!.length === 0) {
+      keyByIndex.push(undefined);
+      discardedRegions += 1;
+      return;
+    }
+    const parsed = parseClassText(entry, textsByClass[index]!, `C${classes.length + enumerations.length + 1}`, diagnostics);
     keyByIndex.push(parsed.key);
     if (parsed.kind === "class") classes.push(parsed.value);
     else enumerations.push(parsed.value);
   });
+  if (discardedRegions > 0) diagnostics.push({ severity: "info", code: "IMAGE_EMPTY_REGIONS_DISCARDED", message: `Se descartaron ${discardedRegions} región(es) cerrada(s) sin texto: no se proponen como clases.` });
 
   const connectors = traceConnectors({ image, ink, closed, outer, holeLabels, holes, detected, stroke, headRadius });
   const relationships: ImportRelationship[] = [];
   const multiplicityEnds: Array<{ relationship: ImportRelationship; end: ConnectorEnd; field: "sourceMultiplicity" | "targetMultiplicity" }> = [];
-  for (const connector of connectors) {
+  for (const traced of connectors) {
+    // Ends on discarded regions are dropped: a line between a class and a background cell is not a relationship.
+    const connector = { ...traced, ends: traced.ends.filter((end) => keyByIndex[end.classIndex] !== undefined) };
+    if (connector.ends.length < traced.ends.length && connector.ends.length < 2) continue;
     if (connector.ends.length < 2) {
       // Components touching no class are free text or drawings; only a line leaving a class is a dangling connector.
       if (connector.ends.length === 1 && connector.span >= MIN_DANGLING_SPAN) diagnostics.push({ severity: "warning", code: "IMAGE_CONNECTOR_WITHOUT_END", message: "Se detectó un conector cuyo extremo no toca ninguna clase reconocida; no se propone la relación." });
@@ -324,6 +341,11 @@ function sanitizeName(text: string): string {
   return text.normalize("NFC").replace(/[^\p{L}\p{N}_]/gu, "");
 }
 
+// "ID del usuario" → "IDDelUsuario": the words are kept as written, joined, each later word capitalized.
+function joinWords(text: string): string {
+  return text.trim().split(/\s+/u).map((word, index) => (index === 0 ? word : word.charAt(0).toUpperCase() + word.slice(1))).join("");
+}
+
 function parseClassText(entry: DetectedClass, lines: readonly OcrLine[], key: string, diagnostics: ImportDiagnostic[]): ParsedClass {
   const single = entry.compartments.length === 1;
   const header: OcrLine[] = [];
@@ -366,16 +388,18 @@ function parseClassText(entry: DetectedClass, lines: readonly OcrLine[], key: st
       omittedOperations += 1;
       continue;
     }
-    const match = ATTRIBUTE.exec(text);
+    const match = TYPED_ATTRIBUTE.exec(text) ?? UNTYPED_ATTRIBUTE.exec(text);
     if (!match) {
       diagnostics.push({ severity: "warning", code: "IMAGE_UNREADABLE_TEXT", message: `No se pudo leer el atributo "${text}" de ${name}.`, key });
       continue;
     }
     const attributeKey = `${key}.A${attributes.length + 1}`;
-    const [, visibility, attributeName, type, multiplicityText] = match;
+    const [, visibility, writtenName, type, multiplicityText] = match;
+    const attributeName = joinWords(writtenName!);
+    if (attributeName !== writtenName) diagnostics.push({ severity: "info", code: "IMAGE_ATTRIBUTE_NAME_JOINED", message: `El atributo "${writtenName}" de ${name} se propone como "${attributeName}".`, key: attributeKey });
     if (!type) diagnostics.push({ severity: "warning", code: "IMAGE_ATTRIBUTE_WITHOUT_TYPE", message: `El atributo "${attributeName}" de ${name} no tiene tipo legible; se propone String.`, key: attributeKey });
     const multiplicity = multiplicityText ? parseMultiplicityText(multiplicityText.slice(1, -1)) : undefined;
-    attributes.push({ key: attributeKey, name: attributeName!, type: type ?? "String", ...(visibility ? { visibility: VISIBILITY[visibility] } : {}), ...(multiplicity ? { multiplicity } : {}) });
+    attributes.push({ key: attributeKey, name: attributeName, type: type ?? "String", ...(visibility ? { visibility: VISIBILITY[visibility] } : {}), ...(multiplicity ? { multiplicity } : {}) });
   }
   if (omittedOperations > 0) diagnostics.push({ severity: "info", code: "IMAGE_OPERATIONS_OMITTED", message: `Se omitieron ${omittedOperations} operación(es) de ${name}; solo se importan atributos.`, key });
   return { key, kind: "class", value: { key, name, attributes } };
@@ -563,7 +587,8 @@ const MARKER_TYPE: Readonly<Record<Exclude<EndMarker, "none">, UmlRelationshipTy
 type BuiltRelationship = { relationship: ImportRelationship; sourceEnd: ConnectorEnd; targetEnd: ConnectorEnd };
 
 // Generalization: source = child, target = parent (triangle end). Aggregation/Composition: source = whole (diamond end).
-function buildRelationships(ends: readonly ConnectorEnd[], keyByIndex: readonly string[], offset: number, diagnostics: ImportDiagnostic[]): BuiltRelationship[] {
+// `ends` only contains ends on proposed classes, so every keyByIndex lookup here is defined.
+function buildRelationships(ends: readonly ConnectorEnd[], keyByIndex: ReadonlyArray<string | undefined>, offset: number, diagnostics: ImportDiagnostic[]): BuiltRelationship[] {
   const marked = ends.filter((end) => end.marker !== "none");
   const key = (index: number) => `R${offset + index + 1}`;
   if (marked.length === 1) {
